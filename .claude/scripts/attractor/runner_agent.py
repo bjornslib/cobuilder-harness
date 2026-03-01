@@ -45,6 +45,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import enum
 import json
 import os
 import re
@@ -424,61 +425,89 @@ def build_env_config() -> dict[str, str]:
 # ---------------------------------------------------------------------------
 
 
-class RunnerMode:
-    """Mode constants for RunnerStateMachine.
+class RunnerMode(str, enum.Enum):
+    """Operational modes for RunnerStateMachine.
 
-    Modes represent the current operational state of the runner:
-        MONITOR  — active monitoring cycle, querying the LLM about pipeline status
-        COMPLETE — terminal success state; node reached a validated/done state
-        FAILED   — terminal failure state; node failed or max cycles exceeded
+    Each member is also a ``str`` so comparisons with plain string literals
+    (e.g. ``mode == "MONITOR"``) continue to work without callers needing to
+    import the enum.
+
+    Modes represent the lifecycle state of the runner:
+        INIT         — initial state before monitoring begins
+        RUNNER       — running the orchestrator monitoring loop
+        MONITOR      — active monitoring cycle, querying LLM about pipeline status
+        WAIT_GUARDIAN — waiting for guardian response after signaling
+        VALIDATE     — validation phase, checking node completion criteria
+        COMPLETE     — terminal success state; node validated
+        FAILED       — terminal failure state; node failed or max cycles exceeded
     """
 
+    INIT = "INIT"
+    RUNNER = "RUNNER"
     MONITOR = "MONITOR"
+    WAIT_GUARDIAN = "WAIT_GUARDIAN"
+    VALIDATE = "VALIDATE"
     COMPLETE = "COMPLETE"
     FAILED = "FAILED"
 
 
 def build_monitor_prompt(
-    pipeline_path: str,
     node_id: str,
-    prd_ref: str,
+    session_name: str,
     scripts_dir: str,
 ) -> str:
     """Build the monitoring analysis prompt for the RunnerStateMachine.
 
-    Constructs a user-turn prompt that describes the pipeline and asks the
-    LLM to output a STATUS: line indicating whether the target node has
-    completed, failed, or is still in progress.
+    Constructs a user-turn prompt that asks the LLM to inspect the
+    orchestrator tmux session and output a STATUS: line indicating whether
+    the target node has completed, failed, or is still in progress.
 
     Args:
-        pipeline_path: Absolute path to the pipeline .dot file.
         node_id: Pipeline node identifier being monitored.
-        prd_ref: PRD reference string (e.g. "PRD-AUTH-001").
+        session_name: tmux session name hosting the orchestrator.
         scripts_dir: Absolute path to the attractor scripts directory.
 
     Returns:
         Formatted prompt string ready for the SDK query() call.
     """
-    with logfire.span("runner.build_monitor_prompt", node_id=node_id, prd_ref=prd_ref):
-        return (
-            f"Analyse the current state of the pipeline and determine whether "
-            f"the target node has completed, failed, or is still in progress.\n\n"
-            f"## Pipeline Details\n"
-            f"- Path: {pipeline_path}\n"
-            f"- Scripts directory: {scripts_dir}\n"
-            f"- Target Node: {node_id}\n"
-            f"- PRD Reference: {prd_ref}\n\n"
-            f"## Instructions\n"
-            f"Check the pipeline status using the available tools, then determine "
-            f"the state of the target node '{node_id}'.\n\n"
-            f"Respond with exactly ONE status line at the end of your analysis:\n"
-            f"- STATUS: COMPLETED   — if the node is validated or all pipeline "
-            f"nodes are validated\n"
-            f"- STATUS: FAILED      — if the node has failed with no path to "
-            f"recovery\n"
-            f"- STATUS: IN_PROGRESS — if monitoring should continue\n\n"
-            f"Your analysis:"
-        )
+    with logfire.span("runner.build_monitor_prompt", node_id=node_id, session_name=session_name):
+        return f"""\
+You are monitoring tmux session '{session_name}' for pipeline node '{node_id}'.
+
+## Your ONLY job
+1. Run: python {scripts_dir}/capture_output.py --session {session_name} --lines 100
+2. Analyse the output and respond in EXACTLY this format (no other text):
+
+STATUS: <COMPLETED|STUCK|CRASHED|WORKING|NEEDS_INPUT>
+EVIDENCE: <one-line summary of what you observed>
+COMMIT: <7+ hex char git commit hash if visible, else NONE>
+OUTPUT_TAIL: <last 3 lines of captured output>
+
+## DEFINITIVE completion signals → STATUS: COMPLETED
+Report COMPLETED immediately when you see ANY of these:
+- Git commit hash in output: `a7a8647`, `[abc1234 feat: ...]`, `[worktree-impl_auth abc1234]`
+- Push confirmation: "pushed to", "→ refs/heads/worktree-", "Branch 'worktree-"
+- PR prompt: "Would you like to create a pull request?"
+- Claude session result JSON: {{"session_id":, "num_turns":, "total_cost_usd":
+- Claude turn completion: "Completed turn N of N", "Human turn 0"
+
+## PROBABLE completion — poll twice before reporting COMPLETED
+- Shell prompt idle: line ending with `$ `, `% `, or `❯ ` with no change across 2 checks
+
+## Other statuses
+- STATUS: STUCK      — same output unchanged for multiple polls, repeated identical errors
+- STATUS: CRASHED    — tmux session no longer exists (capture_output.py returns error)
+- STATUS: WORKING    — active tool calls, file edits, LLM text streaming visible
+- STATUS: NEEDS_INPUT — AskUserQuestion dialog, "Do you want to...", "Should I..."
+
+## POST-REMEDIATION round-trip (IMPORTANT)
+After VALIDATION_FAILED feedback is relayed to the orchestrator, it will fix issues
+and produce NEW commits. You will re-enter MONITOR mode. Watch for the SAME completion
+indicators above and report STATUS: COMPLETED again when you see them.
+This round-trip is NORMAL — expect it and handle it correctly.
+
+Capture the output now and report your STATUS.
+"""
 
 
 class RunnerStateMachine:
@@ -543,11 +572,9 @@ class RunnerStateMachine:
         Returns:
             One of "COMPLETED", "FAILED", or "IN_PROGRESS".
         """
-        pipeline_path = self.dot_file or ""
         prompt = build_monitor_prompt(
-            pipeline_path=pipeline_path,
             node_id=self.node_id,
-            prd_ref=self.prd_ref,
+            session_name=self.session_name,
             scripts_dir=self._scripts_dir,
         )
 
