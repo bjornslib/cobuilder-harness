@@ -93,9 +93,8 @@ class TestBuildMonitorPrompt(unittest.TestCase):
     def _call(self, **kwargs) -> str:
         from runner_agent import build_monitor_prompt
         return build_monitor_prompt(
-            pipeline_path=kwargs.get("pipeline_path", _DOT),
             node_id=kwargs.get("node_id", _NODE),
-            prd_ref=kwargs.get("prd_ref", _PRD),
+            session_name=kwargs.get("session_name", _SESSION),
             scripts_dir=kwargs.get("scripts_dir", _SCRIPTS),
         )
 
@@ -103,17 +102,13 @@ class TestBuildMonitorPrompt(unittest.TestCase):
         result = self._call()
         self.assertIsInstance(result, str)
 
-    def test_contains_pipeline_path(self) -> None:
-        result = self._call(pipeline_path="/path/to/pipe.dot")
-        self.assertIn("/path/to/pipe.dot", result)
+    def test_contains_session_name(self) -> None:
+        result = self._call(session_name="orch-payments-001")
+        self.assertIn("orch-payments-001", result)
 
     def test_contains_node_id(self) -> None:
         result = self._call(node_id="impl_payments")
         self.assertIn("impl_payments", result)
-
-    def test_contains_prd_ref(self) -> None:
-        result = self._call(prd_ref="PRD-PAY-007")
-        self.assertIn("PRD-PAY-007", result)
 
     def test_contains_scripts_dir(self) -> None:
         result = self._call(scripts_dir="/custom/scripts")
@@ -121,15 +116,19 @@ class TestBuildMonitorPrompt(unittest.TestCase):
 
     def test_contains_status_completed(self) -> None:
         result = self._call()
-        self.assertIn("STATUS: COMPLETED", result)
+        self.assertIn("COMPLETED", result)
 
-    def test_contains_status_failed(self) -> None:
+    def test_contains_status_stuck(self) -> None:
         result = self._call()
-        self.assertIn("STATUS: FAILED", result)
+        self.assertIn("STUCK", result)
 
-    def test_contains_status_in_progress(self) -> None:
+    def test_contains_status_working(self) -> None:
         result = self._call()
-        self.assertIn("STATUS: IN_PROGRESS", result)
+        self.assertIn("WORKING", result)
+
+    def test_contains_post_remediation(self) -> None:
+        result = self._call()
+        self.assertIn("VALIDATION_FAILED", result)
 
     def test_substantial_length(self) -> None:
         result = self._call()

@@ -50,6 +50,7 @@ import json
 import os
 import re
 import sys
+from pathlib import Path
 import warnings
 from typing import Any
 
@@ -65,7 +66,23 @@ import hook_manager
 # Logfire instrumentation (required)
 # ---------------------------------------------------------------------------
 import logfire
+
+# Gracefully handle missing Logfire project credentials:
+# When running in an impl repo without .logfire/, logfire.configure()
+# triggers an interactive prompt that crashes non-interactive contexts.
+_send_to_logfire_env = os.environ.get("LOGFIRE_SEND_TO_LOGFIRE", "").lower()
+if _send_to_logfire_env == "false":
+    _logfire_enabled = False
+elif _send_to_logfire_env == "true":
+    _logfire_enabled = True
+else:
+    _logfire_enabled = (
+        Path(".logfire").is_dir()
+        or bool(os.environ.get("LOGFIRE_TOKEN"))
+    )
+
 logfire.configure(
+    send_to_logfire=_logfire_enabled,
     inspect_arguments=False,
     scrubbing=logfire.ScrubbingOptions(callback=lambda m: m.value),
 )
