@@ -1,0 +1,109 @@
+test_group: S4-chat-agent
+prd_id: PRD-P1.1-UNIFIED-FORM-001
+
+tests:
+  - id: S4.1
+    name: "Agent intro animates on page load (typewriter effect)"
+    steps:
+      - tool: mcp__claude-in-chrome__navigate
+        args:
+          url: "${base_url}${test_route}"
+      - description: "Capture initial state immediately"
+        tool: mcp__claude-in-chrome__javascript_tool
+        args:
+          javascript: |
+            const bubble = document.querySelector('[data-testid="agent-bubble"], .agent-bubble');
+            const textBefore = bubble ? bubble.textContent.trim() : '';
+            return { textLengthImmediate: textBefore.length };
+      - description: "Wait 2s and capture again — text should have grown if animating"
+        tool: mcp__claude-in-chrome__javascript_tool
+        args:
+          javascript: |
+            await new Promise(r => setTimeout(r, 2000));
+            const bubble = document.querySelector('[data-testid="agent-bubble"], .agent-bubble');
+            const textAfter = bubble ? bubble.textContent.trim() : '';
+            const mentionsCandidate = textAfter.includes('Bjorn') || textAfter.includes('Schliebitz');
+            const mentionsCompany = textAfter.includes('Engage') || textAfter.includes('Experience');
+            return {
+              textLengthAfter: textAfter.length,
+              mentionsCandidate: mentionsCandidate,
+              mentionsCompany: mentionsCompany,
+              isAnimating: true  // Inferred if textLengthImmediate < textLengthAfter
+            };
+        assert:
+          mentionsCandidate: true
+          mentionsCompany: true
+      - tool: mcp__claude-in-chrome__computer
+        args:
+          action: screenshot
+        evidence: "s4-1-agent-intro.png"
+
+  - id: S4.2
+    name: "Agent SILENT on clean confirmation — no chat bubbles"
+    steps:
+      - tool: mcp__claude-in-chrome__navigate
+        args:
+          url: "${base_url}${test_route}"
+      - description: "Confirm gate, then confirm first field — count bubbles before and after"
+        tool: mcp__claude-in-chrome__javascript_tool
+        args:
+          javascript: |
+            // Wait for intro to finish
+            await new Promise(r => setTimeout(r, 3000));
+            document.querySelector('[data-testid="gate-yes"]')?.click();
+            await new Promise(r => setTimeout(r, 800));
+            const bubblesBeforeConfirm = document.querySelectorAll('[data-testid="agent-bubble"], .agent-bubble, [data-testid="verifier-bubble"], .verifier-bubble').length;
+            document.querySelector('button:has-text("Confirm"), [data-testid="confirm-btn"]')?.click();
+            await new Promise(r => setTimeout(r, 1500));
+            const bubblesAfterConfirm = document.querySelectorAll('[data-testid="agent-bubble"], .agent-bubble, [data-testid="verifier-bubble"], .verifier-bubble').length;
+            return {
+              bubblesBeforeConfirm: bubblesBeforeConfirm,
+              bubblesAfterConfirm: bubblesAfterConfirm,
+              noBubblesAdded: bubblesBeforeConfirm === bubblesAfterConfirm
+            };
+        assert:
+          noBubblesAdded: true
+      - tool: mcp__claude-in-chrome__computer
+        args:
+          action: screenshot
+        evidence: "s4-2-silent-confirm.png"
+
+  - id: S4.3
+    name: "Verifier modification creates chat bubble + AURA responds"
+    steps:
+      - tool: mcp__claude-in-chrome__navigate
+        args:
+          url: "${base_url}${test_route}"
+      - description: "Confirm gate, click Change on first field, enter different value, click Update"
+        tool: mcp__claude-in-chrome__javascript_tool
+        args:
+          javascript: |
+            await new Promise(r => setTimeout(r, 3000));
+            document.querySelector('[data-testid="gate-yes"]')?.click();
+            await new Promise(r => setTimeout(r, 800));
+            const bubblesBefore = document.querySelectorAll('[data-testid="agent-bubble"], .agent-bubble, [data-testid="verifier-bubble"], .verifier-bubble').length;
+            document.querySelector('button:has-text("Change"), [data-testid="change-btn"]')?.click();
+            await new Promise(r => setTimeout(r, 400));
+            const input = document.querySelector('[data-state="editing"] input, [data-testid="field-input"]');
+            if (input) { input.value = '15 January 2019'; input.dispatchEvent(new Event('input', {bubbles: true})); }
+            await new Promise(r => setTimeout(r, 200));
+            document.querySelector('button:has-text("Update"), [data-testid="update-btn"]')?.click();
+            await new Promise(r => setTimeout(r, 2000));
+            const bubblesAfter = document.querySelectorAll('[data-testid="agent-bubble"], .agent-bubble, [data-testid="verifier-bubble"], .verifier-bubble').length;
+            const verifierBubbles = document.querySelectorAll('[data-testid="verifier-bubble"], .verifier-bubble');
+            const lastVerifier = verifierBubbles[verifierBubbles.length - 1];
+            const agentBubbles = document.querySelectorAll('[data-testid="agent-bubble"], .agent-bubble');
+            const lastAgent = agentBubbles[agentBubbles.length - 1];
+            return {
+              bubblesBefore: bubblesBefore,
+              bubblesAfter: bubblesAfter,
+              newBubblesAdded: bubblesAfter > bubblesBefore,
+              verifierBubbleText: lastVerifier ? lastVerifier.textContent.substring(0, 200) : null,
+              agentResponseText: lastAgent ? lastAgent.textContent.substring(0, 200) : null
+            };
+        assert:
+          newBubblesAdded: true
+      - tool: mcp__claude-in-chrome__computer
+        args:
+          action: screenshot
+        evidence: "s4-3-modification-chat.png"

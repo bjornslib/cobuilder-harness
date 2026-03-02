@@ -1,0 +1,22 @@
+repository: story-writer
+snapshot_date: '2026-02-27T07:30:55.595061+00:00'
+total_nodes: 648
+total_files: 138
+total_functions: 486
+top_modules:
+- name: tests
+  files: 69
+  delta: existing
+- name: src
+  files: 46
+  delta: existing
+- name: story-writer
+  files: 11
+  delta: existing
+- name: web
+  files: 11
+  delta: existing
+- name: htmlcov
+  files: 1
+  delta: existing
+target_dir: /Users/theb/Documents/Windsurf/story-writer

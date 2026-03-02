@@ -28,6 +28,9 @@ ls -la /path/to/impl-repo/.taskmaster/docs/ 2>/dev/null || echo "ERROR: impl rep
 # Verify tmux is available
 tmux -V
 
+# Add cs-* scripts to PATH (REQUIRED — they are not system-wide commands)
+export PATH="${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/completion-state:$PATH"
+
 # Verify cs-promise CLI is available
 cs-status 2>/dev/null || echo "ERROR: completion-state scripts not found"
 
@@ -571,6 +574,380 @@ Typical guardian session timeline for a medium-complexity PRD:
 | Independent validation | 15-30 min | Evidence gathering, scoring, report generation |
 | Post-validation | 5-10 min | Hindsight storage, cleanup, promise completion |
 | **Total** | **1.5-4 hours** | |
+
+---
+
+## Guardian Phase 2: Orchestrator Spawning (Full Reference)
+
+> Extracted from s3-guardian SKILL.md — complete orchestrator spawning procedure including DOT dispatch, tmux patterns, SDK mode, and wisdom injection.
+
+### Overview
+
+Two dispatch modes are available. Choose based on the use case:
+
+| Mode | When to Use | How It Works |
+|------|-------------|--------------|
+| **SDK mode** | Automated pipelines, E2E tests, CI/CD | `launch_guardian.py` drives the full chain via `claude_code_sdk` — no tmux |
+| **tmux mode** | Interactive sessions, long-running epics | Guardian spawns orchestrators in tmux sessions for manual monitoring |
+
+**SDK mode architecture** (validated E2E 2026-03-02):
+```
+launch_guardian.py ──SDK──► guardian_agent.py ──SDK──► runner (spawn_runner.py)
+                                                          ──SDK──► orchestrator (worker)
+```
+All 4 layers run headless via `claude_code_sdk`. No tmux sessions, no interactive prompts. The guardian reads the DOT pipeline, dispatches research nodes (synchronous), then spawns runners for codergen nodes. Each runner spawns an orchestrator that implements the work.
+
+**tmux mode architecture** (interactive):
+```
+Guardian (this session) ──spawns──► Orchestrator A (orch-epic1) ──delegates──► Workers
+                        ──spawns──► Orchestrator B (orch-epic2) ──delegates──► Workers
+```
+
+### Research Nodes (Mandatory Before Implementation)
+
+Every codergen node SHOULD have a preceding research node that validates framework patterns against current documentation before implementation begins.
+
+**Research node DOT attributes:**
+```dot
+research_impl_auth [
+    shape=tab
+    label="Research\nAuth Patterns"
+    handler="research"
+    downstream_node="impl_auth"
+    solution_design="docs/sds/SD-AUTH-001-login.md"
+    research_queries="fastapi,pydantic,supabase"
+    prd_ref="PRD-AUTH-001"
+    status="pending"
+];
+
+research_impl_auth -> impl_auth [label="research_complete"];
+```
+
+**What research nodes do:**
+1. Read the Solution Design document
+2. Validate framework patterns via Context7 (docs) and Perplexity (cross-validation)
+3. **Update the SD directly** with corrected patterns — no side-channel injection needed
+4. Write evidence to `.claude/evidence/{node_id}/research-findings.json`
+5. Persist learnings to Hindsight (LLM-driven reflect + retain)
+
+**Key design insight**: The SD is the single source of truth. Research nodes correct the SD itself, so downstream orchestrators get current patterns automatically by reading the SD they already reference.
+
+Research runs synchronously before codergen dispatch (~15-30s, Haiku model, ~$0.02). The guardian handles dispatch and state transitions internally.
+
+**Known limitation**: Research validates against *latest published docs* but does not check the *locally installed version*. If the local environment has an older version (e.g., pydantic-ai 1.58.0 vs documented 1.63.0), API attribute names may differ. Mitigation: pin dependency versions in the SD or add a local version check to the research prompt.
+
+### SDK Mode Dispatch
+
+For automated pipelines, use `launch_guardian.py`:
+
+```bash
+python3 .claude/scripts/attractor/launch_guardian.py \
+    --dot-file .claude/attractor/pipelines/${INITIATIVE}.dot \
+    --target-dir /path/to/target \
+    --model claude-sonnet-4-6 \
+    --max-turns 200
+```
+
+The guardian automatically:
+1. Validates the DOT pipeline
+2. Dispatches research nodes (synchronous, before codergen)
+3. Transitions nodes through the state machine (pending → active → validated)
+4. Spawns runners for codergen nodes via SDK
+5. Handles validation gates
+6. Exits when all nodes reach `validated` or a node fails
+
+### tmux Mode Pre-flight Checks
+
+Before spawning in tmux mode, verify:
+- [ ] Implementation repo exists and is accessible
+- [ ] PRD exists in `.taskmaster/docs/PRD-{ID}.md` (business artifact)
+- [ ] SD exists per epic in `.taskmaster/docs/SD-{ID}.md` (technical spec; Task Master input)
+- [ ] Acceptance tests have been created from SD (Phase 1 complete)
+- [ ] DOT pipeline exists AND validates: `cobuilder pipeline validate <pipeline.dot>` exits 0. If missing, STOP and run Step 0.2 first — do NOT proceed to spawn without a pipeline.
+- [ ] DOT codergen nodes have `solution_design` attribute pointing to their SD file
+- [ ] Research nodes precede codergen nodes with correct `downstream_node` edges
+- [ ] No existing tmux session with the same name
+- [ ] Hindsight wisdom gathered from project bank
+
+### Gather Wisdom from Hindsight
+
+Before spawning each orchestrator, query the project Hindsight bank:
+
+```python
+PROJECT_BANK = os.environ.get("CLAUDE_PROJECT_BANK", "claude-harness-setup")
+wisdom = mcp__hindsight__reflect(
+    query=f"What patterns apply to {epic_name}? Any anti-patterns or lessons for this domain?",
+    budget="mid",
+    bank_id=PROJECT_BANK
+)
+# Include the wisdom output in the orchestrator's initialization prompt
+```
+
+### DOT Pipeline-Driven Dispatch
+
+When a DOT pipeline exists, identify dispatchable nodes before spawning:
+
+```bash
+PIPELINE="/path/to/impl-repo/.claude/attractor/pipelines/${INITIATIVE}.dot"
+CLI="python3 /path/to/impl-repo/.claude/scripts/attractor/cli.py"
+
+# Find nodes with all upstream deps validated
+$CLI status "$PIPELINE" --filter=pending --deps-met --json
+
+# Transition node to active before dispatch (one per orchestrator)
+$CLI transition "$PIPELINE" <node_id> active
+$CLI checkpoint save "$PIPELINE"
+```
+
+Each orchestrator targets one pipeline node. Include the node's `acceptance`, `worker_type`, `file_path/folder_path`, and `bead_id` attributes in the initialization prompt.
+
+### Critical tmux Patterns
+
+**These patterns are mandatory. Violating them causes silent failures.**
+
+**Pattern 1 — Enter as separate send-keys call** (not appended to the command):
+```bash
+# WRONG — Enter gets silently ignored
+tmux send-keys -t "orch-epic1" "ccorch" Enter
+
+# CORRECT
+tmux send-keys -t "orch-epic1" "ccorch"
+tmux send-keys -t "orch-epic1" Enter
+```
+
+**Pattern 2 — Use `ccorch` not plain `claude`** (prevents invisible permission dialog blocks):
+```bash
+# WRONG — orchestrator blocks silently on approval dialogs
+tmux send-keys -t "orch-epic1" "claude"
+tmux send-keys -t "orch-epic1" Enter
+
+# CORRECT
+tmux send-keys -t "orch-epic1" "ccorch"
+tmux send-keys -t "orch-epic1" Enter
+```
+
+**Pattern 3 — Interactive mode is MANDATORY** (headless orchestrators cannot spawn native teams):
+```bash
+# WRONG — headless mode cannot spawn workers
+claude -p "Do the work"
+
+# CORRECT — interactive allows team spawning
+tmux send-keys -t "orch-epic1" "ccorch"
+tmux send-keys -t "orch-epic1" Enter
+```
+
+**Pattern 4 — Large pastes need `sleep 2` before Enter** (bracketed paste processing takes time):
+```bash
+tmux send-keys -t "orch-epic1" "$(cat /tmp/wisdom-epic1.md)"
+sleep 2   # Wait for bracketed paste to complete
+tmux send-keys -t "orch-epic1" Enter
+```
+
+### The Mandatory 3-Step Boot Sequence
+
+Every orchestrator MUST go through these 3 steps in this exact order. No exceptions.
+
+```
+Step 1: ccorch          → Sets 9 env vars (output style, session ID, agent teams, etc.)
+Step 2: /output-style   → Loads orchestrator persona and delegation rules
+Step 3: Skill prompt    → Orchestrator invokes Skill("orchestrator-multiagent") before any work
+```
+
+Skipping ANY step produces a crippled orchestrator that either:
+- Has no delegation rules (missing Step 2) → tries to implement directly
+- Has no team coordination patterns (missing Step 3) → cannot spawn workers
+- Has no session tracking, no model selection, no chrome (missing Step 1) → everything breaks silently
+
+### Spawn Sequence: Use `spawn_orchestrator.py` (MANDATORY)
+
+**Always use the canonical spawn script.** Never write ad-hoc tmux Bash for spawning.
+
+The script at `.claude/scripts/attractor/spawn_orchestrator.py` handles:
+- tmux session creation with `exec zsh` and correct dimensions
+- `unset CLAUDECODE && ccorch --worktree <node_id>` (Step 1)
+- `/output-style orchestrator` (Step 2)
+- Prompt delivery (Step 3)
+- Pattern 1 (Enter as separate send-keys call)
+- Respawn logic if session dies
+
+**CRITICAL: `IMPL_REPO` must point to the directory that contains `.claude/`** — this is the Claude Code project root. For monorepo layouts like `zenagent2/zenagent/agencheck/`, the project root is at `agencheck/` (where `.claude/output-styles/`, `.claude/settings.json`, etc. live), NOT at a subdirectory like `agencheck-support-agent/` or `agencheck-support-frontend/`. Spawning at the wrong level means the orchestrator boots without output styles, hooks, or skills.
+
+```bash
+EPIC_NAME="epic1"
+# ✅ CORRECT: points to directory containing .claude/
+IMPL_REPO="/path/to/impl-repo/agencheck"
+# ❌ WRONG: git root — .claude/ is in agencheck/, not here
+# IMPL_REPO="/path/to/impl-repo/zenagent"  # DON'T use the git/monorepo root!
+# ❌ WRONG: subdirectory — no .claude/ here, orchestrator boots broken
+# IMPL_REPO="/path/to/impl-repo/agencheck/agencheck-support-agent"  # DON'T use subdirectories!
+PRD_ID="PRD-XXX-001"
+
+# 1. Write the wisdom/prompt to a temp file FIRST
+#    SD_PATH is the solution_design attribute from the DOT node
+#    e.g., SD_PATH=".taskmaster/docs/SD-AUTH-001-login.md"
+cat > "/tmp/wisdom-${EPIC_NAME}.md" << 'WISDOMEOF'
+You are an orchestrator for initiative: ${EPIC_NAME}
+
+> Your output style was set to "orchestrator" by the guardian during spawn.
+
+## FIRST ACTIONS (Mandatory — do these BEFORE any investigation or implementation)
+1. Skill("orchestrator-multiagent")   ← This loads your delegation patterns
+2. Teammate(operation="spawnTeam", team_name="${EPIC_NAME}-workers", description="Workers for ${EPIC_NAME}")
+
+## Your Mission
+${EPIC_DESCRIPTION}
+
+## Solution Design (Primary Technical Reference)
+Your full technical specification is in: ${SD_PATH}
+Read it before delegating to workers. Key sections:
+- Section 2: Technical Architecture (data models, API contracts, component design)
+- Section 4: Functional Decomposition (features with explicit dependencies)
+- Section 6: Acceptance Criteria per Feature (definition of done for each worker task)
+- Section 8: File Scope (which files workers are allowed to touch)
+
+## DOT Node Scope (pipeline-driven)
+- Node ID: ${NODE_ID}
+- Acceptance: "${ACCEPTANCE_CRITERIA}"
+- File Scope: ${FILE_PATHS} (see SD Section 8 for full scoping)
+- Bead ID: ${BEAD_ID}
+
+## Patterns from Hindsight
+${WISDOM_FROM_HINDSIGHT}
+
+## On Completion
+Update bead to impl_complete: bd update ${BEAD_ID} --status=impl_complete
+WISDOMEOF
+
+# 2. Spawn via canonical script (handles Steps 1-3 of the boot sequence)
+python3 "${IMPL_REPO}/.claude/scripts/attractor/spawn_orchestrator.py" \
+    --node "${EPIC_NAME}" \
+    --prd "${PRD_ID}" \
+    --repo-root "${IMPL_REPO}" \
+    --prompt "Read the file at /tmp/wisdom-${EPIC_NAME}.md and follow those instructions. Your FIRST ACTION must be: Skill(\"orchestrator-multiagent\")"
+
+# 3. Verify spawn succeeded (script outputs JSON)
+# {"status": "ok", "session": "orch-epic1", ...}
+```
+
+**What `spawn_orchestrator.py` does internally** (you should NOT replicate this manually):
+1. Creates tmux session with `exec zsh` in `--repo-root` directory
+2. Sends `unset CLAUDECODE && ccorch --worktree <node>` (8s pause) — **Step 1**
+3. Sends `/output-style orchestrator` (3s pause) — **Step 2**
+4. Sends the `--prompt` text (2s pause) — **Step 3**
+5. All sends use Pattern 1 (Enter as separate call)
+
+### Anti-Pattern: Ad-Hoc Bash Spawn (NEVER DO THIS)
+
+The following code was found in a real session. It produces a **broken orchestrator** that lacks output style, delegation patterns, session tracking, and agent team support:
+
+```bash
+# ❌ WRONG — 5 critical violations that produce a crippled orchestrator
+tmux new-session -d -s "orch-v2-ux" -c "$WORK_DIR"
+sleep 1
+tmux send-keys -t "orch-v2-ux" "exec zsh" Enter           # ❌ Pattern 1: Enter appended
+sleep 2
+tmux send-keys -t "orch-v2-ux" "unset CLAUDECODE && cd $WORK_DIR && claude --dangerously-skip-permissions" Enter
+#                                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#                                    ❌ Uses plain `claude` instead of `ccorch`
+#                                    ❌ Missing: output style, session ID, agent teams,
+#                                       task list, project bank, model, chrome flag
+sleep 10
+tmux send-keys -t "orch-v2-ux" "$WISDOM"                   # ❌ No /output-style step
+sleep 2                                                      # ❌ No Skill("orchestrator-multiagent")
+tmux send-keys -t "orch-v2-ux" "" Enter
+```
+
+**Why each violation matters:**
+
+| Violation | Consequence |
+|-----------|-------------|
+| `claude` instead of `ccorch` | No `CLAUDE_OUTPUT_STYLE`, no `CLAUDE_SESSION_ID`, no `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`, no `--model claude-opus-4-6`, no `--chrome`. Orchestrator boots as a generic Claude session. |
+| No `/output-style orchestrator` | Orchestrator has no delegation rules — will try to implement code directly instead of spawning workers. |
+| No `Skill("orchestrator-multiagent")` in prompt | Orchestrator doesn't know HOW to create teams, delegate tasks, or coordinate workers. |
+| `Enter` appended to command | tmux may silently drop the Enter key, causing commands to not execute. |
+| Direct paste instead of file reference | Large wisdom text can overflow tmux paste buffer, causing truncation. |
+| `IMPL_REPO` points to git/monorepo root instead of `.claude/` root | Worktree created at wrong level; orchestrator can't find output styles, hooks, or skills. e.g., using `zenagent/` instead of `zenagent/agencheck/`. |
+| `IMPL_REPO` points to subdirectory instead of `.claude/` root | Orchestrator boots without output styles, hooks, or skills. e.g., using `agencheck-support-agent/` instead of `agencheck/`. |
+
+**The fix is always the same:** Use `spawn_orchestrator.py` with `--repo-root` pointing to the directory that contains `.claude/`.
+
+### Parallel Spawning (Multiple Epics)
+
+When multiple DOT nodes have no dependency relationship, spawn orchestrators in parallel:
+
+```bash
+# Check edges to confirm independence before parallel dispatch
+cobuilder pipeline edge-list "${PIPELINE}" --output json
+
+# Spawn each independent node as a separate orchestrator
+for NODE_ID in node1 node2 node3; do
+    EPIC_NAME="${NODE_ID}"
+    # ... run spawn sequence above for each ...
+done
+```
+
+### After Spawn: Communication Hierarchy
+
+The guardian monitors orchestrators DIRECTLY:
+
+```
+Guardian ──monitors──► Orchestrator ──delegates──► Workers (native teams)
+   │                       ▲
+   └──── sends guidance ───┘
+```
+
+| Action | Target | When |
+|--------|--------|------|
+| Send guidance/corrections | Orchestrator tmux session | Primary channel |
+| Monitor output (read-only) | Orchestrator tmux session | Continuous |
+| Answer AskUserQuestion | Whichever session shows the dialog | Immediately (blocks are time-critical) |
+
+Proceed to **Phase 3: Monitoring** after all orchestrators are spawned and running.
+
+### CoBuilder Boot Sequence for Orchestrators
+
+Every orchestrator session needs a functional RepoMap baseline before work begins.
+Since `.repomap/` is committed to git and worktrees are full git checkouts, the
+baseline is already present. The orchestrator only needs to verify it and know
+the refresh commands for post-node-validation use.
+
+Include these commands in the initial prompt sent to every orchestrator tmux session:
+
+```
+## CoBuilder Commands Available in This Session
+
+# Verify baseline exists and is recent
+cobuilder repomap status --name ${REPO_NAME}
+
+# After completing your work (automatic via post-validated hook, manual fallback):
+cobuilder repomap refresh --name ${REPO_NAME} --scope <file1> --scope <file2>
+
+# Full resync if you added many new files:
+cobuilder repomap sync --name ${REPO_NAME}
+```
+
+Set these environment variables in the tmux session alongside CLAUDE_SESSION_ID:
+
+```bash
+export COBUILDER_REPO_NAME="${REPO_NAME}"
+export COBUILDER_PIPELINE_DOT="${PIPELINE_DOT_PATH}"
+export COBUILDER_ENFORCE_FRESHNESS=1
+```
+
+The post-validation hook in `transition.py` handles per-node refresh automatically.
+Manual refresh is only needed if the hook missed files (nodes without `file_path`
+attributes) or if the hook logged an error.
+
+After the orchestrator completes, invoke cleanup explicitly:
+
+```bash
+python cobuilder/orchestration/spawn_orchestrator.py \
+    --node ${NODE_ID} \
+    --prd ${PRD_REF} \
+    --repo-root ${REPO_ROOT} \
+    --on-cleanup \
+    --repo-name ${REPO_NAME}
+```
 
 ---
 

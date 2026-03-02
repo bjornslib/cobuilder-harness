@@ -31,6 +31,12 @@ User Prompt → Extract Goals → Track Progress → Verify Completion → Allow
 
 **Scripts location**: `.claude/scripts/completion-state/`
 
+> **DISAMBIGUATION WARNING**: `cs-promise` and `cs-verify` are SEPARATE scripts.
+> - `cs-promise` — Create, manage, and submit evidence for promises
+> - `cs-verify` — Verify promises and check session readiness
+> - **CORRECT**: `cs-verify --promise <id>` (verify a promise)
+> - **WRONG**: `cs-promise --verify <id>` (`--verify` flag does NOT exist on cs-promise)
+
 ### Consolidated CLI (v2.0)
 
 The CLI has been consolidated from 8 scripts to 4 essential commands:

@@ -40,3 +40,9 @@ __pycache__/
 # OAuth2 credentials (sensitive)
 credentials/google-chat-token.json
 credentials/google-chat-oauth-client.json
+
+# Attractor runtime artifacts
+attractor/checkpoints/
+attractor/pipelines/
+attractor/runner-state/
+attractor/signals/

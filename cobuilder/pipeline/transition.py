@@ -26,7 +26,7 @@ import sys
 import traceback
 from pathlib import Path
 
-from .parser import parse_file
+from .parser import parse_dot, parse_file
 
 logger = logging.getLogger(__name__)
 
@@ -158,8 +158,6 @@ def apply_transition(
     Returns (updated_content, log_message).
     """
     # First parse to validate the node exists and get current status
-    from parser import parse_dot
-
     data = parse_dot(dot_content)
     node = None
     for n in data["nodes"]:
@@ -215,8 +213,6 @@ def apply_transition(
 
 def _get_node(dot_content: str, node_id: str) -> dict | None:
     """Return the parsed node dict for node_id, or None if not found."""
-    from parser import parse_dot
-
     data = parse_dot(dot_content)
     for node in data["nodes"]:
         if node["id"] == node_id:
@@ -233,8 +229,6 @@ def find_activation_targets(dot_content: str, codergen_id: str) -> list[str]:
 
     Returns a list of hexagon node IDs.
     """
-    from parser import parse_dot
-
     data = parse_dot(dot_content)
     # Build a quick shape lookup
     shape_of: dict[str, str] = {
@@ -256,8 +250,6 @@ def find_decision_diamond(dot_content: str, hexagon_id: str) -> str | None:
 
     Returns the diamond node ID, or None if not found.
     """
-    from parser import parse_dot
-
     data = parse_dot(dot_content)
     handler_of: dict[str, str] = {
         n["id"]: n["attrs"].get("handler", "") for n in data["nodes"]
@@ -282,8 +274,6 @@ def route_from_diamond(
 
     Returns a list of destination node IDs whose edge has condition==condition.
     """
-    from parser import parse_dot
-
     data = parse_dot(dot_content)
     destinations = []
     for edge in data["edges"]:
@@ -304,8 +294,6 @@ def check_finalize_gate(dot_content: str) -> tuple[bool, list[str]]:
         not_validated lists the IDs of hexagon nodes that are NOT yet
         'validated'.
     """
-    from parser import parse_dot
-
     data = parse_dot(dot_content)
     not_validated: list[str] = []
     for node in data["nodes"]:
@@ -374,8 +362,6 @@ def route_decision_cascade(
         updated_content: DOT string with all cascade transitions applied.
         affected_ids:    List of node IDs that were modified.
     """
-    from parser import parse_dot
-
     if result not in ("pass", "fail"):
         raise ValueError(f"result must be 'pass' or 'fail', got '{result}'")
 
@@ -819,9 +805,7 @@ def _cmd_transition(args: argparse.Namespace, content: str) -> None:
     session_id: str = getattr(args, "session_id", "")
 
     # Fetch node attrs before transition for AC-3 signal check
-    from parser import parse_dot as _parse_dot
-
-    _pre_data = _parse_dot(content)
+    _pre_data = parse_dot(content)
     _pre_node_attrs: dict = {}
     for _n in _pre_data["nodes"]:
         if _n["id"] == args.node_id:

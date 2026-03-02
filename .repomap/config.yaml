@@ -12,3 +12,9 @@ repos:
   baseline_hash: sha256:fbd70ccc3a42e5d7
   node_count: 2593
   file_count: 340
+- name: agencheck
+  path: /Users/theb/Documents/Windsurf/claude-harness-setup
+  last_synced: '2026-02-28T21:23:42.333882+00:00'
+  baseline_hash: sha256:fe53b8974cd0dc9b
+  node_count: 2902
+  file_count: 398

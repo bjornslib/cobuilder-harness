@@ -305,7 +305,7 @@ prd_id: "PRD-PREFECT-001"
 prd_title: "Prefect Pipeline Integration"
 created_at: "2026-02-19T10:00:00+11:00"
 created_by: "s3-guardian"
-impl_repo: "/Users/theb/Documents/Windsurf/zenagent3/zenagent"
+impl_repo: "/Users/theb/Documents/Windsurf/zenagent3/zenagent/agencheck"
 
 thresholds:
   accept: 0.60
@@ -551,3 +551,223 @@ Feature: Observability
 
 **Reference Version**: 0.1.0
 **Parent Skill**: s3-guardian
+
+---
+
+## Guardian Phase 1: Acceptance Test Creation Workflow
+
+> Extracted from s3-guardian SKILL.md — full Phase 1 procedure for generating blind acceptance tests from Solution Design documents.
+
+Generate blind acceptance tests from **Solution Design (SD) documents** before any implementation begins.
+The SD is the correct input because it contains:
+- **Business Context section** — the goals and success metrics the tests should validate
+- **Section 6: Acceptance Criteria per Feature** — Gherkin-ready criteria for each feature
+
+The PRD (business artifact) provides the broader context, but the SD contains the structured,
+feature-level acceptance criteria that `acceptance-test-writer` needs to generate meaningful tests.
+
+This phase uses `acceptance-test-writer` in two modes: `--mode=guardian` for per-epic Gherkin scenarios,
+and `--mode=journey` for cross-layer business journey scenarios.
+
+**Document lookup**:
+- SD files are in the implementation repo at: `.taskmaster/docs/SD-{CATEGORY}-{NUMBER}-{epic-slug}.md`
+- PRD files are at: `.taskmaster/docs/PRD-{CATEGORY}-{DESCRIPTOR}.md`
+- Both live in `.taskmaster/docs/` — SDs can be read directly from the impl repo path
+
+### Step 1: Generate Per-Epic Gherkin Tests (Guardian Mode)
+
+Invoke the acceptance-test-writer skill in guardian mode. This generates the per-epic Gherkin
+scenarios with confidence scoring guides that will be used for Phase 4 validation.
+
+```python
+# Source the SD document — it has the structured acceptance criteria
+# The --prd flag identifies the parent PRD for test organisation
+Skill("acceptance-test-writer", args="--source=/path/to/impl-repo/.taskmaster/docs/SD-{ID}.md --prd=PRD-{ID} --mode=guardian")
+```
+
+If no SD exists yet (legacy initiative), fall back to the PRD:
+```python
+Skill("acceptance-test-writer", args="--source=/path/to/impl-repo/.taskmaster/docs/PRD-{ID}.md --mode=guardian")
+```
+
+This creates:
+- `acceptance-tests/PRD-{ID}/manifest.yaml` — feature weights and decision thresholds
+- `acceptance-tests/PRD-{ID}/scenarios.feature` — Gherkin scenarios with confidence scoring guides
+
+**Verify the output:**
+- [ ] All SD features (Section 4: Functional Decomposition) represented with weights summing to 1.0
+- [ ] Each scenario has a confidence scoring guide (0.0 / 0.5 / 1.0 anchors)
+- [ ] Evidence references are specific (file names, function names, test names from SD File Scope)
+- [ ] Red flags section present for each scenario
+- [ ] manifest.yaml has valid thresholds (default: accept=0.60, investigate=0.40)
+
+If the acceptance-test-writer cannot find a Goals section in the SD, use the SD's Business Context
+section (Section 1) or derive objectives from the parent PRD's Goals (Section 2).
+
+### Step 2: Generate Journey Tests (Journey Mode)
+
+After generating per-epic Gherkin, generate blind journey tests from the **PRD** — not the SD.
+Journey tests are cross-epic: they verify end-to-end business flows that span multiple epics and
+cannot be validated by any single SD. The PRD's Goals and User Stories sections define these flows.
+
+```python
+# Source the PRD — journey tests must capture cross-epic business outcomes
+# One set of journey tests per PRD (not per SD)
+Skill("acceptance-test-writer", args="--source=/path/to/impl-repo/.taskmaster/docs/PRD-{ID}.md --prd=PRD-{ID} --mode=journey")
+```
+
+This creates `acceptance-tests/PRD-{ID}/journeys/` in the config repo (where meta-orchestrators cannot see it).
+Journey tests are generated BEFORE the meta-orchestrator is spawned — they stay blind throughout.
+
+**Verify the output:**
+- [ ] At least one `J{N}.feature` file exists per PRD business objective (Goals section / Section 2)
+- [ ] Scenarios cross epic boundaries — a journey that stays within one epic is a mis-scoped scenario
+- [ ] `runner_config.yaml` is present with sensible service URLs
+- [ ] Each scenario crosses at least 2 system layers and ends with a business outcome assertion
+- [ ] Tags include `@journey @prd-{ID} @J{N}`
+
+**Storage location**: Both per-epic and journey tests live in `acceptance-tests/PRD-{ID}/` in the config
+repo (claude-harness-setup), never in the implementation repo. Meta-orchestrators and their workers never see
+the rubric or the journeys. This enables truly independent validation.
+
+### Step 3: Generate Executable Browser Test Scripts (MANDATORY for UX PRDs)
+
+**Trigger condition**: If the manifest.yaml contains ANY feature with `validation_method: browser-required`, this step is MANDATORY. Skip for PRDs with only `code-analysis` and `api-required` features.
+
+The Gherkin scenarios from Step 1 are scoring rubrics — they guide confidence scoring but are not directly executable. This step generates companion executable test scripts that can be run by a tdd-test-engineer agent against a live frontend using claude-in-chrome MCP tools.
+
+**Why the existing scenarios.feature is NOT sufficient**: The PRD-P1.1-UNIFIED-FORM-001 experience demonstrated this gap. 17 Gherkin scenarios were written as scoring rubrics with confidence guides (0.0/0.5/1.0 anchors), but none were executable. The guardian could not automatically verify whether the voice bar was hidden in chat mode, whether the progress bar replaced the case reference, or whether field confirmation changed the background color. These checks require browser automation.
+
+#### Why Both Formats Are Needed
+
+| Format | Purpose | Used By | Executable? |
+|--------|---------|---------|-------------|
+| `scenarios.feature` | Confidence scoring rubric | Guardian Phase 4 manual scoring | No — requires judgment |
+| `executable-tests/` | Automated browser validation | tdd-test-engineer agent | Yes — deterministic pass/fail |
+
+#### Output Structure
+
+```
+acceptance-tests/PRD-{ID}/
+├── manifest.yaml              # (from Step 1)
+├── scenarios.feature          # (from Step 1) — scoring rubric
+├── journeys/                  # (from Step 2)
+└── executable-tests/          # Browser automation test scripts
+    ├── config.yaml            # Base URL, selectors, test data
+    ├── S1-layout.yaml         # Executable version of S1.x scenarios
+    ├── S2-mode-switching.yaml # Executable version of S2.x scenarios
+    └── S3-form-panel.yaml     # Executable version of S3.x scenarios
+```
+
+#### Executable Test YAML Schema
+
+Each test file maps Gherkin scenarios to claude-in-chrome MCP tool calls:
+
+```yaml
+test_group: S1-layout
+prd_id: PRD-{ID}
+base_url: "http://localhost:3000"
+prerequisites:
+  - frontend_running: true
+  - route_exists: "/verify/test-task-123?mode=chat"
+
+tests:
+  - id: S1.1
+    name: "Page header shows verification title at very top"
+    steps:
+      - tool: mcp__claude-in-chrome__navigate
+        args:
+          url: "${base_url}/verify/test-task-123?mode=chat"
+      - tool: mcp__claude-in-chrome__get_page_text
+        args: {}
+        assert:
+          contains: "Employment Verification"
+      - tool: mcp__claude-in-chrome__find
+        args:
+          query: "h1, h2"
+        assert:
+          first_element_text_contains: "Employment Verification"
+      - tool: mcp__claude-in-chrome__computer
+        args:
+          action: screenshot
+        evidence: "s1-1-header.png"
+
+  - id: S2.1
+    name: "Chat mode does NOT show voice bar"
+    steps:
+      - tool: mcp__claude-in-chrome__navigate
+        args:
+          url: "${base_url}/verify/test-task-123?mode=chat"
+      - tool: mcp__claude-in-chrome__javascript_tool
+        args:
+          javascript: |
+            const voiceBar = document.querySelector('[data-testid="voice-bar"], [class*="speaking"], [class*="voice-controls"]');
+            return { voiceBarVisible: voiceBar !== null && voiceBar.offsetHeight > 0 };
+        assert:
+          voiceBarVisible: false
+      - tool: mcp__claude-in-chrome__find
+        args:
+          query: "input[type='text'], textarea"
+        assert:
+          found: true  # Chat input should exist in chat mode
+```
+
+#### Mapping Rules: Gherkin to MCP Tools
+
+| Gherkin Pattern | MCP Tool | Assertion Type |
+|-----------------|----------|----------------|
+| "I navigate to {url}" | `navigate` | N/A |
+| "the page shows {text}" | `get_page_text` | `contains: {text}` |
+| "{element} is visible" | `find` or `javascript_tool` | `found: true` |
+| "{element} is NOT visible" | `javascript_tool` (offsetHeight check) | `visible: false` |
+| "I click {element}" | `find` + `computer` (click) | N/A |
+| "I enter {value} in {field}" | `form_input` | N/A |
+| "background changes to {color}" | `javascript_tool` (getComputedStyle) | `contains: {color}` |
+| layout/CSS assertion | `javascript_tool` (grid/flex inspection) | custom assertion |
+| screenshot capture | `computer` (screenshot) | evidence artifact |
+
+#### Generation Process
+
+For each feature group in `manifest.yaml` where `validation_method: browser-required`:
+
+1. Read the corresponding Gherkin scenarios from `scenarios.feature`
+2. Map each `Then` assertion to a specific `mcp__claude-in-chrome__*` tool call
+3. Map each `When` action to a `navigate`, `form_input`, `find`, or `javascript_tool` call
+4. Add `evidence` capture (screenshot) after each scenario's assertions
+5. Include `assert` blocks with deterministic pass/fail conditions (not confidence scores)
+
+#### Execution During Phase 4
+
+These executable tests are run by a tdd-test-engineer agent during Phase 4 validation:
+
+```python
+Task(
+    subagent_type="tdd-test-engineer",
+    description="Execute browser automation tests for PRD-{ID}",
+    prompt=f"""
+    Execute the browser automation tests at: acceptance-tests/PRD-{prd_id}/executable-tests/
+
+    For each test file:
+    1. Read config.yaml for base URL and prerequisites
+    2. Verify prerequisites (frontend running, routes accessible)
+    3. Execute each test's steps sequentially using the specified MCP tools
+    4. Evaluate assert blocks — deterministic PASS/FAIL per step
+    5. Capture evidence screenshots to .claude/evidence/PRD-{prd_id}/
+    6. Return executable-test-results.json with per-test pass/fail
+
+    If frontend is not running, mark ALL tests as BLOCKED (not FAIL).
+    """
+)
+```
+
+#### Integration with Phase 4 Confidence Scoring
+
+Executable test results serve as hard evidence for Phase 4 confidence scoring:
+
+| Test Result | Impact on Confidence Score |
+|-------------|---------------------------|
+| **PASS** | Confidence floor of 0.7 for that scenario (evidence of working implementation) |
+| **FAIL** | Confidence ceiling of 0.3 for that scenario (implementation has defects) |
+| **BLOCKED** | No constraint on scoring (manual assessment still applies) |
+
+This prevents the guardian from scoring a scenario at 0.9 based on code reading when the executable test shows the feature is actually broken in the browser.

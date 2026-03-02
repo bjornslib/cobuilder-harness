@@ -132,8 +132,8 @@ Automated lifecycle event handlers configured in `.claude/settings.json`:
 | `SessionStart` | Detect orchestrator mode, load MCP skills | `session-start-orchestrator-detector.py`, `load-mcp-skills.sh` |
 | `UserPromptSubmit` | Remind orchestrator of delegation rules | `user-prompt-orchestrator-reminder.py` |
 | `Stop` | Validate completion before session ends | `unified-stop-gate.sh` |
-| `PreCompact` | Reload MCP skills after context compression | `load-mcp-skills.sh` |
-| `Notification` | Webhook notifications | `claude_notification_webhook.sh` |
+| `PreCompact` | Flush Hindsight memory before compression | `hindsight-memory-flush.py` |
+| `Notification` | Webhook notifications | `gchat-notification-dispatch.py` |
 
 ### 5. Enabled Plugins
 
@@ -386,6 +386,76 @@ python3 .claude/scripts/doc-gardener/lint.py
 # Bypass on push (emergency only)
 DOC_GARDENER_SKIP=1 git push
 ```
+
+---
+
+## System3 Monitoring Architecture
+
+### Critical Discovery: Wake-Up Mechanism
+
+**Only completing subagents can wake the main thread.** External scripts, file changes, and task list updates do NOT trigger notifications to idle Claude sessions.
+
+This shapes the entire monitoring design: **monitors must be subagents that COMPLETE when attention is needed.**
+
+### Validation-Agent Monitor Mode
+
+System3 uses `validation-test-agent --mode=monitor` for continuous oversight of orchestrators:
+
+```python
+Task(
+    subagent_type="validation-test-agent",
+    model="sonnet",  # MUST be Sonnet - Haiku lacks exit discipline
+    run_in_background=True,
+    prompt="--mode=monitor --session-id=orch-{name} --task-list-id=PRD-{prd}"
+)
+```
+
+**Monitor Outputs:**
+| Status | Meaning | System3 Action |
+|--------|---------|----------------|
+| `MONITOR_COMPLETE` | All tasks validated | Run final e2e, close uber-epic |
+| `MONITOR_STUCK` | Orchestrator blocked | Send guidance, re-launch monitor |
+| `MONITOR_VALIDATION_FAILED` | Work invalid | Alert orchestrator, re-launch |
+| `MONITOR_HEALTHY` | Still working | Re-launch monitor (heartbeat) |
+
+### Cyclic Wake-Up Pattern
+
+```
+System3                    Monitor (Sonnet)                Orchestrator
+   |                            |                              |
+   |  Launch monitor ---------->|                              |
+   |                            |<-- Poll task-list-monitor.py |
+   |                            |    Detect task completed     |
+   |                            |    Validate work...          |
+   |<----- COMPLETE ------------|                              |
+   |  Handle result             |                              |
+   |  RE-LAUNCH monitor ------->|  (cycle repeats)             |
+```
+
+### Model Requirements
+
+| Role | Model | Reason |
+|------|-------|--------|
+| System3 | Opus | Complex strategic reasoning |
+| Orchestrator | Sonnet/Opus | Coordination, delegation |
+| Worker | Haiku/Sonnet | Simple implementation |
+| **Validation Monitor** | **Sonnet** | Exit discipline required |
+
+### Task List Monitor Script
+
+`scripts/task-list-monitor.py` provides efficient change detection using MD5 checksums:
+
+```bash
+python ~/.claude/scripts/task-list-monitor.py --list-id shared-tasks --changes --json
+```
+
+### Task List ID Convention
+
+```
+CLAUDE_CODE_TASK_LIST_ID = PRD-{category}-{number}
+```
+
+Tasks stored at: `~/.claude/tasks/{CLAUDE_CODE_TASK_LIST_ID}/`
 
 ---
 

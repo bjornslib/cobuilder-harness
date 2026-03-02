@@ -111,6 +111,8 @@ def create_multi_node_dot(
     nodes: list[dict[str, str]] | None = None,
     pipeline_id: str = "multi-001",
     prd_ref: str = "PRD-MULTI-001",
+    include_research: bool = False,
+    solution_design: str = "docs/sds/SD-TEST.md",
 ) -> str:
     """Generate a DOT file with multiple codergen nodes and edges.
 
@@ -120,6 +122,8 @@ def create_multi_node_dot(
                Defaults to two sample nodes.
         pipeline_id: Pipeline identifier.
         prd_ref: PRD reference.
+        include_research: If True, insert a research node before each codergen node.
+        solution_design: SD path for research nodes (only used if include_research=True).
 
     Returns:
         Absolute path to the written DOT file.
@@ -131,6 +135,7 @@ def create_multi_node_dot(
         ]
 
     node_lines = []
+    research_lines = []
     val_lines = []
     edge_lines = []
 
@@ -139,6 +144,17 @@ def create_multi_node_dot(
         label = node.get("label", nid)
         ac = node.get("acceptance", "See DOT file")
         handler = node.get("handler", "codergen")
+        research_queries = node.get("research_queries", "")
+
+        # Optional research node before this codergen node
+        if include_research and handler == "codergen":
+            rid = f"research_{nid.removeprefix('impl_')}"
+            research_lines.append(
+                f'    {rid} [label="Research\\n{label}" shape="tab" handler="research"'
+                f' downstream_node="{nid}" solution_design="{solution_design}"'
+                f' research_queries="{research_queries}" prd_ref="{prd_ref}" status="pending"];'
+            )
+
         node_lines.append(
             f'    {nid} [label="{label}" handler="{handler}" status="pending"'
             f' bead_id="bead-{nid}" acceptance="{ac}"];'
@@ -147,18 +163,29 @@ def create_multi_node_dot(
             f'    val_{nid} [label="Validate {nid}" shape="hexagon"'
             f' handler="wait.human" status="pending"];'
         )
-        edge_lines.append(f"    {nid} -> val_{nid} [label=\"pass\"];")
 
-    # Chain validation gates: val_nodeA -> nodeB (sequential dependency)
+        # Edge: research -> impl (or just impl -> val if no research)
+        if include_research and handler == "codergen":
+            rid = f"research_{nid.removeprefix('impl_')}"
+            edge_lines.append(f'    {rid} -> {nid} [label="research_complete"];')
+        edge_lines.append(f'    {nid} -> val_{nid} [label="pass"];')
+
+    # Chain validation gates: val_nodeA -> research_nodeB (or nodeB if no research)
     for i in range(len(nodes) - 1):
         cur_val = f"val_{nodes[i]['id']}"
-        next_node = nodes[i + 1]["id"]
-        edge_lines.append(f"    {cur_val} -> {next_node} [label=\"next\"];")
+        next_nid = nodes[i + 1]["id"]
+        next_handler = nodes[i + 1].get("handler", "codergen")
+        if include_research and next_handler == "codergen":
+            next_rid = f"research_{next_nid.removeprefix('impl_')}"
+            edge_lines.append(f'    {cur_val} -> {next_rid} [label="next"];')
+        else:
+            edge_lines.append(f'    {cur_val} -> {next_nid} [label="next"];')
 
+    all_node_lines = research_lines + node_lines
     dot_content = (
         f"digraph pipeline {{\n"
         f'    graph [label="Multi-Node Pipeline" prd_ref="{prd_ref}" pipeline_id="{pipeline_id}"];\n\n'
-        + "\n".join(node_lines) + "\n\n"
+        + "\n".join(all_node_lines) + "\n\n"
         + "\n".join(val_lines) + "\n\n"
         + "\n".join(edge_lines) + "\n"
         + "}\n"
@@ -495,6 +522,129 @@ class TestMinimalDotCreation:
             content = fh.read()
         # val_impl_a -> impl_b (sequential dependency)
         assert "val_impl_a -> impl_b" in content
+
+
+class TestResearchNodePipeline:
+    """Test: DOT pipelines with research nodes before codergen nodes."""
+
+    def test_multi_node_dot_with_research_has_research_nodes(self, tmp_path):
+        """include_research=True inserts research nodes before each codergen."""
+        dot_path = create_multi_node_dot(
+            tmp_path, include_research=True, solution_design="docs/sds/SD-TEST.md",
+        )
+        with open(dot_path, encoding="utf-8") as fh:
+            content = fh.read()
+        assert "research_auth" in content
+        assert "research_db" in content
+        assert 'handler="research"' in content
+        assert 'shape="tab"' in content
+
+    def test_multi_node_dot_with_research_has_correct_edges(self, tmp_path):
+        """Research nodes are wired: research -> impl and val -> research (next)."""
+        dot_path = create_multi_node_dot(
+            tmp_path, include_research=True, solution_design="docs/sds/SD-TEST.md",
+        )
+        with open(dot_path, encoding="utf-8") as fh:
+            content = fh.read()
+        # research -> impl edge
+        assert "research_auth -> impl_auth" in content
+        assert "research_db -> impl_db" in content
+        # val -> research (chain to next research, not directly to next impl)
+        assert "val_impl_auth -> research_db" in content
+
+    def test_multi_node_dot_with_research_has_solution_design(self, tmp_path):
+        """Research nodes include the solution_design attribute."""
+        dot_path = create_multi_node_dot(
+            tmp_path,
+            include_research=True,
+            solution_design="docs/sds/SD-CUSTOM.md",
+        )
+        with open(dot_path, encoding="utf-8") as fh:
+            content = fh.read()
+        assert "SD-CUSTOM.md" in content
+
+    def test_multi_node_dot_with_research_has_downstream_node(self, tmp_path):
+        """Research nodes include the downstream_node attribute."""
+        dot_path = create_multi_node_dot(
+            tmp_path, include_research=True,
+        )
+        with open(dot_path, encoding="utf-8") as fh:
+            content = fh.read()
+        assert 'downstream_node="impl_auth"' in content
+        assert 'downstream_node="impl_db"' in content
+
+    def test_multi_node_dot_without_research_unchanged(self, tmp_path):
+        """include_research=False (default) produces no research nodes."""
+        dot_path = create_multi_node_dot(tmp_path, include_research=False)
+        with open(dot_path, encoding="utf-8") as fh:
+            content = fh.read()
+        assert "research" not in content.lower()
+        assert "tab" not in content
+
+    def test_guardian_prompt_mentions_research_dispatch(self, tmp_path):
+        """Guardian system prompt includes Phase 2a research dispatch instructions."""
+        dot_path = create_minimal_dot(tmp_path)
+        scripts_dir = guardian_agent.resolve_scripts_dir()
+        prompt = guardian_agent.build_system_prompt(
+            dot_path=dot_path,
+            pipeline_id="research-test-001",
+            scripts_dir=scripts_dir,
+            signal_timeout=600.0,
+            max_retries=3,
+            target_dir=str(tmp_path),
+        )
+        assert "Phase 2a" in prompt
+        assert "run_research.py" in prompt
+        assert "research" in prompt.lower()
+
+    def test_guardian_prompt_research_before_codergen(self, tmp_path):
+        """Phase 2a (research) appears before Phase 2b (codergen) in the prompt."""
+        dot_path = create_minimal_dot(tmp_path)
+        scripts_dir = guardian_agent.resolve_scripts_dir()
+        prompt = guardian_agent.build_system_prompt(
+            dot_path=dot_path,
+            pipeline_id="order-test",
+            scripts_dir=scripts_dir,
+            signal_timeout=600.0,
+            max_retries=3,
+            target_dir=str(tmp_path),
+        )
+        research_pos = prompt.index("Phase 2a")
+        codergen_pos = prompt.index("Phase 2b")
+        assert research_pos < codergen_pos
+
+    def test_run_research_dry_run_from_guardian_context(self, tmp_path):
+        """run_research.py --dry-run produces valid JSON from the guardian's scripts dir."""
+        import io
+        from contextlib import redirect_stdout
+
+        sd_file = tmp_path / "docs" / "sds" / "SD-TEST.md"
+        sd_file.parent.mkdir(parents=True, exist_ok=True)
+        sd_file.write_text("# Test Solution Design\n\n## Auth Patterns\nUse FastAPI Depends.\n")
+
+        # Import run_research from scripts dir
+        import run_research
+
+        buf = io.StringIO()
+        with pytest.raises(SystemExit) as exc_info:
+            with redirect_stdout(buf):
+                run_research.main([
+                    "--node", "research_auth",
+                    "--prd", "PRD-TEST-001",
+                    "--solution-design", str(sd_file),
+                    "--target-dir", str(tmp_path),
+                    "--frameworks", "fastapi,pydantic",
+                    "--dry-run",
+                ])
+
+        assert exc_info.value.code == 0
+        data = json.loads(buf.getvalue())
+        assert data["dry_run"] is True
+        assert data["node"] == "research_auth"
+        assert data["frameworks"] == ["fastapi", "pydantic"]
+        assert "prompt" in data
+        # Prompt should reference the SD path
+        assert str(sd_file) in data["prompt"]
 
 
 class TestSignalRoundtripAllTypes:

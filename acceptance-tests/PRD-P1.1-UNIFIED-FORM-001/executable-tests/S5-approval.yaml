@@ -1,0 +1,74 @@
+test_group: S5-approval
+prd_id: PRD-P1.1-UNIFIED-FORM-001
+
+tests:
+  - id: S5.1
+    name: "Approval section hidden during form completion"
+    steps:
+      - tool: mcp__claude-in-chrome__navigate
+        args:
+          url: "${base_url}${test_route}"
+      - tool: mcp__claude-in-chrome__javascript_tool
+        args:
+          javascript: |
+            const approval = document.querySelector('[data-testid="approval-section"]');
+            const nameInput = document.querySelector('input[placeholder="Your name"]');
+            const label = [...document.querySelectorAll('label, h3, h4')].find(el => el.textContent.includes('Approve'));
+            return {
+              approvalInDom: !!approval,
+              approvalVisible: approval ? approval.offsetHeight > 0 : false,
+              nameInputVisible: nameInput ? nameInput.offsetHeight > 0 : false,
+              approveLabelVisible: !!label && label.offsetHeight > 0
+            };
+        assert:
+          approvalVisible: false
+          nameInputVisible: false
+          approveLabelVisible: false
+      - tool: mcp__claude-in-chrome__computer
+        args:
+          action: screenshot
+        evidence: "s5-1-approval-hidden.png"
+
+  - id: S5.2
+    name: "Approval section inline layout after all fields resolved"
+    steps:
+      - description: "Complete all fields programmatically"
+        tool: mcp__claude-in-chrome__javascript_tool
+        args:
+          javascript: |
+            window.__testCompleteAllFields?.();
+            await new Promise(r => setTimeout(r, 1500));
+            const approval = document.querySelector('[data-testid="approval-section"]');
+            const nameInput = document.querySelector('input[placeholder="Your name"]');
+            const submitBtn = document.querySelector('button:has-text("Submit Verification")');
+            // Check inline layout
+            let isInline = false;
+            if (nameInput && submitBtn) {
+              const inputRect = nameInput.getBoundingClientRect();
+              const btnRect = submitBtn.getBoundingClientRect();
+              isInline = Math.abs(inputRect.top - btnRect.top) < 20;
+            }
+            // Check submit is not full-width
+            const btnWidth = submitBtn ? submitBtn.getBoundingClientRect().width : 0;
+            const parentWidth = submitBtn?.parentElement ? submitBtn.parentElement.getBoundingClientRect().width : 1;
+            const isFullWidth = btnWidth > parentWidth * 0.8;
+            // Check label text
+            const label = [...document.querySelectorAll('label, h3, h4')].find(el => el.textContent.includes('Approve'));
+            return {
+              approvalVisible: approval ? approval.offsetHeight > 0 : false,
+              isInlineLayout: isInline,
+              submitNotFullWidth: !isFullWidth,
+              labelText: label ? label.textContent.trim() : null,
+              placeholderCorrect: nameInput?.placeholder === 'Your name',
+              noEg: nameInput ? !nameInput.placeholder.includes('e.g') : true
+            };
+        assert:
+          approvalVisible: true
+          isInlineLayout: true
+          submitNotFullWidth: true
+          placeholderCorrect: true
+          noEg: true
+      - tool: mcp__claude-in-chrome__computer
+        args:
+          action: screenshot
+        evidence: "s5-2-approval-inline.png"

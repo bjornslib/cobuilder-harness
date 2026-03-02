@@ -33,10 +33,11 @@ SHAPE_TO_HANDLER: dict[str, str] = {
     "tripleoctagon": "fan_in",
     "parallelogram": "tool",      # disambiguated from 'parallel' by 'tool_command' attr
     "house": "manager_loop",
+    "tab": "research",
 }
 
 # Node shapes that require LLM invocation — used by Validation Rule 13
-LLM_NODE_SHAPES: frozenset[str] = frozenset({"box"})
+LLM_NODE_SHAPES: frozenset[str] = frozenset({"box", "tab"})
 
 # Node shapes that are eligible goal_gate candidates — used by ExitHandler
 GOAL_GATE_SHAPES: frozenset[str] = frozenset({"box", "hexagon", "component"})
@@ -222,6 +223,17 @@ class Node:
     def folder_path(self) -> str:
         """Target folder path for scoped workers.  Empty string if not set."""
         return self.attrs.get("folder_path", "")
+
+    @property
+    def downstream_node(self) -> str:
+        """Codergen node ID this research node feeds into.  Empty string if not set."""
+        return self.attrs.get("downstream_node", "")
+
+    @property
+    def research_queries(self) -> list[str]:
+        """Frameworks/topics to research, parsed from comma-separated string."""
+        raw = self.attrs.get("research_queries", "")
+        return [q.strip() for q in raw.split(",") if q.strip()] if raw else []
 
     @property
     def prd_ref(self) -> str:

@@ -1,0 +1,24 @@
+services:
+  # Pipeline engine is a CLI tool, not a server
+  cli_command: "cobuilder pipeline"
+  run_dir: "/tmp/pipeline-engine-test-run"
+
+test_fixtures:
+  # Location of test DOT files for journey tests
+  dot_files_dir: "cobuilder/engine/tests/fixtures/"
+  # Mock handler configuration
+  mock_handlers_module: "cobuilder.engine.tests.mock_handlers"
+
+logfire:
+  # Check Logfire for spans after execution
+  project_url: "${LOGFIRE_PROJECT_URL}"
+  query_age_minutes: 5
+
+polling:
+  interval_seconds: 2
+  max_wait_seconds: 30
+
+checkpoint:
+  # Where checkpoint files are written during tests
+  checkpoint_dir: "${run_dir}/checkpoints/"
+  events_jsonl: "${run_dir}/pipeline-events.jsonl"

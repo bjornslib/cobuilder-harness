@@ -523,36 +523,36 @@ class TestModeFlag(unittest.TestCase):
                 exit_code = e.code if e.code is not None else 0
         return buf.getvalue(), exit_code, mock_send
 
-    # ---- sdk mode: no --worktree in ccorch command ----------------------
+    # ---- sdk mode: no --worktree in claude command ----------------------
 
-    def test_sdk_mode_ccorch_has_no_worktree(self) -> None:
-        """--mode sdk → ccorch command must NOT contain --worktree."""
+    def test_sdk_mode_claude_has_no_worktree(self) -> None:
+        """--mode sdk → claude command must NOT contain --worktree."""
         _, _, mock_send = self._run_main_capture(["--mode", "sdk"])
-        # Collect all text args sent to _tmux_send
-        ccorch_calls = [c.args[1] for c in mock_send.call_args_list
-                        if "ccorch" in str(c.args[1] if c.args else "")]
-        self.assertTrue(ccorch_calls, "Expected at least one ccorch _tmux_send call")
-        for cmd in ccorch_calls:
+        # Collect all text args sent to _tmux_send that are claude launch commands
+        claude_calls = [c.args[1] for c in mock_send.call_args_list
+                        if "claude" in str(c.args[1] if c.args else "") and "CLAUDECODE" in str(c.args[1] if c.args else "")]
+        self.assertTrue(claude_calls, "Expected at least one claude launch _tmux_send call")
+        for cmd in claude_calls:
             self.assertNotIn("--worktree", cmd,
                              f"sdk mode must NOT pass --worktree, but got: {cmd!r}")
 
-    def test_sdk_mode_ccorch_is_bare_ccorch(self) -> None:
-        """--mode sdk → ccorch command is exactly 'unset CLAUDECODE && ccorch'."""
+    def test_sdk_mode_claude_has_enforce_bo_false(self) -> None:
+        """--mode sdk → claude command contains CLAUDE_ENFORCE_BO=false."""
         _, _, mock_send = self._run_main_capture(["--mode", "sdk"])
-        ccorch_calls = [c.args[1] for c in mock_send.call_args_list
-                        if "ccorch" in str(c.args[1] if c.args else "")]
-        self.assertTrue(ccorch_calls)
-        self.assertEqual(ccorch_calls[0].strip(), "unset CLAUDECODE && ccorch")
+        claude_calls = [c.args[1] for c in mock_send.call_args_list
+                        if "claude" in str(c.args[1] if c.args else "") and "CLAUDECODE" in str(c.args[1] if c.args else "")]
+        self.assertTrue(claude_calls)
+        self.assertIn("CLAUDE_ENFORCE_BO=false", claude_calls[0])
 
     # ---- tmux mode (default): --worktree present -------------------------
 
-    def test_tmux_mode_ccorch_has_worktree(self) -> None:
-        """--mode tmux (default) → ccorch command MUST contain --worktree <node_id>."""
+    def test_tmux_mode_claude_has_worktree(self) -> None:
+        """--mode tmux (default) → claude command MUST contain --worktree <node_id>."""
         _, _, mock_send = self._run_main_capture(["--mode", "tmux"])
-        ccorch_calls = [c.args[1] for c in mock_send.call_args_list
-                        if "ccorch" in str(c.args[1] if c.args else "")]
-        self.assertTrue(ccorch_calls, "Expected at least one ccorch _tmux_send call")
-        for cmd in ccorch_calls:
+        claude_calls = [c.args[1] for c in mock_send.call_args_list
+                        if "claude" in str(c.args[1] if c.args else "") and "CLAUDECODE" in str(c.args[1] if c.args else "")]
+        self.assertTrue(claude_calls, "Expected at least one claude launch _tmux_send call")
+        for cmd in claude_calls:
             self.assertIn("--worktree", cmd,
                           f"tmux mode must pass --worktree, but got: {cmd!r}")
 
@@ -577,10 +577,10 @@ class TestModeFlag(unittest.TestCase):
                     main()
             except SystemExit:
                 pass
-        ccorch_calls = [c.args[1] for c in mock_send.call_args_list
-                        if "ccorch" in str(c.args[1] if c.args else "")]
-        self.assertTrue(ccorch_calls)
-        self.assertIn("--worktree", ccorch_calls[0])
+        claude_calls = [c.args[1] for c in mock_send.call_args_list
+                        if "claude" in str(c.args[1] if c.args else "") and "CLAUDECODE" in str(c.args[1] if c.args else "")]
+        self.assertTrue(claude_calls)
+        self.assertIn("--worktree", claude_calls[0])
 
     # ---- sdk mode: identity worktree is empty string ---------------------
 
@@ -683,7 +683,7 @@ class TestModeFlag(unittest.TestCase):
                              f"mode='sdk' must be forwarded to respawn_orchestrator, got: {call_kwargs!r}")
 
     def test_sdk_mode_respawn_no_worktree_in_command(self) -> None:
-        """respawn_orchestrator(mode='sdk') → ccorch command has no --worktree."""
+        """respawn_orchestrator(mode='sdk') → claude command has no --worktree."""
         with patch("spawn_orchestrator.check_orchestrator_alive", return_value=False), \
              patch("spawn_orchestrator.subprocess.run") as mock_run, \
              patch("spawn_orchestrator.time.sleep"), \
@@ -692,13 +692,13 @@ class TestModeFlag(unittest.TestCase):
             mock_run.return_value = MagicMock(returncode=0)
             result = respawn_orchestrator("orch-auth", "/tmp", "auth", None, 0, 3, mode="sdk")
         self.assertEqual(result["status"], "respawned")
-        ccorch_calls = [c.args[1] for c in mock_send.call_args_list
-                        if "ccorch" in str(c.args[1] if c.args else "")]
-        self.assertTrue(ccorch_calls)
-        self.assertNotIn("--worktree", ccorch_calls[0])
+        claude_calls = [c.args[1] for c in mock_send.call_args_list
+                        if "claude" in str(c.args[1] if c.args else "") and "CLAUDECODE" in str(c.args[1] if c.args else "")]
+        self.assertTrue(claude_calls)
+        self.assertNotIn("--worktree", claude_calls[0])
 
     def test_tmux_mode_respawn_has_worktree_in_command(self) -> None:
-        """respawn_orchestrator(mode='tmux') → ccorch command includes --worktree."""
+        """respawn_orchestrator(mode='tmux') → claude command includes --worktree."""
         with patch("spawn_orchestrator.check_orchestrator_alive", return_value=False), \
              patch("spawn_orchestrator.subprocess.run") as mock_run, \
              patch("spawn_orchestrator.time.sleep"), \
@@ -707,11 +707,204 @@ class TestModeFlag(unittest.TestCase):
             mock_run.return_value = MagicMock(returncode=0)
             result = respawn_orchestrator("orch-auth", "/tmp", "auth", None, 0, 3, mode="tmux")
         self.assertEqual(result["status"], "respawned")
-        ccorch_calls = [c.args[1] for c in mock_send.call_args_list
-                        if "ccorch" in str(c.args[1] if c.args else "")]
-        self.assertTrue(ccorch_calls)
-        self.assertIn("--worktree", ccorch_calls[0])
-        self.assertIn("auth", ccorch_calls[0])
+        claude_calls = [c.args[1] for c in mock_send.call_args_list
+                        if "claude" in str(c.args[1] if c.args else "") and "CLAUDECODE" in str(c.args[1] if c.args else "")]
+        self.assertTrue(claude_calls)
+        self.assertIn("--worktree", claude_calls[0])
+        self.assertIn("auth", claude_calls[0])
+
+
+# ---------------------------------------------------------------------------
+# TestTmuxSendPostPause — post_pause parameter behaviour
+# ---------------------------------------------------------------------------
+
+
+class TestTmuxSendPostPause(unittest.TestCase):
+    """Tests for _tmux_send() post_pause parameter."""
+
+    def test_no_post_pause_calls_sleep_once(self) -> None:
+        """When post_pause=0.0 (default), time.sleep is called exactly once (for pause)."""
+        with patch("spawn_orchestrator.subprocess.run"), \
+             patch("spawn_orchestrator.time.sleep") as mock_sleep:
+            spawn_orchestrator._tmux_send("orch-auth", "some text", pause=2.0, post_pause=0.0)
+        self.assertEqual(mock_sleep.call_count, 1)
+        mock_sleep.assert_called_once_with(2.0)
+
+    def test_post_pause_calls_sleep_twice_in_order(self) -> None:
+        """When post_pause=5.0, time.sleep is called twice: first pause then post_pause."""
+        sleep_calls = []
+        with patch("spawn_orchestrator.subprocess.run"), \
+             patch("spawn_orchestrator.time.sleep", side_effect=lambda s: sleep_calls.append(s)):
+            spawn_orchestrator._tmux_send("orch-auth", "some text", pause=2.0, post_pause=5.0)
+        self.assertEqual(len(sleep_calls), 2)
+        self.assertEqual(sleep_calls[0], 2.0)
+        self.assertEqual(sleep_calls[1], 5.0)
+
+    def test_main_output_style_uses_post_pause_gte_5(self) -> None:
+        """main() _tmux_send call for /output-style must use post_pause >= 5.0."""
+        import io
+        from contextlib import redirect_stdout
+
+        captured_calls = []
+
+        def recording_tmux_send(session, text, pause=2.0, post_pause=0.0):
+            captured_calls.append({"text": text, "pause": pause, "post_pause": post_pause})
+
+        argv = ["spawn_orchestrator.py",
+                "--node", "impl_auth", "--prd", "PRD-AUTH-001", "--worktree", "/tmp"]
+        with patch("sys.argv", argv), \
+             patch("spawn_orchestrator.subprocess.run") as mock_run, \
+             patch("spawn_orchestrator.time.sleep"), \
+             patch("spawn_orchestrator.check_orchestrator_alive", return_value=True), \
+             patch("spawn_orchestrator._tmux_send", side_effect=recording_tmux_send):
+            mock_run.return_value = MagicMock(returncode=0)
+            buf = io.StringIO()
+            try:
+                with redirect_stdout(buf):
+                    main()
+            except SystemExit:
+                pass
+
+        output_style_calls = [c for c in captured_calls if "/output-style" in c["text"]]
+        self.assertTrue(output_style_calls, "Expected at least one /output-style _tmux_send call")
+        for c in output_style_calls:
+            self.assertGreaterEqual(
+                c["post_pause"], 5.0,
+                f"main() /output-style must use post_pause >= 5.0, got: {c['post_pause']!r}",
+            )
+
+    def test_respawn_output_style_uses_post_pause_gte_5(self) -> None:
+        """respawn_orchestrator() _tmux_send call for /output-style must use post_pause >= 5.0."""
+        captured_calls = []
+
+        def recording_tmux_send(session, text, pause=2.0, post_pause=0.0):
+            captured_calls.append({"text": text, "pause": pause, "post_pause": post_pause})
+
+        with patch("spawn_orchestrator.check_orchestrator_alive", return_value=False), \
+             patch("spawn_orchestrator.subprocess.run") as mock_run, \
+             patch("spawn_orchestrator.time.sleep"), \
+             patch("spawn_orchestrator._tmux_send", side_effect=recording_tmux_send), \
+             patch("spawn_orchestrator.hook_manager.read_hook", return_value=None):
+            mock_run.return_value = MagicMock(returncode=0)
+            respawn_orchestrator("orch-auth", "/tmp", "auth", None, 0, 3)
+
+        output_style_calls = [c for c in captured_calls if "/output-style" in c["text"]]
+        self.assertTrue(output_style_calls, "Expected at least one /output-style _tmux_send call")
+        for c in output_style_calls:
+            self.assertGreaterEqual(
+                c["post_pause"], 5.0,
+                f"respawn_orchestrator() /output-style must use post_pause >= 5.0, got: {c['post_pause']!r}",
+            )
+
+
+# ---------------------------------------------------------------------------
+# TestRepoRootValidation — .claude/ directory existence check
+# ---------------------------------------------------------------------------
+
+
+class TestRepoRootValidation(unittest.TestCase):
+    """Tests for .claude/ directory warning in main()."""
+
+    def _run_main_with_repo_root(
+        self, repo_root: str, extra_args: list[str] | None = None
+    ) -> tuple[str, str, int]:
+        """Run main() with a given --repo-root and capture stdout, stderr, and exit code."""
+        import io
+        from contextlib import redirect_stdout, redirect_stderr
+
+        argv = [
+            "spawn_orchestrator.py",
+            "--node", "impl_auth",
+            "--prd", "PRD-AUTH-001",
+            "--repo-root", repo_root,
+        ]
+        if extra_args:
+            argv.extend(extra_args)
+
+        stdout_buf = io.StringIO()
+        stderr_buf = io.StringIO()
+        exit_code = 0
+
+        with patch("sys.argv", argv), \
+             patch("spawn_orchestrator.subprocess.run") as mock_run, \
+             patch("spawn_orchestrator.time.sleep"), \
+             patch("spawn_orchestrator.check_orchestrator_alive", return_value=True), \
+             patch("spawn_orchestrator._tmux_send"):
+            mock_run.return_value = MagicMock(returncode=0)
+            try:
+                with redirect_stdout(stdout_buf), redirect_stderr(stderr_buf):
+                    main()
+            except SystemExit as exc:
+                exit_code = exc.code if exc.code is not None else 0
+
+        return stdout_buf.getvalue(), stderr_buf.getvalue(), exit_code
+
+    def test_no_warning_when_claude_dir_exists(self) -> None:
+        """When --repo-root contains a .claude/ directory, no warning is emitted to stderr."""
+        import tempfile
+        import os
+
+        with tempfile.TemporaryDirectory() as tmp:
+            # Create the .claude/ subdirectory so the check passes
+            os.makedirs(os.path.join(tmp, ".claude"))
+            _, stderr, _ = self._run_main_with_repo_root(tmp)
+
+        # No warning JSON should appear on stderr
+        warning_lines = [ln for ln in stderr.splitlines() if ln.strip()]
+        for line in warning_lines:
+            try:
+                data = json.loads(line)
+                self.assertNotIn(
+                    "warning", data,
+                    f"Unexpected warning emitted when .claude/ exists: {data!r}",
+                )
+            except json.JSONDecodeError:
+                pass  # non-JSON stderr lines are fine
+
+    def test_warning_emitted_to_stderr_when_claude_dir_missing(self) -> None:
+        """When --repo-root lacks .claude/, a JSON warning is written to stderr."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            # tmp has no .claude/ directory
+            _, stderr, _ = self._run_main_with_repo_root(tmp)
+
+        warning_found = False
+        for line in stderr.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                data = json.loads(line)
+                if "warning" in data:
+                    warning_found = True
+                    self.assertIn(
+                        ".claude/", data["warning"],
+                        f"Warning message should mention .claude/: {data['warning']!r}",
+                    )
+                    self.assertIn(
+                        "--repo-root", data["warning"],
+                        f"Warning message should mention --repo-root: {data['warning']!r}",
+                    )
+            except json.JSONDecodeError:
+                pass
+
+        self.assertTrue(warning_found, f"Expected a JSON warning on stderr. Got: {stderr!r}")
+
+    def test_missing_claude_dir_does_not_exit(self) -> None:
+        """Missing .claude/ directory must NOT cause sys.exit(1) — it is only a warning."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            # tmp has no .claude/ directory
+            stdout, _, exit_code = self._run_main_with_repo_root(tmp)
+
+        # Process must not exit with failure due to missing .claude/
+        self.assertNotEqual(
+            exit_code, 1,
+            "Missing .claude/ should only warn, not exit with code 1. "
+            f"stdout={stdout!r}",
+        )
 
 
 if __name__ == "__main__":

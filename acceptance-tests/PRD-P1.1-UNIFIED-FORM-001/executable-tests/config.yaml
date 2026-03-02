@@ -1,0 +1,50 @@
+prd_id: PRD-P1.1-UNIFIED-FORM-001
+base_url: "http://localhost:5002"
+test_route: "/verify/test-task-123?mode=chat"
+voice_route: "/verify/test-task-123?mode=voice"
+
+prerequisites:
+  - frontend_running: true
+  - route_exists: "/verify/test-task-123?mode=chat"
+
+test_data:
+  candidate_name: "Bjorn Schliebitz"
+  company_name: "Engage & Experience"
+  case_ref: "#8291-AB-VER"
+  fields:
+    - name: "Start Date"
+      claimed_value: "1 March 2019"
+      updated_value: "15 January 2019"
+    - name: "End Date"
+      claimed_value: "Present"
+      updated_value: "Current"
+    - name: "Position Title"
+      claimed_value: "Senior Engineer"
+      updated_value: "Senior Software Engineer"
+    - name: "Employment Type"
+      claimed_value: "Full-time"
+      updated_value: "Full-time"
+
+evidence_dir: ".claude/evidence/PRD-P1.1-UNIFIED-FORM-001/"
+
+selectors:
+  progress_bar: "[data-testid='progress-bar'], .progress-bar, [role='progressbar']"
+  candidate_name: "[data-testid='candidate-name'], .candidate-info"
+  employment_gate: "[data-testid='employment-gate']"
+  gate_yes_btn: "[data-testid='gate-yes'], button:has-text('Yes')"
+  gate_no_btn: "[data-testid='gate-no'], button:has-text('No')"
+  active_field: "[data-testid='active-field'], [data-state='active'], [data-state='pending']"
+  confirmed_field: "[data-state='confirmed']"
+  updated_field: "[data-state='updated']"
+  confirm_btn: "button:has-text('Confirm')"
+  change_btn: "button:has-text('Change')"
+  update_btn: "button:has-text('Update')"
+  cancel_btn: "button:has-text('Cancel')"
+  edit_icon: "[data-testid='edit-icon'], button[aria-label='Edit']"
+  approval_section: "[data-testid='approval-section']"
+  name_input: "[data-testid='approver-name'], input[placeholder='Your name']"
+  submit_btn: "button:has-text('Submit Verification')"
+  chat_panel: "[data-testid='chat-panel']"
+  agent_bubble: "[data-testid='agent-bubble'], .agent-bubble"
+  verifier_bubble: "[data-testid='verifier-bubble'], .verifier-bubble"
+  voice_indicator: "[data-testid='call-indicator']"

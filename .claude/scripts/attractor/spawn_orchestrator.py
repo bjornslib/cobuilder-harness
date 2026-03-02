@@ -43,8 +43,49 @@ import hook_manager
 logger = logging.getLogger(__name__)
 
 
-def _tmux_send(session: str, text: str, pause: float = 2.0) -> None:
-    """Send text to tmux with Enter as separate call (Pattern 1 from MEMORY.md)."""
+def _build_claude_cmd(node_id: str, prd: str, mode: str) -> str:
+    """Build direct claude invocation with explicit env vars.
+
+    Replaces the ccorch shell function. Only sets documented/working env vars.
+    Output style is set separately via /output-style slash command.
+
+    Args:
+        node_id: Node identifier (used for --worktree name).
+        prd: PRD reference (e.g., PRD-AUTH-001).
+        mode: Launch mode — "sdk" (no --worktree) or "tmux" (default, with --worktree).
+
+    Returns:
+        Shell command string to launch Claude Code with correct env vars.
+    """
+    timestamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+
+    env_vars = " ".join([
+        "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1",
+        "CLAUDE_CODE_ENABLE_TASKS=true",
+        f"CLAUDE_CODE_TASK_LIST_ID={shlex.quote(prd)}",
+        f"CLAUDE_SESSION_ID=orch-{shlex.quote(prd)}-{timestamp}",
+        "CLAUDE_ENFORCE_BO=false",
+    ])
+
+    worktree_flag = "" if mode == "sdk" else f" --worktree {shlex.quote(node_id)}"
+
+    return (
+        f"unset CLAUDECODE && env {env_vars} "
+        f"claude --chrome --model claude-sonnet-4-6"
+        f" --dangerously-skip-permissions{worktree_flag}"
+    )
+
+
+def _tmux_send(session: str, text: str, pause: float = 2.0, post_pause: float = 0.0) -> None:
+    """Send text to tmux with Enter as separate call (Pattern 1 from MEMORY.md).
+
+    Args:
+        session:    tmux session target.
+        text:       Text to type into the pane.
+        pause:      Seconds between text paste and Enter key (render time).
+        post_pause: Seconds after Enter key (processing time for commands
+                    like /output-style that need to complete before next input).
+    """
     subprocess.run(
         ["tmux", "send-keys", "-t", session, text],
         check=True, capture_output=True, text=True,
@@ -54,6 +95,8 @@ def _tmux_send(session: str, text: str, pause: float = 2.0) -> None:
         ["tmux", "send-keys", "-t", session, "Enter"],
         check=True, capture_output=True, text=True,
     )
+    if post_pause > 0.0:
+        time.sleep(post_pause)
 
 
 def check_orchestrator_alive(session: str) -> bool:
@@ -80,6 +123,7 @@ def respawn_orchestrator(
     respawn_count: int,
     max_respawn: int,
     mode: str = "tmux",
+    prd: str = "",
 ) -> dict:
     """Attempt to respawn a dead orchestrator tmux session.
 
@@ -91,6 +135,7 @@ def respawn_orchestrator(
         respawn_count: Current number of respawn attempts made so far.
         max_respawn: Maximum allowed respawn attempts.
         mode: Launch mode — ``"sdk"`` (no --worktree) or ``"tmux"`` (default, with --worktree).
+        prd: PRD reference (e.g., PRD-AUTH-001) for env var injection.
 
     Returns:
         Dict with status:
@@ -127,12 +172,8 @@ def respawn_orchestrator(
     subprocess.run(tmux_cmd, check=True, capture_output=True, text=True)
 
     time.sleep(2)
-    if mode == "sdk":
-        ccorch_cmd = "unset CLAUDECODE && ccorch"
-    else:
-        ccorch_cmd = f"unset CLAUDECODE && ccorch --worktree {shlex.quote(node_id)}"
-    _tmux_send(session_name, ccorch_cmd, pause=8.0)
-    _tmux_send(session_name, "/output-style orchestrator", pause=3.0)
+    _tmux_send(session_name, _build_claude_cmd(node_id, prd, mode), pause=8.0)
+    _tmux_send(session_name, "/output-style orchestrator", pause=3.0, post_pause=5.0)
     if prompt:
         _tmux_send(session_name, prompt, pause=2.0)
 
@@ -272,6 +313,23 @@ def main() -> None:
         }))
         sys.exit(1)
 
+    # Warn if work_dir does not contain a .claude/ directory.
+    # Usually means --repo-root points at git root instead of project subdirectory.
+    _claude_dir = Path(work_dir) / ".claude"
+    if not _claude_dir.is_dir():
+        print(
+            json.dumps({
+                "warning": (
+                    f"--repo-root '{work_dir}' does not contain a .claude/ directory. "
+                    "Claude Code may not find its project configuration or may create "
+                    "worktrees in the wrong location. "
+                    "Ensure --repo-root points to the directory containing .claude/ "
+                    "(e.g., 'agencheck/' in a monorepo, not the monorepo root)."
+                )
+            }),
+            file=sys.stderr,
+        )
+
     # Validate session name: reject reserved s3-live- prefix
     if re.match(r"s3-live-", session_name):
         print(json.dumps({
@@ -335,6 +393,7 @@ def main() -> None:
             respawn_count=respawn_count,
             max_respawn=args.max_respawn,
             mode=args.mode,
+            prd=args.prd,
         )
         if respawn_result["status"] == "error":
             print(json.dumps(respawn_result))
@@ -349,18 +408,14 @@ def main() -> None:
         }))
         return
 
-    # Unset CLAUDECODE to avoid nested-session error, then launch via ccorch
-    # which sets env vars (CLAUDE_OUTPUT_STYLE, CLAUDE_SESSION_ID, etc.)
+    # Launch Claude Code directly with explicit env vars (replaces ccorch shell function).
     # In sdk mode, guardian already runs in a worktree — no --worktree needed.
-    # In tmux mode (default), ccorch creates .claude/worktrees/<node_id>/ via --worktree.
-    if args.mode == "sdk":
-        ccorch_launch_cmd = "unset CLAUDECODE && ccorch"
-    else:
-        ccorch_launch_cmd = f"unset CLAUDECODE && ccorch --worktree {shlex.quote(args.node)}"
+    # In tmux mode (default), Claude creates .claude/worktrees/<node_id>/ via --worktree.
+    claude_launch_cmd = _build_claude_cmd(args.node, args.prd, args.mode)
     try:
         _tmux_send(
             session_name,
-            ccorch_launch_cmd,
+            claude_launch_cmd,
             pause=8.0,
         )
     except subprocess.CalledProcessError as exc:
@@ -373,7 +428,7 @@ def main() -> None:
 
     # Set output style via slash command (not CLI flag)
     try:
-        _tmux_send(session_name, "/output-style orchestrator", pause=3.0)
+        _tmux_send(session_name, "/output-style orchestrator", pause=3.0, post_pause=5.0)
     except subprocess.CalledProcessError as exc:
         error_msg = exc.stderr.strip() if exc.stderr else str(exc)
         print(json.dumps({

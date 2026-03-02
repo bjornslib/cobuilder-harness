@@ -1,0 +1,40 @@
+prd_id: PRD-P1.1-UNIFIED-FORM-001
+title: "Unified Verification Form Page — v2.1 Review Amendments"
+created: 2026-02-26
+amended: 2026-02-27
+amendment_source: "Bjorn + Hayden stakeholder review transcript"
+
+thresholds:
+  accept: 0.65
+  investigate: 0.45
+
+features:
+  layout:
+    weight: 0.15
+    scenarios: [S1.1, S1.2]
+    validation_method: browser-required
+
+  progressive_disclosure:
+    weight: 0.25
+    scenarios: [S2.1, S2.2, S2.3, S2.4, S2.5, S2.6]
+    validation_method: browser-required
+
+  field_states:
+    weight: 0.25
+    scenarios: [S3.1, S3.2, S3.3, S3.4, S3.5, S3.6, S3.7, S3.8]
+    validation_method: browser-required
+
+  chat_agent:
+    weight: 0.20
+    scenarios: [S4.1, S4.2, S4.3, S4.4, S4.5, S4.6]
+    validation_method: browser-required
+
+  approval_submit:
+    weight: 0.10
+    scenarios: [S5.1, S5.2, S5.3, S5.4]
+    validation_method: browser-required
+
+  voice_mode:
+    weight: 0.05
+    scenarios: [S6.1, S6.2]
+    validation_method: browser-required

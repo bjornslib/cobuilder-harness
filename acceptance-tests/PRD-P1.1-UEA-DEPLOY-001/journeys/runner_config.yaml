@@ -1,0 +1,11 @@
+services:
+  frontend_url: "https://agencheck.vercel.app"
+  api_url: "https://agencheck-production.up.railway.app"
+  db_dsn: "${RAILWAY_DATABASE_URL}"
+polling:
+  interval_seconds: 5
+  max_wait_seconds: 60
+auth:
+  provider: "Clerk"
+  test_account_email: "${TEST_CLERK_EMAIL}"
+  test_account_password: "${TEST_CLERK_PASSWORD}"

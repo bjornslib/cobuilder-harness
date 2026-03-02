@@ -1,0 +1,54 @@
+test_group: S6-voice-mode
+prd_id: PRD-P1.1-UNIFIED-FORM-001
+
+tests:
+  - id: S6.1
+    name: "Voice mode hides transcript, chat minimises"
+    steps:
+      - tool: mcp__claude-in-chrome__navigate
+        args:
+          url: "${base_url}${voice_route}"
+      - tool: mcp__claude-in-chrome__javascript_tool
+        args:
+          javascript: |
+            // Check if voice mode triggered chat minimisation
+            await new Promise(r => setTimeout(r, 1000));
+            const chatPanel = document.querySelector('[data-testid="chat-panel"]');
+            const transcript = document.querySelector('[data-testid="transcript"], .transcript');
+            const callIndicator = document.querySelector('[data-testid="call-indicator"], [class*="waveform"], [class*="on-call"]');
+            return {
+              chatMinimised: chatPanel ? chatPanel.offsetHeight < 100 || chatPanel.classList.contains('minimised') : true,
+              transcriptHidden: transcript ? transcript.offsetHeight === 0 : true,
+              callIndicatorVisible: callIndicator ? callIndicator.offsetHeight > 0 : false
+            };
+        assert:
+          chatMinimised: true
+          transcriptHidden: true
+          callIndicatorVisible: true
+      - tool: mcp__claude-in-chrome__computer
+        args:
+          action: screenshot
+        evidence: "s6-1-voice-mode.png"
+
+  - id: S6.2
+    name: "Chat panel re-expandable in voice mode"
+    steps:
+      - tool: mcp__claude-in-chrome__navigate
+        args:
+          url: "${base_url}${voice_route}"
+      - description: "Look for expand toggle and click it"
+        tool: mcp__claude-in-chrome__javascript_tool
+        args:
+          javascript: |
+            await new Promise(r => setTimeout(r, 1000));
+            const toggle = document.querySelector('[data-testid="chat-toggle"], [aria-label="Expand chat"], button[class*="expand"]');
+            if (toggle) toggle.click();
+            await new Promise(r => setTimeout(r, 500));
+            const chatPanel = document.querySelector('[data-testid="chat-panel"]');
+            return {
+              toggleFound: !!toggle,
+              chatExpanded: chatPanel ? chatPanel.offsetHeight > 100 : false
+            };
+        assert:
+          toggleFound: true
+          chatExpanded: true

@@ -307,5 +307,129 @@ For longer monitoring intervals (120s+), consider using a blocking Task agent in
 
 ---
 
+## Guardian Phase 3: Monitoring (Full Reference)
+
+> Extracted from s3-guardian SKILL.md — complete monitoring procedure including cadence, pause-and-check pattern, intervention triggers, and AskUserQuestion handling.
+
+### Monitoring Cadence
+
+| Phase | Interval | Rationale |
+|-------|----------|-----------|
+| Active implementation | 30s | Catch errors early, detect AskUserQuestion blocks |
+| Investigation/planning | 60s | Orchestrator is reading/thinking, less likely to block |
+| Idle / waiting for workers | 120s | Nothing to intervene on |
+
+### Core Monitoring Loop
+
+```bash
+# Capture recent output (per orchestrator session)
+tmux capture-pane -t "orch-{epic}" -p -S -100
+
+# Check for key signals
+tmux capture-pane -t "orch-{epic}" -p -S -100 | grep -iE "error|stuck|complete|failed|AskUser|permission"
+
+# Monitor multiple orchestrators in parallel
+for SESSION in orch-epic1 orch-epic2 orch-epic3; do
+    echo "=== $SESSION ===" && tmux capture-pane -t "$SESSION" -p -S -20 2>/dev/null || echo "(not running)"
+done
+```
+
+### Pause-and-Check Pattern (Blocking Task Agent)
+
+When the guardian is satisfied that an orchestrator is progressing well and doesn't need
+frequent intervention, use a blocking Task agent as a clean pause timer instead of
+bash sleep loops:
+
+```python
+# Pause for N seconds while orchestrator works
+Task(
+    subagent_type="general-purpose",
+    model="haiku",
+    description=f"Wait {wait_seconds}s for orchestrator to work",
+    prompt=f"Run: sleep {wait_seconds}. Then return 'PAUSE_COMPLETE'.",
+    run_in_background=False,  # BLOCKING — guardian waits in-context
+)
+# Guardian resumes here with full context intact
+```
+
+**Why this is better than `Bash("sleep 100")`:**
+- Status line shows "Waiting for task (esc to give additional instructions)" — user knows what's happening
+- User can press Esc to interrupt the pause and give S3 new instructions
+- No shell output cluttering the conversation context
+- S3 resumes with full context when the pause completes
+
+**When to use:**
+- After initial spawn verification (orchestrator is running, output style loaded)
+- When monitoring cadence is 120s+ (idle/waiting for workers)
+- Between monitoring check-ins when no intervention signals were found
+
+**When NOT to use:**
+- During active intervention (errors detected, guidance needed)
+- When AskUserQuestion blocks are likely (use 30s tmux polling instead)
+- For the first 5 minutes after spawn (use active monitoring to catch boot failures)
+
+**Recommended cadence:**
+
+| Phase | Pause Duration | Rationale |
+|-------|---------------|-----------|
+| Post-spawn (first 5 min) | Don't use — active poll at 30s | Catch boot failures early |
+| Active implementation | 60-90s | Check frequently but not constantly |
+| Investigation/planning | 120-180s | Orchestrator is thinking, less likely to block |
+| Worker execution (steady state) | 180-300s | Workers are running, minimal intervention needed |
+
+**Combined pattern — pause then check:**
+```python
+while not orchestrator_complete:
+    # Pause
+    Task(
+        subagent_type="general-purpose", model="haiku",
+        description=f"Wait {pause_seconds}s for {epic_name}",
+        prompt=f"Sleep {pause_seconds} seconds, then return PAUSE_COMPLETE.",
+    )
+
+    # Check
+    output = Bash(f'tmux capture-pane -t "orch-{epic}" -p -S -50')
+    if "COMPLETE" in output or "error" in output.lower():
+        break
+    # Adjust pause_seconds based on signals found
+```
+
+### Intervention Triggers
+
+| Signal | Action |
+|--------|--------|
+| `AskUserQuestion` / permission dialog | Answer via `tmux send-keys` (Down, Enter) |
+| Repeated error (3+ occurrences) | Send guidance or restart |
+| No output for 5+ minutes | Check if context is exhausted |
+| Scope creep (files outside epic scope) | Send corrective instruction |
+| `TODO` / `FIXME` markers accumulating | Flag for later cleanup |
+| Time exceeded (2+ hours) | Assess progress, consider intervention |
+
+### Sending Guidance
+
+The guardian communicates directly with orchestrators:
+
+```bash
+# Send corrective instruction (Pattern 1: separate Enter)
+tmux send-keys -t "orch-{epic}" "GUARDIAN: Focus on {correct scope}. Do not modify {out-of-scope files}."
+tmux send-keys -t "orch-{epic}" Enter
+
+# Send unblocking guidance
+tmux send-keys -t "orch-{epic}" "GUARDIAN: The issue is {root cause}. Fix: {specific fix}."
+tmux send-keys -t "orch-{epic}" Enter
+```
+
+### AskUserQuestion Handling
+
+When an orchestrator or worker hits an AskUserQuestion dialog:
+
+```bash
+# Navigate to the appropriate option and confirm
+tmux send-keys -t "orch-{epic}" Down
+tmux send-keys -t "orch-{epic}" Enter
+```
+
+---
+
 **Reference Version**: 0.1.0
 **Parent Skill**: s3-guardian

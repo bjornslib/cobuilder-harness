@@ -1,0 +1,193 @@
+prd_id: PRD-PIPELINE-ENGINE-001
+prd_title: "Pipeline Execution Engine — Automated DOT Graph Traversal"
+prd_source: "docs/prds/PRD-PIPELINE-ENGINE-001.md"
+sd_sources:
+  - "docs/sds/SD-PIPELINE-ENGINE-001-epic1-core-engine.md"
+  - "docs/sds/SD-PIPELINE-ENGINE-001-epic2-validation.md"
+  - "docs/sds/SD-PIPELINE-ENGINE-001-epic3-5-conditions-loops.md"
+  - "docs/sds/SD-PIPELINE-ENGINE-001-epic4-event-bus.md"
+generated: "2026-02-28T14:30:00Z"
+mode: guardian
+
+thresholds:
+  accept: 0.60
+  investigate: 0.40
+
+# Weights across ALL features sum to 1.0
+# Epic 1 (Core Engine): 0.35
+# Epic 2 (Validation): 0.15
+# Epic 3+5 (Conditions + Loops): 0.20
+# Epic 4 (Event Bus): 0.30
+
+features:
+  # === Epic 1: Core Execution Engine ===
+  - name: "F1 — Custom Recursive-Descent DOT Parser"
+    epic: 1
+    weight: 0.06
+    validation_method: code-analysis
+    scenarios:
+      - "S1_dot_parser"
+    scenario_file: "scenarios.feature"
+
+  - name: "F3 — Handler Registry and Protocol"
+    epic: 1
+    weight: 0.03
+    validation_method: code-analysis
+    scenarios:
+      - "S3_handler_registry"
+    scenario_file: "scenarios.feature"
+
+  - name: "F6 — CodergenHandler (tmux + sdk dispatch)"
+    epic: 1
+    weight: 0.06
+    validation_method: code-analysis
+    scenarios:
+      - "S6_codergen_handler"
+    scenario_file: "scenarios.feature"
+
+  - name: "F14-F15 — Outcome + PipelineContext"
+    epic: 1
+    weight: 0.04
+    validation_method: code-analysis
+    scenarios:
+      - "S14_outcome_context"
+    scenario_file: "scenarios.feature"
+
+  - name: "F16 — EdgeSelector (5-step algorithm)"
+    epic: 1
+    weight: 0.05
+    validation_method: code-analysis
+    scenarios:
+      - "S16_edge_selector"
+    scenario_file: "scenarios.feature"
+
+  - name: "F17 — CheckpointManager (atomic write/load)"
+    epic: 1
+    weight: 0.04
+    validation_method: code-analysis
+    scenarios:
+      - "S17_checkpoint_manager"
+    scenario_file: "scenarios.feature"
+
+  - name: "F18 — EngineRunner (main loop)"
+    epic: 1
+    weight: 0.05
+    validation_method: code-analysis
+    scenarios:
+      - "S18_engine_runner"
+    scenario_file: "scenarios.feature"
+
+  - name: "F19-F20 — CLI Integration + Logfire Spans"
+    epic: 1
+    weight: 0.02
+    validation_method: code-analysis
+    scenarios:
+      - "S19_cli_logfire"
+    scenario_file: "scenarios.feature"
+
+  # === Epic 2: Pre-Execution Validation Suite ===
+  - name: "F7 — 13-Rule Validation Suite"
+    epic: 2
+    weight: 0.12
+    validation_method: code-analysis
+    scenarios:
+      - "S7_validation_suite"
+    scenario_file: "scenarios-epic2.feature"
+
+  - name: "F8 — Validation Data Models"
+    epic: 2
+    weight: 0.03
+    validation_method: code-analysis
+    scenarios:
+      - "S8_validation_models"
+    scenario_file: "scenarios-epic2.feature"
+
+  # === Epic 3+5: Condition Expression Language + Loop Detection ===
+  - name: "F9 — Condition Expression Lexer and Parser"
+    epic: 3
+    weight: 0.07
+    validation_method: code-analysis
+    scenarios:
+      - "S9_condition_parser"
+    scenario_file: "scenarios-epic3-5.feature"
+
+  - name: "F10 — Condition Evaluator"
+    epic: 3
+    weight: 0.05
+    validation_method: code-analysis
+    scenarios:
+      - "S10_condition_evaluator"
+    scenario_file: "scenarios-epic3-5.feature"
+
+  - name: "F11 — Condition Error Hierarchy"
+    epic: 3
+    weight: 0.02
+    validation_method: code-analysis
+    scenarios:
+      - "S11_condition_errors"
+    scenario_file: "scenarios-epic3-5.feature"
+
+  - name: "F12 — Loop Detection and Retry Policy"
+    epic: 5
+    weight: 0.06
+    validation_method: code-analysis
+    scenarios:
+      - "S12_loop_detection"
+    scenario_file: "scenarios-epic3-5.feature"
+
+  # === Epic 4: Structured Event Bus ===
+  - name: "F13 — PipelineEvent Model and EventBuilder"
+    epic: 4
+    weight: 0.04
+    validation_method: code-analysis
+    scenarios:
+      - "S13_event_model"
+    scenario_file: "scenarios-epic4.feature"
+
+  - name: "F14 — EventEmitter Protocol and CompositeEmitter"
+    epic: 4
+    weight: 0.05
+    validation_method: code-analysis
+    scenarios:
+      - "S14_composite_emitter"
+    scenario_file: "scenarios-epic4.feature"
+
+  - name: "F15 — Logfire Backend Emitter"
+    epic: 4
+    weight: 0.05
+    validation_method: code-analysis
+    scenarios:
+      - "S15_logfire_emitter"
+    scenario_file: "scenarios-epic4.feature"
+
+  - name: "F16 — JSONL Backend Emitter"
+    epic: 4
+    weight: 0.02
+    validation_method: code-analysis
+    scenarios:
+      - "S16_jsonl_emitter"
+    scenario_file: "scenarios-epic4.feature"
+
+  - name: "F17 — SignalBridge"
+    epic: 4
+    weight: 0.03
+    validation_method: code-analysis
+    scenarios:
+      - "S17_signal_bridge"
+    scenario_file: "scenarios-epic4.feature"
+
+  - name: "F18 — Middleware Chain"
+    epic: 4
+    weight: 0.07
+    validation_method: code-analysis
+    scenarios:
+      - "S18_middleware_chain"
+    scenario_file: "scenarios-epic4.feature"
+
+  - name: "F19 — HandlerRequest Integration (AMD-8)"
+    epic: 4
+    weight: 0.04
+    validation_method: code-analysis
+    scenarios:
+      - "S19_handler_request"
+    scenario_file: "scenarios-epic4.feature"

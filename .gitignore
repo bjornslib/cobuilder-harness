@@ -85,3 +85,6 @@ test
 *.temp
 tmp/
 temp/
+
+# Claire config directory
+.claire/

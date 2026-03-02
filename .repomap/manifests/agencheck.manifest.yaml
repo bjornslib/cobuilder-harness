@@ -1,0 +1,16 @@
+repository: agencheck
+snapshot_date: '2026-02-28T21:23:42.335634+00:00'
+total_nodes: 2902
+total_files: 398
+total_functions: 2469
+top_modules:
+- name: cobuilder
+  files: 222
+  delta: existing
+- name: tests
+  files: 165
+  delta: existing
+- name: mcp-servers
+  files: 11
+  delta: existing
+target_dir: /Users/theb/Documents/Windsurf/claude-harness-setup

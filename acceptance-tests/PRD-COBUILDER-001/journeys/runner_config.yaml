@@ -1,0 +1,15 @@
+services:
+  # CoBuilder is a CLI tool, not a web service
+  # All validation is via command execution and file inspection
+  cobuilder_cli: "python3 -m cobuilder"
+  impl_repo: "${IMPL_REPO_PATH}"
+  config_repo: "${CONFIG_REPO_PATH}"
+
+execution:
+  # No polling needed — all operations are synchronous CLI calls
+  timeout_seconds: 300  # 5 min max for full pipeline create
+
+test_repos:
+  # Small test repos for E2E validation
+  test_repo_name: "test-cobuilder"
+  test_repo_path: "/tmp/test-cobuilder-repo"

@@ -1,0 +1,65 @@
+prd_id: PRD-S3-SESSION-RESILIENCE-001
+prd_title: "Session Resilience: Identity, Persistence & Merge Queue"
+prd_source: ".taskmaster/docs/PRD-S3-SESSION-RESILIENCE-001.md"
+sd_source: ".taskmaster/docs/SD-S3-SESSION-RESILIENCE-001.md"
+generated: "2026-02-26T22:00:00Z"
+
+decision_thresholds:
+  accept: 0.60
+  investigate: 0.40
+
+features:
+  - name: "Epic 1: Agent Identity Registry"
+    weight: 0.40
+    validation_method: code-analysis
+    scenarios:
+      - "F001-identity-creation"
+      - "F002-liveness-heartbeat"
+      - "F003-stale-detection"
+      - "F004-predecessor-chain"
+      - "F005-cli-agents"
+
+  - name: "Epic 2: Persistent Work State Hook Files"
+    weight: 0.30
+    validation_method: code-analysis
+    scenarios:
+      - "F006-hook-creation"
+      - "F007-phase-transition"
+      - "F008-respawn-wisdom"
+      - "F009-phase-skip"
+      - "F010-concurrent-safety"
+
+  - name: "Epic 3: Sequential Merge Queue"
+    weight: 0.20
+    validation_method: code-analysis
+    scenarios:
+      - "F011-sequential-processing"
+      - "F012-clean-merge"
+      - "F013-conflict-escalation"
+      - "F014-cli-merge-queue"
+      - "F015-no-direct-merge"
+
+  - name: "Epic 4: Proactive Context Cycling"
+    weight: 0.10
+    validation_method: code-analysis
+    scenarios:
+      - "F016-precompact-detection"
+      - "F017-graceful-handoff"
+      - "F018-resume-phase"
+      - "F019-force-kill-timeout"
+      - "F020-no-data-loss"
+
+task_mapping:
+  "Epic 1: Agent Identity Registry":
+    - T74  # identity_registry.py
+    - T75  # spawn integration
+    - T76  # runner liveness
+    - T77  # guardian identity scan
+    - T78  # CLI agents command
+  "Epic 2: Persistent Work State Hook Files":
+    - T79  # signal protocol extensions
+    - T80  # hook_manager.py
+    - T81  # hooks integration
+  "Epic 3: Sequential Merge Queue":
+    - T82  # merge_queue.py
+    - T83  # merge queue integration

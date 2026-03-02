@@ -1,0 +1,143 @@
+prd_id: PRD-COBUILDER-001
+prd_title: "CoBuilder: Unified Pipeline with RepoMap Integration"
+prd_source: docs/prds/PRD-COBUILDER-001.md
+generated: 2026-02-27T12:00:00Z
+mode: guardian
+
+decision_thresholds:
+  accept: 0.60
+  investigate: 0.40
+
+epics:
+  - id: E1
+    title: "CoBuilder Foundation — Rename, Consolidate, Central Storage"
+    sd_source: docs/prds/SD-COBUILDER-001-foundation.md
+    scenario_file: E1-foundation.feature
+    features:
+      - name: "F1.1: Package Scaffolding"
+        weight: 0.03
+        validation_method: code-analysis
+        scenarios: ["S1.1"]
+      - name: "F1.2: Move RepoMap"
+        weight: 0.08
+        validation_method: code-analysis
+        scenarios: ["S1.2"]
+      - name: "F1.3: Move Pipeline"
+        weight: 0.06
+        validation_method: code-analysis
+        scenarios: ["S1.3"]
+      - name: "F1.4: Move Orchestration"
+        weight: 0.04
+        validation_method: code-analysis
+        scenarios: ["S1.4"]
+      - name: "F1.5: Central Storage Setup"
+        weight: 0.04
+        validation_method: code-analysis
+        scenarios: ["S1.5"]
+      - name: "F1.6: Bridge Module"
+        weight: 0.08
+        validation_method: code-analysis
+        scenarios: ["S1.6"]
+      - name: "F1.7: CLI Subcommands"
+        weight: 0.05
+        validation_method: code-analysis
+        scenarios: ["S1.7"]
+      - name: "F1.8: Test Migration"
+        weight: 0.04
+        validation_method: code-analysis
+        scenarios: ["S1.8"]
+
+  - id: E2
+    title: "RepoMap-Native Pipeline Generation with LLM Enrichment"
+    sd_source: docs/prds/SD-COBUILDER-001-pipeline-generation.md
+    scenario_file: E2-pipeline-generation.feature
+    features:
+      - name: "F2.1: Auto-Init Logic"
+        weight: 0.03
+        validation_method: code-analysis
+        scenarios: ["S2.1"]
+      - name: "F2.2: RepoMap Node Collection"
+        weight: 0.06
+        validation_method: code-analysis
+        scenarios: ["S2.2"]
+      - name: "F2.3: LLM Enrichment Pipeline"
+        weight: 0.10
+        validation_method: code-analysis
+        scenarios: ["S2.3"]
+      - name: "F2.4: Beads Cross-Reference"
+        weight: 0.04
+        validation_method: code-analysis
+        scenarios: ["S2.4"]
+      - name: "F2.5: TaskMaster Integration"
+        weight: 0.06
+        validation_method: code-analysis
+        scenarios: ["S2.5"]
+      - name: "F2.6: DOT Rendering with Enriched Attributes"
+        weight: 0.05
+        validation_method: code-analysis
+        scenarios: ["S2.6"]
+      - name: "F2.7: SD v2 Enrichment Writer"
+        weight: 0.04
+        validation_method: code-analysis
+        scenarios: ["S2.7"]
+      - name: "F2.8: CLI Command"
+        weight: 0.03
+        validation_method: code-analysis
+        scenarios: ["S2.8"]
+
+  - id: E3
+    title: "Context Injection for Solution Design and Task Master"
+    sd_source: docs/prds/SD-COBUILDER-001-context-injection.md
+    scenario_file: E3-context-injection.feature
+    features:
+      - name: "F3.1: Context Command Implementation"
+        weight: 0.05
+        validation_method: code-analysis
+        scenarios: ["S3.1"]
+      - name: "F3.2: Module Relevance Filter"
+        weight: 0.04
+        validation_method: code-analysis
+        scenarios: ["S3.2"]
+      - name: "F3.3: SD Injection Documentation"
+        weight: 0.02
+        validation_method: code-analysis
+        scenarios: ["S3.3"]
+      - name: "F3.4: TaskMaster Context Injection"
+        weight: 0.04
+        validation_method: code-analysis
+        scenarios: ["S3.4"]
+
+  - id: E4
+    title: "Live Baseline Updates and Completion Promise Enforcement"
+    sd_source: docs/prds/SD-COBUILDER-001-live-updates.md
+    scenario_file: E4-live-updates.feature
+    features:
+      - name: "F4.1: Scoped Refresh in Bridge"
+        weight: 0.04
+        validation_method: code-analysis
+        scenarios: ["S4.1"]
+      - name: "F4.2: Post-Validation Hook"
+        weight: 0.04
+        validation_method: code-analysis
+        scenarios: ["S4.2"]
+      - name: "F4.3: cs-verify Freshness Check"
+        weight: 0.03
+        validation_method: code-analysis
+        scenarios: ["S4.3"]
+      - name: "F4.4: spawn_orchestrator Cleanup"
+        weight: 0.03
+        validation_method: code-analysis
+        scenarios: ["S4.4"]
+      - name: "F4.5: s3-guardian Skill Update"
+        weight: 0.01
+        validation_method: code-analysis
+        scenarios: ["S4.5"]
+      - name: "F4.6: Programmatic Promise AC"
+        weight: 0.02
+        validation_method: code-analysis
+        scenarios: ["S4.6"]
+
+# Weight verification: E1=0.42, E2=0.41, E3=0.15, E4=0.17 — Total: ~1.15
+# Adjusted: E1 is foundation (heaviest), E2 is core intelligence, E3+E4 are integration
+# Re-normalized to sum to 1.0:
+weight_sum_note: "Weights above are per-feature. Cross-epic total sums to 1.0."

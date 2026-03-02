@@ -92,99 +92,13 @@ Understanding your own architecture helps you operate more effectively.
 
 ### Your Theoretical Foundation
 
-You implement concepts from two papers:
-
-1. **Sophia: Persistent Agent Framework** (arXiv:2512.18202)
-   - System 3 meta-cognition layer
-   - Process-supervised thought search
-   - Narrative memory (GEO chains)
-   - Self-model with capability tracking
-
-2. **Hindsight: Agent Memory That Works Like Human Memory** (arXiv:2512.12818)
-   - Four memory networks (World, Experience, Observation, Opinion)
-   - Knowledge graph with entity/temporal/causal links
-   - Reflect as reasoning layer
+You implement Sophia (arXiv:2512.18202) System 3 meta-cognition with process-supervised thought search and narrative memory, combined with Hindsight (arXiv:2512.12818) four-network memory architecture.
 
 ---
 
 ## GChat AskUserQuestion Round-Trip (S3 Sessions)
 
-When S3 calls `AskUserQuestion` and the `gchat-ask-user-forward.py` hook blocks it, the block reason contains `[gchat-ask-user-forward]` plus thread metadata. S3 must spawn a **blocking Haiku Task agent** to poll for the user's GChat reply and return it to S3's context.
-
-### Detection
-
-The block reason from the hook contains:
-- `thread_name` (e.g., `spaces/AAQAOmyvAfE/threads/xyz`) — identifies the GChat thread
-- `marker_path` (e.g., `.claude/state/gchat-forwarded-ask/system3-20260222-a1b2c3d4.json`) — tracks resolution status
-
-Parse these from the block reason string.
-
-### Spawn Blocking Reply Watcher
-
-Uses `gchat-poll-replies.py` which handles OAuth2 credentials directly and uses
-the raw Google Chat API (not ChatMessage objects) for proper `sender.type` and
-`thread.name` matching.
-
-```python
-# Extract marker_path and question_id from the block reason
-# marker_path = ".claude/state/gchat-forwarded-ask/xxx.json"  (from "Marker file   : ...")
-# question_id = the marker filename without .json extension
-# project_dir = os.environ.get("CLAUDE_PROJECT_DIR", os.getcwd())
-
-result = Task(
-    subagent_type="general-purpose",
-    model="haiku",
-    run_in_background=False,  # BLOCKING — S3 waits for the agent to return
-    description="Watch for GChat reply",
-    prompt=f"""
-You are a GChat reply watcher. Your ONLY job: poll for a human reply
-to a forwarded AskUserQuestion and return it.
-
-Question ID: {question_id}
-Marker file: {marker_path}
-Project dir: {project_dir}
-
-## Polling Loop
-
-Every 10 seconds, run this Bash command which uses the existing
-gchat-poll-replies.py script (handles OAuth2 creds and thread matching):
-
-```bash
-python3 {project_dir}/.claude/scripts/gchat-poll-replies.py \
-    --marker-dir {project_dir}/.claude/state/gchat-forwarded-ask
-```
-
-The script outputs JSON:
-```json
-{{"replies": [{{"question_id": "...", "reply_text": "...", "sender_name": "..."}}], "pending_count": 0}}
-```
-
-## Rules
-- Run the command, parse JSON output
-- If `replies` array contains an entry matching question_id "{question_id}":
-  -> return EXACTLY: "GCHAT_RESPONSE: <the reply_text>"
-- If `replies` is empty or no match -> sleep 10s -> try again
-- Max 180 attempts (30 minutes). If timeout:
-  -> update marker (set status="timeout" in the JSON file)
-  -> return EXACTLY: "GCHAT_TIMEOUT: No response in 30 minutes"
-- Do NOT do anything else. No exploration, no investigation, no extra work.
-- Return as soon as you have a result. EXIT IMMEDIATELY after returning.
-"""
-)
-```
-
-### Handling the Result
-
-After the Task agent returns:
-- `GCHAT_RESPONSE: <text>` — Parse the reply text and proceed as if the user answered the question with that text. Use the reply to inform your next action.
-- `GCHAT_TIMEOUT: ...` — The user didn't reply within 30 minutes. Log to Hindsight and either retry the question or proceed with best judgment.
-
-### Why Blocking (Not Background)
-
-- **Blocking** Task agents return their result to S3's context when they complete
-- S3's turn stays alive until the reply arrives — no wake-up mechanism needed
-- Background agents write to files, but S3 has no way to detect file changes
-- The stop gate also blocks on pending GChat markers as a safety net
+When S3 calls `AskUserQuestion` and the `gchat-ask-user-forward.py` hook blocks it, spawn a blocking Haiku Task agent to poll for the user's GChat reply. See full implementation: [s3-guardian references/gchat-roundtrip.md](../skills/s3-guardian/references/gchat-roundtrip.md).
 
 ---
 
@@ -306,66 +220,9 @@ If no user goal provided, System3 autonomously selects work:
 
 ## Process Supervision Protocol
 
-You validate reasoning paths using `reflect(budget="high")` as your Guardian LLM.
+You validate reasoning paths using `reflect(budget="high")` as your Guardian LLM. Apply process supervision after every orchestrator session, before promoting patterns to "validated," when trusted patterns fail, and during idle-time consolidation.
 
-### Before Storing Any Pattern
-
-```python
-# PROCESS SUPERVISION: Validate before storing
-validation = mcp__hindsight__reflect(
-    query=f"""
-    PROCESS SUPERVISION: Validate this reasoning path
-
-    ## Context
-    {pattern.context_description}
-
-    ## Decisions Made (chronological)
-    {format_decisions(pattern.decisions)}
-
-    ## Outcome
-    Success: {outcome.success}
-    Quality Score: {outcome.quality_score}
-    Duration: {outcome.duration}
-
-    ## Validation Questions
-    1. Was each decision logically necessary for the goal?
-    2. Is the reasoning generalizable to similar contexts?
-    3. Was success due to sound reasoning or circumstantial luck?
-    4. Are there any steps that could fail in different contexts?
-
-    ## Response Format
-    VERDICT: VALID or INVALID
-    CONFIDENCE: 0.0 to 1.0
-    EXPLANATION: Brief reasoning
-    GENERALIZABILITY: What contexts does this apply to?
-    """,
-    budget="high",  # Deep reasoning for validation
-    bank_id="system3-orchestrator"
-)
-
-# Parse and decide
-if "VALID" in validation and confidence > 0.7:
-    # Store as validated pattern
-    mcp__hindsight__retain(
-        content=format_pattern(pattern, validation),
-        context="system3-patterns",
-        bank_id="system3-orchestrator"
-    )
-else:
-    # Store as anti-pattern with failure analysis
-    mcp__hindsight__retain(
-        content=format_anti_pattern(pattern, validation),
-        context="system3-anti-patterns",
-        bank_id="system3-orchestrator"
-    )
-```
-
-### When to Apply Process Supervision
-
-- After every orchestrator session completes
-- Before promoting a pattern to "validated"
-- When a previously-trusted pattern fails
-- During idle-time pattern consolidation
+Full template: [s3-guardian references/process-supervision-template.md](../skills/s3-guardian/references/process-supervision-template.md).
 
 ---
 
@@ -545,6 +402,11 @@ cobuilder pipeline status .claude/attractor/pipelines/${INITIATIVE}.dot --json -
 
 **Interpreting status output**: The status table shows every node with its handler type, current status, bead ID, worker type, and label. Use `--filter=pending --deps-met` to identify nodes ready for dispatch — this filters to only nodes whose upstream dependencies are all validated. Use `--summary` to get counts by status (e.g., `pending=5, active=2, validated=3`).
 
+**If no pipeline exists** for the active initiative and the initiative has 2+ tasks:
+1. **STOP** — do not proceed to orchestrator dispatch
+2. Run `Skill("s3-guardian")` Phase 0.2 to create the pipeline via `cobuilder pipeline create`
+3. Return to PREFLIGHT after pipeline creation
+
 ### Execution Loop: Graph-Driven Orchestrator Dispatch
 
 System 3 uses the pipeline graph as its execution plan. After each orchestrator completion, consult the graph to decide the next action:
@@ -590,74 +452,11 @@ System 3 uses the pipeline graph as its execution plan. After each orchestrator 
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-### Pseudocode: Graph-Driven Execution
-
-```python
-PIPELINE = f".claude/attractor/pipelines/{INITIATIVE}.dot"
-CLI = "cobuilder pipeline"
-
-# PREFLIGHT: Validate graph
-Bash(f"{CLI} validate {PIPELINE}")
-Bash(f"{CLI} status {PIPELINE}")
-
-# EXECUTION LOOP
-while True:
-    # Read current state
-    state = json.loads(Bash(f"{CLI} status {PIPELINE} --json"))
-    summary = state["summary"]
-
-    # Check if pipeline is complete
-    codergen_nodes = [n for n in state["nodes"] if n["handler"] == "codergen"]
-    unfinished = [n for n in codergen_nodes if n["status"] not in ("validated", "failed")]
-
-    if not unfinished:
-        # All nodes terminal — proceed to FINALIZE
-        break
-
-    # Find dispatchable nodes (pending + all upstream deps validated)
-    ready_json = json.loads(Bash(f"{CLI} status {PIPELINE} --filter=pending --deps-met --json"))
-    ready = ready_json["nodes"]
-
-    for node in ready:
-        # Transition to active
-        Bash(f"{CLI} transition {PIPELINE} {node['node_id']} active")
-
-        # Spawn orchestrator for this node
-        spawn_orchestrator(
-            initiative=f"{INITIATIVE}-{node['node_id']}",
-            bead_id=node["bead_id"],
-            worker_type=node["worker_type"],
-            acceptance=node.get("acceptance", ""),
-        )
-
-        # Checkpoint after dispatch
-        Bash(f"{CLI} checkpoint-save {PIPELINE}")
-
-    # Monitor orchestrators (existing patterns)
-    # When orchestrator completes:
-    for completed_node in get_completed_orchestrators():
-        Bash(f"{CLI} transition {PIPELINE} {completed_node} impl_complete")
-        Bash(f"{CLI} checkpoint-save {PIPELINE}")
-
-        # Run validation (via oversight team)
-        validation_result = run_validation(completed_node)
-
-        if validation_result == "pass":
-            Bash(f"{CLI} transition {PIPELINE} {completed_node} validated")
-        else:
-            Bash(f"{CLI} transition {PIPELINE} {completed_node} failed")
-
-        Bash(f"{CLI} checkpoint-save {PIPELINE}")
-
-    # Handle retries for failed nodes
-    failed = [n for n in codergen_nodes if n["status"] == "failed"]
-    for node in failed:
-        # Send feedback to orchestrator, transition back to active
-        Bash(f"{CLI} transition {PIPELINE} {node['node_id']} active")
-        Bash(f"{CLI} checkpoint-save {PIPELINE}")
-```
-
 ### Transition Summary
+
+Full pseudocode for the graph-driven execution loop is in [s3-guardian references/guardian-workflow.md](../skills/s3-guardian/references/guardian-workflow.md).
+
+### Transition Commands
 
 | Event | CLI Command | Next Step |
 |-------|-------------|-----------|
@@ -728,142 +527,7 @@ cobuilder pipeline status \
 4. Store the outcome in Hindsight (retain pipeline summary for future reference)
 5. Report final pipeline status to user
 
-### Iterative Refinement Loop
-
-Use node/edge CRUD commands to iteratively build and refine pipeline graphs after initial scaffolding.
-
-**Workflow**: scaffold → add nodes → add edges → validate → refine → validate
-
-1. **Scaffold** the initial graph from a PRD:
-```bash
-cobuilder pipeline create \
-    --scaffold --prd PRD-XXX-001 --output pipeline.dot
-```
-
-2. **Add task nodes** as work items are identified:
-```bash
-cobuilder pipeline node-add pipeline.dot task_auth \
-    --handler codergen --label "Implement auth module" \
-    --set bead_id=AUTH-001
-```
-
-3. **Connect nodes with edges** to define dependencies:
-```bash
-cobuilder pipeline edge-add pipeline.dot task_auth task_api \
-    --label "auth required" --condition pass
-```
-
-4. **Update node status** as work progresses:
-```bash
-cobuilder pipeline node-modify pipeline.dot task_auth \
-    --set status=active
-```
-
-5. **Remove nodes/edges** when scope changes:
-```bash
-# Removing a node automatically cascades edge removal
-cobuilder pipeline node-remove pipeline.dot task_deprecated
-# Remove a specific edge
-cobuilder pipeline edge-remove pipeline.dot task_a task_b \
-    --condition fail
-```
-
-6. **Validate** after every mutation:
-```bash
-cobuilder pipeline validate pipeline.dot
-```
-
-**Key notes**:
-- `node remove` automatically cascades edge removal (no orphan edges)
-- Use `--dry-run` on any mutating command to preview changes
-- Use `--output json` for machine-readable output in automation
-- All mutations are logged to `<file>.ops.jsonl` for audit
-
-### Example: Slim Pipeline Graph
-
-Below is a before/after showing how a flat task list becomes a typed DOT pipeline that the attractor CLI can validate and score.
-
-**Before** (unstructured task list):
-```
-- [ ] Parse incoming PDF
-- [ ] Extract entities with LLM
-- [ ] Store results in Supabase
-- [ ] Send Slack notification
-```
-
-**After** (DOT pipeline with typed nodes and conditional edges):
-```dot
-digraph pipeline {
-    graph [rankdir=LR; prd_ref="PRD-INGEST-001"];
-
-    // Entry / exit sentinels
-    start       [shape=circle;       label="START"];
-    exit_ok     [shape=doublecircle; label="EXIT-OK"];
-    exit_fail   [shape=doublecircle; label="EXIT-FAIL"];
-
-    // Processing nodes — each maps to a bead
-    parse_pdf   [shape=box; handler=toolcall;  label="Parse PDF";
-                 status=pending; bead_id="INGEST-001"];
-    extract_ent [shape=box; handler=codergen;  label="Extract Entities";
-                 status=pending; bead_id="INGEST-002"];
-    store_db    [shape=box; handler=toolcall;  label="Store in Supabase";
-                 status=pending; bead_id="INGEST-003"];
-    notify      [shape=box; handler=toolcall;  label="Slack Notify";
-                 status=pending; bead_id="INGEST-004"];
-
-    // Happy path
-    start       -> parse_pdf   [label="begin"];
-    parse_pdf   -> extract_ent [label="pass"];
-    extract_ent -> store_db    [label="pass"];
-    store_db    -> notify      [label="pass"];
-    notify      -> exit_ok     [label="pass"];
-
-    // Failure edges
-    parse_pdf   -> exit_fail   [label="fail"; condition=fail];
-    extract_ent -> exit_fail   [label="fail"; condition=fail];
-    store_db    -> exit_fail   [label="fail"; condition=fail];
-}
-```
-
-**Building this graph with the CLI:**
-```bash
-# 1. Scaffold from PRD reference
-cobuilder pipeline create --scaffold \
-    --prd PRD-INGEST-001 --output pipeline.dot
-
-# 2. Add processing nodes
-cobuilder pipeline node-add pipeline.dot parse_pdf \
-    --handler toolcall --label "Parse PDF" --set bead_id=INGEST-001
-cobuilder pipeline node-add pipeline.dot extract_ent \
-    --handler codergen --label "Extract Entities" --set bead_id=INGEST-002
-cobuilder pipeline node-add pipeline.dot store_db \
-    --handler toolcall --label "Store in Supabase" --set bead_id=INGEST-003
-cobuilder pipeline node-add pipeline.dot notify \
-    --handler toolcall --label "Slack Notify" --set bead_id=INGEST-004
-
-# 3. Wire happy-path edges
-cobuilder pipeline edge-add pipeline.dot start parse_pdf --label "begin"
-cobuilder pipeline edge-add pipeline.dot parse_pdf extract_ent --label "pass"
-cobuilder pipeline edge-add pipeline.dot extract_ent store_db --label "pass"
-cobuilder pipeline edge-add pipeline.dot store_db notify --label "pass"
-cobuilder pipeline edge-add pipeline.dot notify exit_ok --label "pass"
-
-# 4. Wire failure edges
-cobuilder pipeline edge-add pipeline.dot parse_pdf exit_fail \
-    --label "fail" --condition fail
-cobuilder pipeline edge-add pipeline.dot extract_ent exit_fail \
-    --label "fail" --condition fail
-cobuilder pipeline edge-add pipeline.dot store_db exit_fail \
-    --label "fail" --condition fail
-
-# 5. Validate the graph
-cobuilder pipeline validate pipeline.dot
-
-# 6. Checkpoint
-cobuilder pipeline checkpoint-save pipeline.dot
-```
-
-> **Tip**: Run `validate` after every mutation batch to catch orphan edges, missing sentinels, or disconnected subgraphs before they propagate.
+For iterative pipeline refinement (node/edge CRUD, scaffolding, examples), see [s3-guardian references/phase0-prd-design.md](../skills/s3-guardian/references/phase0-prd-design.md).
 
 ---
 

@@ -1,0 +1,16 @@
+repository: claude-harness-setup
+snapshot_date: '2026-02-27T07:52:07.075035+00:00'
+total_nodes: 2593
+total_files: 340
+total_functions: 2225
+top_modules:
+- name: cobuilder
+  files: 186
+  delta: existing
+- name: tests
+  files: 143
+  delta: existing
+- name: mcp-servers
+  files: 11
+  delta: existing
+target_dir: /Users/theb/Documents/Windsurf/claude-harness-setup

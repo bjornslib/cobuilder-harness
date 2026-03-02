@@ -9,11 +9,29 @@ appear in Logfire at https://logfire-eu.pydantic.dev/faie/checkpro
 
 import asyncio
 import json
+import os
 import time
+from pathlib import Path
 
 import logfire
 
+# Gracefully handle missing Logfire project credentials:
+# Auth is global (~/.logfire/default.toml) but project association requires
+# .logfire/ in cwd or LOGFIRE_TOKEN. When neither exists, disable sending
+# rather than triggering an interactive prompt that crashes non-interactive contexts.
+_send_to_logfire = os.environ.get("LOGFIRE_SEND_TO_LOGFIRE", "").lower()
+if _send_to_logfire == "false":
+    _logfire_enabled = False
+elif _send_to_logfire == "true":
+    _logfire_enabled = True
+else:
+    _logfire_enabled = (
+        Path(".logfire").is_dir()
+        or bool(os.environ.get("LOGFIRE_TOKEN"))
+    )
+
 logfire.configure(
+    send_to_logfire=_logfire_enabled,
     scrubbing=logfire.ScrubbingOptions(callback=lambda m: m.value),
 )
 

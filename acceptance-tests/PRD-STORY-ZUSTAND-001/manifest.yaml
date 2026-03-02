@@ -1,0 +1,82 @@
+prd_id: PRD-STORY-ZUSTAND-001
+prd_title: "Local-First Zustand Store for Story Management"
+prd_source: "/Users/theb/Documents/Windsurf/story-writer/docs/prds/PRD-STORY-ZUSTAND-001.md"
+sd_source: "/Users/theb/Documents/Windsurf/story-writer/docs/prds/SD-STORY-ZUSTAND-001-store-foundation.md"
+generated: "2026-02-27T06:00:00Z"
+mode: guardian
+
+thresholds:
+  accept: 0.60
+  investigate: 0.40
+
+service_prerequisites:
+  - name: "Vitest test runner"
+    check: "cd web && npm run test -- --run"
+    required_for: ["F1.6"]
+  - name: "TypeScript compiler"
+    check: "cd web && npx tsc --noEmit"
+    required_for: ["F1.1"]
+
+features:
+  - name: "F1.1 — Install Zustand and Create Store Shell"
+    weight: 0.05
+    validation_method: code-analysis
+    scenarios:
+      - "S1.1-package-installed"
+      - "S1.2-store-exports-hook"
+      - "S1.3-typescript-clean"
+
+  - name: "F1.2 — Story Session State Slice"
+    weight: 0.30
+    validation_method: code-analysis
+    scenarios:
+      - "S2.1-stored-session-type"
+      - "S2.2-add-session"
+      - "S2.3-remove-session"
+      - "S2.4-remove-active-session-resets"
+      - "S2.5-set-active-session"
+      - "S2.6-update-session"
+      - "S2.7-append-turn"
+      - "S2.8-append-turn-preserves"
+      - "S2.9-story-text-immutable"
+
+  - name: "F1.3 — localStorage Persistence Middleware"
+    weight: 0.20
+    validation_method: code-analysis
+    scenarios:
+      - "S3.1-writes-to-localstorage"
+      - "S3.2-isloading-excluded"
+      - "S3.3-rehydrates-on-load"
+      - "S3.4-version-set"
+
+  - name: "F1.4 — Session List Component"
+    weight: 0.15
+    validation_method: browser-required
+    scenarios:
+      - "S4.1-renders-title"
+      - "S4.2-renders-fallback-title"
+      - "S4.3-renders-character-count"
+      - "S4.4-click-selects"
+      - "S4.5-delete-removes"
+      - "S4.6-empty-state"
+      - "S4.7-sidebar-layout"
+
+  - name: "F1.5 — Create Session Flow (Local-Only)"
+    weight: 0.15
+    validation_method: browser-required
+    scenarios:
+      - "S5.1-save-locally-button"
+      - "S5.2-button-disabled-empty"
+      - "S5.3-local-creation-no-api"
+      - "S5.4-appears-in-list"
+      - "S5.5-story-text-stored"
+      - "S5.6-persistence-survives-refresh"
+
+  - name: "F1.6 — Unit Tests"
+    weight: 0.15
+    validation_method: code-analysis
+    scenarios:
+      - "S6.1-store-action-tests-pass"
+      - "S6.2-persistence-tests-pass"
+      - "S6.3-component-tests-pass"
+      - "S6.4-no-regressions"

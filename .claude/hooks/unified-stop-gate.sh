@@ -41,8 +41,15 @@ MAX_BLOCKS=3
 _SAFE_SESSION_ID="${SESSION_ID//[^a-zA-Z0-9_-]/}"   # sanitize for filename
 BLOCK_COUNT_FILE="/tmp/stop-gate-blocks-${_SAFE_SESSION_ID:-default}.count"
 CURRENT_BLOCKS=0
+_LAST_BLOCK_TS=0
 if [ -f "$BLOCK_COUNT_FILE" ]; then
-    CURRENT_BLOCKS=$(cat "$BLOCK_COUNT_FILE" 2>/dev/null || echo 0)
+    CURRENT_BLOCKS=$(head -1 "$BLOCK_COUNT_FILE" 2>/dev/null || echo 0)
+    _LAST_BLOCK_TS=$(tail -1 "$BLOCK_COUNT_FILE" 2>/dev/null || echo 0)
+    _NOW_TS=$(date +%s)
+    # Reset counter if last block was more than 60 seconds ago
+    if [ $((_NOW_TS - _LAST_BLOCK_TS)) -gt 60 ]; then
+        CURRENT_BLOCKS=0
+    fi
 fi
 
 # --- Helper functions ---
@@ -64,11 +71,11 @@ output_json() {
 block_gate() {
     local message="$1"
     CURRENT_BLOCKS=$((CURRENT_BLOCKS + 1))
-    echo "$CURRENT_BLOCKS" > "$BLOCK_COUNT_FILE"
+    printf '%s\n%s\n' "$CURRENT_BLOCKS" "$(date +%s)" > "$BLOCK_COUNT_FILE"
 
     if [ "$CURRENT_BLOCKS" -ge "$MAX_BLOCKS" ]; then
         # Reset counter on override-approve so next stop attempt starts fresh
-        echo "0" > "$BLOCK_COUNT_FILE"
+        printf '%s\n%s\n' "0" "$(date +%s)" > "$BLOCK_COUNT_FILE"
         output_json "approve" "systemMessage" "⚠️ STOP GATE OVERRIDE
 
 The gate has blocked multiple times this session without resolution. Forcing approve to prevent an infinite loop.
@@ -81,6 +88,26 @@ ${message}"
     exit 0
 }
 
+# --- Fast path: Agencheck project directories stop freely ---
+# Sessions in agencheck directories are externally monitored and should not
+# be blocked by harness-level stop gate checks.
+PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
+if [[ "$PROJECT_DIR" == *agencheck* ]]; then
+    printf '%s\n%s\n' "0" "$(date +%s)" > "$BLOCK_COUNT_FILE"
+    output_json "approve" "systemMessage" "Agencheck project directory — approved (stop gate bypassed)"
+    exit 0
+fi
+
+# --- Fast path: Non-enforced sessions stop freely ---
+# Only System 3 sets CLAUDE_ENFORCE_BO=true. Orchestrators, workers, and
+# untagged sessions are externally monitored and bypass the stop gate.
+# This single check replaces all CLAUDE_OUTPUT_STYLE and session ID prefix guards.
+if [[ "${CLAUDE_ENFORCE_BO:-false}" != "true" ]]; then
+    printf '%s\n%s\n' "0" "$(date +%s)" > "$BLOCK_COUNT_FILE"
+    output_json "approve" "systemMessage" "Non-enforced session — approved (CLAUDE_ENFORCE_BO != true)"
+    exit 0
+fi
+
 # --- Step 1: Completion Promise Check (via cs-verify) ---
 # REQUIRES CLAUDE_SESSION_ID - if not set, skip promise checking entirely
 
@@ -88,13 +115,9 @@ PROMISE_PASSED=true
 PROMISE_MESSAGE=""
 BG_AGENTS_ACTIVE=false  # set to true by Step 1.4 when background agents are found
 
-if [[ "${CLAUDE_OUTPUT_STYLE:-}" == "orchestrator" ]]; then
-    # Orchestrators and their native teammates don't own completion promises —
-    # only System 3 creates promises. Skip check to prevent false positives when
-    # workers inherit a system3-* CLAUDE_SESSION_ID from the parent shell.
-    # (Same guard pattern as Steps 1.4, 1.5, 1.7, 5.)
-    PROMISE_MESSAGE="Orchestrator session — promise check skipped"
-elif [ -z "$SESSION_ID" ]; then
+# Note: Orchestrators/workers never reach this point (CLAUDE_ENFORCE_BO fast-path above).
+# This code only runs for CLAUDE_ENFORCE_BO=true (System 3) sessions.
+if [ -z "$SESSION_ID" ]; then
     # No session ID = no promise tracking = always OK to stop
     PROMISE_MESSAGE="No CLAUDE_SESSION_ID set - OK to stop"
 elif [ ! -x "$CS_VERIFY" ]; then
@@ -122,7 +145,8 @@ fi
 # the session via SendMessage when they complete — allow stop now.
 # Guard: CLAUDE_OUTPUT_STYLE != orchestrator (same as Steps 1.5, 1.7).
 
-if [ "$PROMISE_PASSED" = false ] && [[ "$SESSION_ID" == system3-* ]] && [[ "${CLAUDE_OUTPUT_STYLE:-}" != "orchestrator" ]]; then
+# Note: CLAUDE_OUTPUT_STYLE guard removed — orchestrators exit at fast-path above.
+if [ "$PROMISE_PASSED" = false ] && [[ "$SESSION_ID" == system3-* ]]; then
     _TASK_LIST_ID="${CLAUDE_CODE_TASK_LIST_ID:-}"
     if [ -n "$_TASK_LIST_ID" ]; then
         _TASK_DIR="$HOME/.claude/tasks/$_TASK_LIST_ID"
@@ -183,7 +207,8 @@ fi
 # The hook writes session_id (CLAUDE_SESSION_ID) into each marker file.
 # Guard: CLAUDE_OUTPUT_STYLE != orchestrator prevents false-positives (same as Step 1.5).
 
-if [[ "$SESSION_ID" == system3-* ]] && [[ "${CLAUDE_OUTPUT_STYLE:-}" != "orchestrator" ]]; then
+# Note: CLAUDE_OUTPUT_STYLE guard removed — orchestrators exit at fast-path above.
+if [[ "$SESSION_ID" == system3-* ]]; then
     GCHAT_ASK_DIR="$PROJECT_ROOT/.claude/state/gchat-forwarded-ask"
     if [ -d "$GCHAT_ASK_DIR" ]; then
         GCHAT_PENDING_FOR_SESSION=0
@@ -388,12 +413,11 @@ fi
 # --- Step 5: Continuation Judge (System 3 sessions only) ---
 # Uses Haiku 4.5 API call to evaluate if System 3 session should continue
 # Non-System 3 sessions skip this step entirely (Step 4 already passes them)
-# Guard: CLAUDE_OUTPUT_STYLE != orchestrator prevents orchestrators that inherit a stale
-# system3-* CLAUDE_SESSION_ID from triggering this judge (ccorch sets CLAUDE_OUTPUT_STYLE=orchestrator).
+# Note: CLAUDE_OUTPUT_STYLE guard removed — orchestrators exit at CLAUDE_ENFORCE_BO fast-path above.
 
 S3_MSG=""
 
-if [[ "$SESSION_ID" == system3-* ]] && [[ "${CLAUDE_OUTPUT_STYLE:-}" != "orchestrator" ]]; then
+if [[ "$SESSION_ID" == system3-* ]]; then
     TIMEOUT_CMD="timeout"
     if command -v gtimeout &> /dev/null; then
         TIMEOUT_CMD="gtimeout"
@@ -518,7 +542,7 @@ fi
 # fi
 
 # Reset block counter on successful approval (prevents stale counts across stop attempts)
-echo "0" > "$BLOCK_COUNT_FILE"
+printf '%s\n%s\n' "0" "$(date +%s)" > "$BLOCK_COUNT_FILE"
 
 # Always approve (blocking happens earlier or not at all)
 output_json "approve" "systemMessage" "$MSG_PARTS"

@@ -192,8 +192,9 @@ def filter_nodes_by_sd_relevance(
     Processes nodes in batches and uses an LLM to identify which nodes would
     be created or modified when implementing the solution described in the SD.
 
-    On any failure (API error, parse error, empty result), logs a warning and
-    returns the original *nodes* list unchanged.
+    On failure, returns an EMPTY list — callers must handle the empty case.
+    The previous behavior of returning all nodes on failure caused downstream
+    bottlenecks (2900+ nodes hitting LLM enrichment).
 
     Args:
         nodes: List of node dicts from :func:`collect_repomap_nodes`.
@@ -202,12 +203,62 @@ def filter_nodes_by_sd_relevance(
         batch_size: Maximum number of nodes per LLM batch call.
 
     Returns:
-        Filtered list of nodes relevant to the SD, or original nodes on failure.
+        Filtered list of nodes relevant to the SD, or empty list on failure.
     """
     if not nodes:
         return nodes
     if not sd_content.strip():
         logger.warning("filter_nodes_by_sd_relevance: no SD content provided, skipping filter")
+        return nodes
+
+    # ── Phase A: Fast keyword pre-filter ──────────────────────────────
+    # Extract file paths mentioned in the SD (Section 6: File Scope)
+    # and filter nodes to those whose file_path contains any SD-mentioned path segment.
+    # This reduces 2900+ nodes to ~50-100 before sending to LLM.
+    sd_lower = sd_content.lower()
+    # Extract likely file paths from SD: patterns like `word/word.ext` or `word/word/word.ext`
+    # Include bracket patterns like [task_id] common in Next.js dynamic routes
+    path_fragments = set()
+    segment = r"[\w\-\[\].]+"  # Allow brackets and dots in path segments
+    for m in re.finditer(
+        rf"{segment}/{segment}(?:/{segment})*\.(?:tsx?|jsx?|py|css|json|yaml|md)",
+        sd_content,
+    ):
+        # Take the last 2-3 path segments as a matching key
+        parts = m.group().split("/")
+        path_fragments.add("/".join(parts[-2:]))  # e.g. "[task_id]/page.tsx"
+        if len(parts) >= 3:
+            path_fragments.add("/".join(parts[-3:]))  # e.g. "verify-check/[task_id]/page.tsx"
+
+    import sys
+    print(f"[DEBUG] path_fragments ({len(path_fragments)}): {sorted(path_fragments)[:10]}", file=sys.stderr)
+
+    if path_fragments:
+        pre_filtered = [
+            n for n in nodes
+            if any(frag in (n.get("file_path") or "") for frag in path_fragments)
+        ]
+        print(f"[DEBUG] pre_filtered: {len(pre_filtered)} from {len(nodes)}", file=sys.stderr)
+        if pre_filtered:
+            logger.info(
+                "filter_nodes_by_sd_relevance: keyword pre-filter %d → %d nodes (fragments: %s)",
+                len(nodes), len(pre_filtered), list(path_fragments)[:10],
+            )
+            nodes = pre_filtered
+        else:
+            logger.info(
+                "filter_nodes_by_sd_relevance: keyword pre-filter matched 0 nodes from %d; "
+                "falling through to LLM filter on all nodes",
+                len(nodes),
+            )
+
+    # ── Phase B: LLM relevance filter ─────────────────────────────────
+    # If pre-filter already reduced to a small set (<= 50), skip LLM and return directly
+    if path_fragments and len(nodes) <= 50:
+        logger.info(
+            "filter_nodes_by_sd_relevance: pre-filter yielded %d nodes (<= 50), skipping LLM phase",
+            len(nodes),
+        )
         return nodes
 
     # Truncate SD to avoid excessive token usage; first ~4000 chars contain the key context
@@ -248,13 +299,17 @@ def filter_nodes_by_sd_relevance(
             )
             response_text = msg.content[0].text.strip()
 
-            # Extract JSON array from response
-            match = re.search(r"\[[\d,\s]*\]", response_text)
+            # Strip markdown code fences if present (```json ... ``` or ``` ... ```)
+            cleaned = re.sub(r"^```(?:json)?\s*\n?", "", response_text)
+            cleaned = re.sub(r"\n?```\s*$", "", cleaned).strip()
+
+            # Extract JSON array from response — allow negative indices too
+            match = re.search(r"\[[\d,\s\-]*\]", cleaned)
             if not match:
                 logger.warning(
                     "filter_nodes_by_sd_relevance: could not parse batch %d response: %r",
                     batch_idx,
-                    response_text[:120],
+                    response_text[:200],
                 )
                 continue
 
@@ -266,10 +321,10 @@ def filter_nodes_by_sd_relevance(
         if not relevant:
             logger.warning(
                 "filter_nodes_by_sd_relevance: LLM returned no relevant nodes "
-                "from %d candidates; returning all nodes unchanged",
+                "from %d candidates; returning EMPTY list (not all nodes)",
                 len(nodes),
             )
-            return nodes
+            return []
 
         logger.info(
             "filter_nodes_by_sd_relevance: %d → %d nodes after SD relevance filter",
@@ -280,10 +335,10 @@ def filter_nodes_by_sd_relevance(
 
     except Exception as exc:  # noqa: BLE001
         logger.warning(
-            "filter_nodes_by_sd_relevance failed (%s); returning all nodes unchanged",
+            "filter_nodes_by_sd_relevance failed (%s); returning EMPTY list",
             exc,
         )
-        return nodes
+        return []
 
 
 # ---------------------------------------------------------------------------

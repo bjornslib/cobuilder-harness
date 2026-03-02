@@ -1,0 +1,70 @@
+prd_id: PRD-P1.1-UEA-DEPLOY-001
+prd_title: "UE-A Deployment & E2E Validation"
+prd_source: "/Users/theb/Documents/Windsurf/zenagent2/zenagent/agencheck/documentation/prds/phase-1.1/PRD-P1.1-UEA-DEPLOY-001.md"
+prd_version: "v2 (amended post design-challenge)"
+generated: "2026-02-28T15:20:00+11:00"
+
+thresholds:
+  accept: 0.60
+  investigate: 0.40
+
+service_prerequisites:
+  backend:
+    url: "https://agencheck-production.up.railway.app"
+    health_check: "GET /health → 200"
+    note: "Production Railway deployment (post-merge)"
+  frontend:
+    url: "https://agencheck.vercel.app"
+    health_check: "Page loads with Clerk auth gate"
+    note: "Production Vercel deployment (post-merge)"
+  database:
+    type: "Railway PostgreSQL"
+    verify: "SELECT table_name FROM information_schema.tables WHERE table_name IN ('check_types', 'background_check_sequence')"
+    note: "Tables must exist after migrations 025, 035, 036, 037 execute"
+  auth:
+    provider: "Clerk"
+    test_account: "Use existing dev credentials"
+
+features:
+  - id: F1
+    name: "Migration 036 Reconciliation + Rebase"
+    epic: "Epic 1"
+    weight: 0.35
+    validation_method: code-analysis
+    scenarios:
+      - "S1_migration_036_uses_client_id"
+      - "S1_rebase_clean"
+      - "S1_models_use_client_id"
+
+  - id: F2
+    name: "PR Merge & Railway Deployment"
+    epic: "Epic 2"
+    weight: 0.25
+    validation_method: api-required
+    scenarios:
+      - "S2_tables_exist_in_railway"
+      - "S2_seed_data_present"
+      - "S2_vercel_deployment"
+
+  - id: F3
+    name: "SLA CRUD API (Guardian Validation)"
+    epic: "Epic 3"
+    weight: 0.25
+    validation_method: api-required
+    scenarios:
+      - "S3_get_check_types"
+      - "S3_create_check_type"
+      - "S3_get_sequence"
+      - "S3_three_tier_resolution"
+      - "S3_sla_deadline"
+
+  - id: F4
+    name: "Browser SLA Configuration Page"
+    epic: "Epic 4"
+    weight: 0.15
+    validation_method: browser-required
+    scenarios:
+      - "S4_page_loads_with_auth"
+      - "S4_crud_check_types"
+      - "S4_sequence_management"
+      - "S4_persistence"

@@ -169,7 +169,41 @@ All scripts are in {scripts_dir}:
 3. Get current status:
    python3 {scripts_dir}/cli.py status {dot_path} --json
 
-### Phase 2: Dispatch Ready Nodes
+### Phase 2a: Dispatch Research Nodes (BEFORE codergen)
+4a. Find ready research nodes:
+    python3 {scripts_dir}/cli.py status {dot_path} --filter=pending --deps-met --json
+    Filter output for nodes with handler="research".
+4b. For each ready research node:
+   a. Transition to active:
+      python3 {scripts_dir}/cli.py transition {dot_path} transition <node_id> active
+   b. Save checkpoint:
+      python3 {scripts_dir}/cli.py checkpoint save {dot_path}
+   c. Run research agent (synchronous — completes in seconds):
+      python3 {scripts_dir}/run_research.py --node <node_id> --prd <prd_ref> \
+          --solution-design <solution_design_attr> --target-dir {target_dir} \
+          --frameworks <research_queries_attr>
+   d. Parse the JSON output from stdout
+   e. If status=ok and sd_updated=true:
+      - The SD has been updated with validated patterns
+      - Transition research node to validated:
+        python3 {scripts_dir}/cli.py transition {dot_path} transition <node_id> validated
+      - Save checkpoint
+      - Log: "Research validated N frameworks, updated SD at <sd_path>"
+   f. If status=ok and sd_updated=false:
+      - SD was already current — no changes needed
+      - Transition research node to validated:
+        python3 {scripts_dir}/cli.py transition {dot_path} transition <node_id> validated
+      - Save checkpoint
+   g. If status=error:
+      - Transition to failed:
+        python3 {scripts_dir}/cli.py transition {dot_path} transition <node_id> failed
+      - Escalate: python3 {scripts_dir}/escalate_to_terminal.py --pipeline {pipeline_id} --issue "Research failed for <node_id>: <error>"
+
+Research nodes are dispatched BEFORE codergen nodes. The downstream codergen node's dependency
+on the research node is enforced by DOT edges — it won't appear in --deps-met until research
+is validated.
+
+### Phase 2b: Dispatch Ready Codergen Nodes
 4. Find ready nodes (pending + dependencies met):
    python3 {scripts_dir}/cli.py status {dot_path} --filter=pending --deps-met --json
 5. For each ready codergen node:

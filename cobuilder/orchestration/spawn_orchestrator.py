@@ -29,6 +29,7 @@ import subprocess
 import sys
 import os
 import time
+from pathlib import Path
 
 # Ensure this file's directory is importable regardless of invocation CWD.
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -39,8 +40,46 @@ import identity_registry
 import hook_manager
 
 
-def _tmux_send(session: str, text: str, pause: float = 2.0) -> None:
-    """Send text to tmux with Enter as separate call (Pattern 1 from MEMORY.md)."""
+def _build_claude_cmd(node_id: str, prd: str) -> str:
+    """Build direct claude invocation with explicit env vars.
+
+    Replaces the ccorch shell function. Only sets documented/working env vars.
+    Output style is set separately via /output-style slash command.
+
+    Args:
+        node_id: Node identifier (used for --worktree name).
+        prd: PRD reference (e.g., PRD-AUTH-001).
+
+    Returns:
+        Shell command string to launch Claude Code with correct env vars.
+    """
+    timestamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+
+    env_vars = " ".join([
+        "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1",
+        "CLAUDE_CODE_ENABLE_TASKS=true",
+        f"CLAUDE_CODE_TASK_LIST_ID={shlex.quote(prd)}",
+        f"CLAUDE_SESSION_ID=orch-{shlex.quote(prd)}-{timestamp}",
+        "CLAUDE_ENFORCE_BO=false",
+    ])
+
+    return (
+        f"unset CLAUDECODE && env {env_vars} "
+        f"claude --chrome --model claude-sonnet-4-6"
+        f" --dangerously-skip-permissions --worktree {shlex.quote(node_id)}"
+    )
+
+
+def _tmux_send(session: str, text: str, pause: float = 2.0, post_pause: float = 0.0) -> None:
+    """Send text to tmux with Enter as separate call (Pattern 1 from MEMORY.md).
+
+    Args:
+        session:    tmux session target.
+        text:       Text to type into the pane.
+        pause:      Seconds between text paste and Enter key (render time).
+        post_pause: Seconds after Enter key (processing time for commands
+                    like /output-style that need to complete before next input).
+    """
     subprocess.run(
         ["tmux", "send-keys", "-t", session, text],
         check=True, capture_output=True, text=True,
@@ -50,6 +89,8 @@ def _tmux_send(session: str, text: str, pause: float = 2.0) -> None:
         ["tmux", "send-keys", "-t", session, "Enter"],
         check=True, capture_output=True, text=True,
     )
+    if post_pause > 0.0:
+        time.sleep(post_pause)
 
 
 def check_orchestrator_alive(session: str) -> bool:
@@ -75,6 +116,7 @@ def respawn_orchestrator(
     prompt: str | None,
     respawn_count: int,
     max_respawn: int,
+    prd: str = "",
 ) -> dict:
     """Attempt to respawn a dead orchestrator tmux session.
 
@@ -85,6 +127,7 @@ def respawn_orchestrator(
         prompt: Optional initial prompt to send after launching Claude.
         respawn_count: Current number of respawn attempts made so far.
         max_respawn: Maximum allowed respawn attempts.
+        prd: PRD reference for env vars (e.g., PRD-AUTH-001).
 
     Returns:
         Dict with status:
@@ -121,12 +164,8 @@ def respawn_orchestrator(
     subprocess.run(tmux_cmd, check=True, capture_output=True, text=True)
 
     time.sleep(2)
-    _tmux_send(
-        session_name,
-        f"unset CLAUDECODE && ccorch --worktree {shlex.quote(node_id)}",
-        pause=8.0,
-    )
-    _tmux_send(session_name, "/output-style orchestrator", pause=3.0)
+    _tmux_send(session_name, _build_claude_cmd(node_id, prd), pause=8.0)
+    _tmux_send(session_name, "/output-style orchestrator", pause=3.0, post_pause=5.0)
     if prompt:
         _tmux_send(session_name, prompt, pause=2.0)
 
@@ -183,6 +222,23 @@ def main() -> None:
             "message": "Either --repo-root or --worktree (deprecated) is required",
         }))
         sys.exit(1)
+
+    # Warn if work_dir does not contain a .claude/ directory.
+    # Usually means --repo-root points at git root instead of project subdirectory.
+    _claude_dir = Path(work_dir) / ".claude"
+    if not _claude_dir.is_dir():
+        print(
+            json.dumps({
+                "warning": (
+                    f"--repo-root '{work_dir}' does not contain a .claude/ directory. "
+                    "Claude Code may not find its project configuration or may create "
+                    "worktrees in the wrong location. "
+                    "Ensure --repo-root points to the directory containing .claude/ "
+                    "(e.g., 'agencheck/' in a monorepo, not the monorepo root)."
+                )
+            }),
+            file=sys.stderr,
+        )
 
     # Validate session name: reject reserved s3-live- prefix
     if re.match(r"s3-live-", session_name):
@@ -246,6 +302,7 @@ def main() -> None:
             prompt=args.prompt,
             respawn_count=respawn_count,
             max_respawn=args.max_respawn,
+            prd=args.prd,
         )
         if respawn_result["status"] == "error":
             print(json.dumps(respawn_result))
@@ -260,13 +317,13 @@ def main() -> None:
         }))
         return
 
-    # Unset CLAUDECODE to avoid nested-session error, then launch via ccorch
-    # which sets env vars (CLAUDE_OUTPUT_STYLE, CLAUDE_SESSION_ID, etc.)
-    # --worktree is forwarded to claude via ccorch's "$@"
+    # Launch Claude Code directly with explicit env vars (replaces ccorch shell function).
+    # Claude creates .claude/worktrees/<node_id>/ via --worktree.
+    claude_launch_cmd = _build_claude_cmd(args.node, args.prd)
     try:
         _tmux_send(
             session_name,
-            f"unset CLAUDECODE && ccorch --worktree {shlex.quote(args.node)}",
+            claude_launch_cmd,
             pause=8.0,
         )
     except subprocess.CalledProcessError as exc:
@@ -279,7 +336,7 @@ def main() -> None:
 
     # Set output style via slash command (not CLI flag)
     try:
-        _tmux_send(session_name, "/output-style orchestrator", pause=3.0)
+        _tmux_send(session_name, "/output-style orchestrator", pause=3.0, post_pause=5.0)
     except subprocess.CalledProcessError as exc:
         error_msg = exc.stderr.strip() if exc.stderr else str(exc)
         print(json.dumps({

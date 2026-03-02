@@ -37,7 +37,7 @@ def pipeline_create(
     from cobuilder.pipeline.taskmaster_bridge import run_taskmaster_parse
     from cobuilder.pipeline.sd_enricher import write_all_enrichments
 
-    project_root = Path(".")
+    project_root = Path(target_dir) if target_dir else Path(".")
     sd_path = Path(sd)
 
     # Step 1+2: Ensure baseline, collect nodes
@@ -53,6 +53,8 @@ def pipeline_create(
     typer.echo(f"[2.5/7] Filtering nodes by SD relevance ({len(nodes)} candidates)...")
     nodes = filter_nodes_by_sd_relevance(nodes, sd_content)
     typer.echo(f"        Retained {len(nodes)} SD-relevant nodes")
+    if not nodes:
+        typer.echo("        ⚠ SD filter returned 0 nodes — pipeline will contain only TaskMaster-derived nodes")
 
     # Step 3: TaskMaster parse
     taskmaster_tasks = {}

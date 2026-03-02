@@ -178,6 +178,209 @@ Guardian                 Monitor Guardian               Orchestrator
    │  Re-launch monitor ──────►│  (cycle repeats)             │
 ```
 
+## SDK Pipeline Engine (4-Layer Chain)
+
+The Attractor Pipeline Engine executes DOT-based initiative pipelines through a
+4-layer chain. Each layer has a distinct responsibility:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Layer 0: Claude Code CLI (S3 Guardian — user's terminal)        │
+│  ┌─────────────────────────────────────────────────────────────┐│
+│  │  • User's ccsystem3 session — the S3 Meta-Orchestrator      ││
+│  │  • Launches SDK chain via: launch_guardian.py (bootstrap)   ││
+│  │  • Post-pipeline blind validation (Phase 4 of s3-guardian)  ││
+│  │  • Scores against rubric the SDK Guardian never saw         ││
+│  └─────────────────────────────────────────────────────────────┘│
+│                              │                                   │
+│                              ▼                                   │
+│  Layer 1: guardian_agent.py (Anthropic Claude Code SDK)           │
+│  ┌─────────────────────────────────────────────────────────────┐│
+│  │  • Uses claude_code_sdk.query() — Claude as subprocess      ││
+│  │  • Reads DOT pipeline, advances bootstrap nodes             ││
+│  │  • Dispatches research nodes (tab shape) BEFORE codergen:   ││
+│  │    → Validates framework patterns via Context7/Perplexity   ││
+│  │    → Updates Solution Design with current API patterns      ││
+│  │    → Writes evidence to .claude/evidence/{node}/            ││
+│  │  • Identifies dispatchable codergen nodes (--deps-met)      ││
+│  │  • Spawns Runner agents (Layer 2) per codergen node         ││
+│  │  • VALIDATES nodes after impl_complete:                      ││
+│  │    → Technical gate (hexagon node): tests, imports, TODOs   ││
+│  │    → Business gate (hexagon node): acceptance criteria       ││
+│  │  • Transitions nodes: impl_complete → validated | failed    ││
+│  │  • Checkpoints pipeline state after each transition         ││
+│  └─────────────────────────────────────────────────────────────┘│
+│                              │                                   │
+│                              ▼                                   │
+│  Layer 2: runner_agent.py + spawn_runner.py                      │
+│  ┌─────────────────────────────────────────────────────────────┐│
+│  │  • Spawns orchestrator in tmux via spawn_orchestrator.py    ││
+│  │  • Monitors tmux output for completion/error signals        ││
+│  │  • Signals NEEDS_REVIEW to Guardian when impl_complete      ││
+│  │  • Handles orchestrator respawn on crash (max 3 retries)    ││
+│  │  • NO validation role — pure lifecycle management            ││
+│  └─────────────────────────────────────────────────────────────┘│
+│                              │                                   │
+│                              ▼                                   │
+│  Layer 3: Orchestrator + Workers (tmux + Agent Teams)            │
+│  ┌─────────────────────────────────────────────────────────────┐│
+│  │  • Orchestrator: reads SD, delegates to workers              ││
+│  │  • Workers: implement code, run tests, report completion     ││
+│  │  • Marks node as impl_complete when done                     ││
+│  │  • NO self-validation — implementer never grades own work    ││
+│  └─────────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Validation Architecture (Who Validates What)
+
+```
+Layer 3 (Orchestrator/Workers)       →  Implements, marks impl_complete
+Layer 2 (Runner)                     →  Detects impl_complete, signals NEEDS_REVIEW
+Layer 1 (SDK Guardian, claude_code_sdk) →  Independent validation per node:
+                                          Tech gate → Business gate → validated/failed
+Layer 0 (S3 Guardian, Claude Code CLI)  →  Post-pipeline blind validation:
+                                          Scores against rubric the SDK Guardian never saw
+```
+
+**Key principle**: The implementer (Layer 3) never validates its own work.
+The SDK Guardian (Layer 1, `claude_code_sdk`) validates during execution.
+The S3 Guardian (Layer 0, the user's Claude Code CLI session) validates
+independently afterward using the s3-guardian skill's Phase 4 protocol.
+
+### DOT Pipeline Node Types
+
+| Shape | Handler | Role |
+| --- | --- | --- |
+| `Mdiamond` | `start` | Pipeline entry point |
+| `tab` | `research` | Pre-implementation research gate — validates frameworks via Context7/Perplexity, updates SD |
+| `box` | `tool` | Setup/teardown commands |
+| `parallelogram` | `parallel` | Fan-out / fan-in synchronization |
+| `box` | `codergen` | Implementation node — spawns orchestrator |
+| `hexagon` | `wait.human` | Validation gate (technical or business) |
+| `diamond` | `conditional` | Pass/fail routing |
+| `Msquare` | `exit` | Pipeline finalization |
+
+### Execution Mode: SDK vs tmux
+
+The `spawn_orchestrator.py` script supports two execution modes via `--mode`:
+
+| Mode | When | Worktree Behavior |
+| --- | --- | --- |
+| `tmux` (default) | Manual S3 Guardian in terminal | `ccorch --worktree <node>` — creates isolated worktree |
+| `sdk` | PydanticAI Guardian already in worktree | `ccorch` WITHOUT `--worktree` — reuses guardian's worktree |
+
+**Why this matters**: In SDK mode, the Guardian already runs in a worktree
+(created by `launch_guardian.py`). If `spawn_orchestrator.py` creates another
+nested worktree, it branches from main's HEAD — not the Guardian's branch.
+The `--mode sdk` parameter prevents this double-worktree problem.
+
+The mode propagates through the full chain:
+```
+launch_guardian.py
+  → guardian_agent.py (system prompt includes --mode sdk)
+    → spawn_runner.py --mode sdk
+      → runner_agent.py --mode sdk
+        → spawn_orchestrator.py --mode sdk  ← skips --worktree
+```
+
+### deps-met Filter (Retry Edge Exclusion)
+
+The `status.py --deps-met` filter finds nodes ready for dispatch by checking
+that all upstream predecessors are validated. DOT pipelines include retry
+back-edges (condition=fail, style=dashed) for failure recovery:
+
+```dot
+decision_vite_config -> impl_vite_config [condition="fail" style=dashed]
+```
+
+These edges are **excluded** from dependency calculation to prevent cycles.
+Only forward-path edges (no `condition=fail`) count as real dependencies.
+
+### Research Nodes (Pre-Implementation Gates)
+
+Research nodes (`handler="research"`, `shape=tab`) are mandatory gates that run
+BEFORE their downstream codergen nodes. They validate that the Solution Design's
+framework patterns match current documentation, preventing orchestrators from
+implementing against outdated APIs.
+
+```
+Pipeline Flow:
+    start → research_auth → impl_auth → validate_auth → exit
+
+Research Node Execution:
+    1. Guardian reads the research node's attributes (downstream_node, solution_design, research_queries)
+    2. Runs a lightweight SDK agent (Haiku, ~15s, ~$0.02) that:
+       a. Reads the current Solution Design document
+       b. Queries Context7 for each framework's current API patterns
+       c. Cross-validates with Perplexity
+       d. Updates the SD directly with validated patterns
+       e. Writes evidence JSON to .claude/evidence/{node_id}/
+       f. Persists learnings to Hindsight for future sessions
+    3. Guardian transitions research node: pending → active → validated
+    4. Downstream codergen node becomes dispatchable (--deps-met)
+```
+
+**Key design insight**: Research updates the SD directly — no side-channel
+injection into runners or orchestrators. Since orchestrators already read the SD
+as their implementation brief, they receive corrected patterns naturally.
+
+**DOT attributes for research nodes**:
+
+| Attribute | Required | Purpose |
+| --- | --- | --- |
+| `handler` | Yes | Must be `"research"` |
+| `shape` | Yes | Must be `tab` |
+| `downstream_node` | Yes | ID of the codergen node this research feeds |
+| `solution_design` | Yes | Path to SD document to validate and update |
+| `research_queries` | Recommended | Comma-separated frameworks to query (e.g., `"fastapi,pydantic,supabase"`) |
+| `prd_ref` | Recommended | PRD reference for traceability |
+
+**Known limitation**: Research validates against the latest published
+documentation (Context7/Perplexity) but does not check the locally installed
+version. For example, Context7 may return v1.63 API patterns while the local
+environment has v1.58 installed, causing attribute name mismatches (e.g.,
+`.data` vs `.output`). Mitigation: pin versions in the SD or add a local
+version check step to the research prompt.
+
+### Dogfood Validation: PRD-STORY-ZUSTAND-001
+
+The 4-layer SDK pipeline was validated end-to-end by re-implementing the
+Zustand store for the story-writer project:
+
+| Metric | Result |
+| --- | --- |
+| Pipeline nodes | 22 (4 codergen + 8 validators + 4 decisions + 6 infrastructure) |
+| Source files | 12 files, +764 lines |
+| Tests | 28/28 passing |
+| API turns | 99 |
+| Cost | $9.00 |
+| Duration | ~20 minutes |
+| Self-healing events | 2 (worktree branch fix, deps-met workaround) |
+
+All 4 layers executed: `launch_guardian.py` → `guardian_agent.py` →
+`runner_agent.py` → orchestrator/workers in tmux.
+
+### Dogfood Validation: PRD-PYDANTICAI-WEBSEARCH-E2E
+
+The research node pattern was validated end-to-end with a PydanticAI web search
+agent pipeline. This was the first pipeline to include a `handler="research"`
+node running in full SDK mode (zero tmux).
+
+| Metric | Result |
+| --- | --- |
+| Pipeline nodes | 5 (1 research + 1 codergen + 1 validator + 2 infrastructure) |
+| Source files | 3 files (agent.py, graph.py, models.py) |
+| Research duration | ~15s (Haiku model, ~$0.02) |
+| SD updated | Yes — 4 framework findings, 5 gotchas added |
+| All nodes validated | Yes — 5/5 reached `validated` status |
+| Live execution | Successful web search via Brave Search API |
+
+The research node validated pydantic-ai v1.63.0, pydantic-graph, and httpx
+patterns against Context7/Perplexity, then updated the Solution Design with
+current API patterns. The downstream codergen node read the corrected SD and
+produced working Python files.
+
 ## Core Systems Integration
 
 ```
@@ -242,23 +445,30 @@ Notification (On notifications)
 ## Workflow: New Feature (SDK Mode)
 
 ```
-1. User defines feature in PRD
+ 1. User defines feature in PRD
         ↓
-2. Guardian receives request; writes blind acceptance tests (s3-guardian)
+ 2. Guardian receives request; writes blind acceptance tests (s3-guardian)
         ↓
-3. Guardian parses PRD with Task Master
+ 3. Guardian parses PRD with Task Master
         PRD ─→ tasks.json ─→ Beads issues
         ↓
-4. Guardian spawns Runner (SDK mode)
+ 4. Guardian creates DOT pipeline with research + codergen nodes
+        start → research_X → impl_X → validate_X → exit
+        ↓
+ 5. Research nodes execute (Haiku, ~15s each, synchronous)
+        Context7 + Perplexity → validate framework patterns → update SD
+        ↓
+ 6. Guardian spawns Runner per codergen node (SDK mode)
         CoBuilder: IdentityRegistry.register()
         CoBuilder: PipelineRunner.start()
         ↓
-5. Runner spawns Orchestrator (with automatic restart on failure)
+ 7. Runner spawns Orchestrator (with automatic restart on failure)
+        Orchestrator reads the research-corrected SD as its brief
         ↓
-6. Orchestrator investigates codebase
+ 8. Orchestrator investigates codebase
         Read/Grep/Glob, analyzes dependencies
         ↓
-7. Orchestrator delegates to Workers (native Agent Teams)
+ 9. Orchestrator delegates to Workers (native Agent Teams)
         ┌──────────────┬──────────────┬──────────────┐
         │ Frontend     │ Backend      │ TDD Engineer │
         │ Worker       │ Worker       │              │
@@ -267,12 +477,12 @@ Notification (On notifications)
         │ UI           │ API          │ Validates    │
         └──────────────┴──────────────┴──────────────┘
         ↓
-8. Workers report completion; CoBuilder MergeQueue serialises changes
+10. Workers report completion; CoBuilder MergeQueue serialises changes
         ↓
-9. Guardian Monitor validates work (background subagent, cyclic pattern)
+11. Guardian Monitor validates work (background subagent, cyclic pattern)
         Unit tests + API tests + E2E browser tests
         ↓
-10. Guardian validates business outcomes against acceptance tests
+12. Guardian validates business outcomes against acceptance tests
         Feature complete! ✓
 ```
 
@@ -312,5 +522,5 @@ your-project/
 
 ---
 
-**Architecture Version**: 2.0.0
-**Last Updated**: February 27, 2026
+**Architecture Version**: 2.2.0
+**Last Updated**: March 2, 2026

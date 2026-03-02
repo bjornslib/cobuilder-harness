@@ -1,0 +1,98 @@
+test_group: S2-progressive-disclosure
+prd_id: PRD-P1.1-UNIFIED-FORM-001
+
+tests:
+  - id: S2.1
+    name: "Only employment gate visible on load — no fields, no approval"
+    steps:
+      - tool: mcp__claude-in-chrome__navigate
+        args:
+          url: "${base_url}${test_route}"
+      - tool: mcp__claude-in-chrome__javascript_tool
+        args:
+          javascript: |
+            const gate = document.querySelector('[data-testid="employment-gate"]');
+            const fields = document.querySelectorAll('[data-testid^="field-"], [data-state="pending"], [data-state="active"]');
+            const approval = document.querySelector('[data-testid="approval-section"]');
+            return {
+              gateVisible: gate ? gate.offsetHeight > 0 : false,
+              fieldCount: fields.length,
+              approvalVisible: approval ? approval.offsetHeight > 0 : false
+            };
+        assert:
+          gateVisible: true
+          fieldCount: 0
+          approvalVisible: false
+      - tool: mcp__claude-in-chrome__computer
+        args:
+          action: screenshot
+        evidence: "s2-1-initial-load.png"
+
+  - id: S2.2
+    name: "Gate shrinks after Yes, first field expands"
+    steps:
+      - tool: mcp__claude-in-chrome__navigate
+        args:
+          url: "${base_url}${test_route}"
+      - tool: mcp__claude-in-chrome__javascript_tool
+        args:
+          javascript: |
+            const gate = document.querySelector('[data-testid="employment-gate"]');
+            const gateHeight = gate ? gate.getBoundingClientRect().height : 0;
+            return { gateHeightBefore: gateHeight };
+      - tool: mcp__claude-in-chrome__find
+        args:
+          query: "button:has-text('Yes'), [data-testid='gate-yes']"
+      - tool: mcp__claude-in-chrome__computer
+        args:
+          action: left_click
+          coordinate: "${found_element_center}"
+      - description: "Wait for animation"
+        tool: mcp__claude-in-chrome__javascript_tool
+        args:
+          javascript: |
+            await new Promise(r => setTimeout(r, 500));
+            const gate = document.querySelector('[data-testid="employment-gate"]');
+            const gateHeight = gate ? gate.getBoundingClientRect().height : 0;
+            const gateStyles = gate ? window.getComputedStyle(gate) : {};
+            const activeField = document.querySelector('[data-state="active"], [data-state="pending"]');
+            const activeHeight = activeField ? activeField.getBoundingClientRect().height : 0;
+            return {
+              gateHeightAfter: gateHeight,
+              gateMuted: gateStyles.opacity < 1 || gateStyles.color?.includes('148') || gate?.classList.contains('text-slate-400'),
+              activeFieldVisible: !!activeField && activeField.offsetHeight > 0,
+              activeFieldHeight: activeHeight,
+              activeIsTallerThanGate: activeHeight > gateHeight
+            };
+        assert:
+          activeFieldVisible: true
+          gateMuted: true
+      - tool: mcp__claude-in-chrome__computer
+        args:
+          action: screenshot
+        evidence: "s2-2-gate-confirmed.png"
+
+  - id: S2.5
+    name: "Approval section appears after all fields resolved"
+    steps:
+      - description: "Complete all fields first (via JS injection for speed)"
+        tool: mcp__claude-in-chrome__javascript_tool
+        args:
+          javascript: |
+            // Trigger completion state — dispatches custom events
+            window.__testCompleteAllFields?.();
+            await new Promise(r => setTimeout(r, 1000));
+            const approval = document.querySelector('[data-testid="approval-section"]');
+            const nameInput = document.querySelector('input[placeholder="Your name"]');
+            const submitBtn = document.querySelector('button:has-text("Submit Verification")');
+            const layout = approval ? window.getComputedStyle(approval).display : 'none';
+            return {
+              approvalVisible: approval ? approval.offsetHeight > 0 : false,
+              nameInputExists: !!nameInput,
+              submitBtnExists: !!submitBtn,
+              isFlexRow: layout === 'flex' || approval?.classList.contains('flex-row')
+            };
+        assert:
+          approvalVisible: true
+          nameInputExists: true
+          submitBtnExists: true

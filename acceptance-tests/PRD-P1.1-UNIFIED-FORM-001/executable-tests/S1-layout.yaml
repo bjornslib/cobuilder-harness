@@ -1,0 +1,67 @@
+test_group: S1-layout
+prd_id: PRD-P1.1-UNIFIED-FORM-001
+
+tests:
+  - id: S1.1
+    name: "Full-width progress bar + candidate name top-right"
+    steps:
+      - tool: mcp__claude-in-chrome__navigate
+        args:
+          url: "${base_url}${test_route}"
+      - tool: mcp__claude-in-chrome__javascript_tool
+        args:
+          javascript: |
+            const bar = document.querySelector('[data-testid="progress-bar"], .progress-bar, [role="progressbar"]');
+            if (!bar) return { found: false };
+            const rect = bar.getBoundingClientRect();
+            const parentWidth = bar.parentElement.getBoundingClientRect().width;
+            return {
+              found: true,
+              width: rect.width,
+              parentWidth: parentWidth,
+              isFullWidth: rect.width >= parentWidth * 0.95
+            };
+        assert:
+          found: true
+          isFullWidth: true
+      - tool: mcp__claude-in-chrome__javascript_tool
+        args:
+          javascript: |
+            const nameEl = document.querySelector('[data-testid="candidate-name"], .candidate-info');
+            if (!nameEl) return { found: false };
+            const rect = nameEl.getBoundingClientRect();
+            const viewportWidth = window.innerWidth;
+            return {
+              found: true,
+              text: nameEl.textContent.trim(),
+              isRightAligned: rect.right > viewportWidth * 0.6,
+              isNearTop: rect.top < 120
+            };
+        assert:
+          found: true
+          isRightAligned: true
+          isNearTop: true
+      - tool: mcp__claude-in-chrome__get_page_text
+        args: {}
+        assert:
+          not_contains: "Task test-task-123"
+      - tool: mcp__claude-in-chrome__computer
+        args:
+          action: screenshot
+        evidence: "s1-1-layout.png"
+
+  - id: S1.2
+    name: "Two-panel grid with no tab switcher"
+    steps:
+      - tool: mcp__claude-in-chrome__javascript_tool
+        args:
+          javascript: |
+            const grid = document.querySelector('[class*="grid"], [class*="col-span"]');
+            const tabs = document.querySelector('[role="tablist"], [data-testid="mode-tabs"]');
+            return {
+              hasGrid: !!grid,
+              hasTabSwitcher: !!tabs
+            };
+        assert:
+          hasGrid: true
+          hasTabSwitcher: false

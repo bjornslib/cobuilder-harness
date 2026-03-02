@@ -1,0 +1,78 @@
+test_group: S3-field-states
+prd_id: PRD-P1.1-UNIFIED-FORM-001
+
+tests:
+  - id: S3.2
+    name: "Confirmed field is muted grey and compact — NOT green"
+    steps:
+      - description: "Navigate and confirm employment gate + first field"
+        tool: mcp__claude-in-chrome__navigate
+        args:
+          url: "${base_url}${test_route}"
+      - description: "Click Yes on gate, then Confirm on first field"
+        tool: mcp__claude-in-chrome__javascript_tool
+        args:
+          javascript: |
+            // Programmatically advance to a confirmed state
+            document.querySelector('[data-testid="gate-yes"]')?.click();
+            await new Promise(r => setTimeout(r, 600));
+            document.querySelector('button:has-text("Confirm"), [data-testid="confirm-btn"]')?.click();
+            await new Promise(r => setTimeout(r, 600));
+
+            const confirmed = document.querySelector('[data-state="confirmed"]');
+            if (!confirmed) return { found: false };
+            const styles = window.getComputedStyle(confirmed);
+            const bgColor = styles.backgroundColor;
+            const isGrey = bgColor.includes('241') || bgColor.includes('248') || bgColor.includes('slate');
+            const isGreen = bgColor.includes('34, 197') || bgColor.includes('16, 185') || bgColor.includes('green');
+            return {
+              found: true,
+              bgColor: bgColor,
+              isGreyMuted: isGrey,
+              isGreen: isGreen,
+              hasCheckmark: !!confirmed.querySelector('[class*="check"], svg[data-icon="check"]'),
+              hasEditIcon: !!confirmed.querySelector('[data-testid="edit-icon"], [aria-label="Edit"]')
+            };
+        assert:
+          found: true
+          isGreyMuted: true
+          isGreen: false
+          hasEditIcon: true
+      - tool: mcp__claude-in-chrome__computer
+        args:
+          action: screenshot
+        evidence: "s3-2-confirmed-grey.png"
+
+  - id: S3.4
+    name: "Updated field has amber discrepancy marker — distinct from confirmed"
+    steps:
+      - description: "Navigate, confirm gate, click Change, enter different value, click Update"
+        tool: mcp__claude-in-chrome__javascript_tool
+        args:
+          javascript: |
+            document.querySelector('[data-testid="gate-yes"]')?.click();
+            await new Promise(r => setTimeout(r, 600));
+            document.querySelector('button:has-text("Change"), [data-testid="change-btn"]')?.click();
+            await new Promise(r => setTimeout(r, 400));
+            const input = document.querySelector('[data-state="editing"] input, [data-testid="field-input"]');
+            if (input) { input.value = '15 January 2019'; input.dispatchEvent(new Event('input', {bubbles: true})); }
+            await new Promise(r => setTimeout(r, 200));
+            document.querySelector('button:has-text("Update"), [data-testid="update-btn"]')?.click();
+            await new Promise(r => setTimeout(r, 600));
+
+            const updated = document.querySelector('[data-state="updated"]');
+            if (!updated) return { found: false };
+            const styles = window.getComputedStyle(updated);
+            const hasAmber = updated.querySelector('[class*="amber"], [class*="orange"], [class*="discrepancy"]');
+            return {
+              found: true,
+              hasDiscrepancyMarker: !!hasAmber,
+              textContent: updated.textContent.substring(0, 100)
+            };
+        assert:
+          found: true
+          hasDiscrepancyMarker: true
+      - tool: mcp__claude-in-chrome__computer
+        args:
+          action: screenshot
+        evidence: "s3-4-updated-amber.png"

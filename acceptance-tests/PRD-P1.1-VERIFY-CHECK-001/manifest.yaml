@@ -1,0 +1,73 @@
+prd_id: PRD-P1.1-VERIFY-CHECK-001
+prd_title: "Functional /verify-check Page — Chat + Voice Verification"
+prd_source: "zenagent2/zenagent/agencheck/documentation/prds/phase-1.1/PRD-P1.1-VERIFY-CHECK-001.md"
+generated: "2026-03-01T12:00:00Z"
+mode: guardian
+
+thresholds:
+  accept: 0.60
+  investigate: 0.40
+
+prerequisites:
+  backend_api: "http://localhost:8000"
+  frontend: "http://localhost:3000"
+  database: "${DATABASE_URL}"
+  livekit_server: "${LIVEKIT_URL}"
+  feature_branch: true
+  migrations_applied: true
+
+features:
+  - id: F1
+    name: "Epic 1 — Backend SSE Wiring & Session Integration"
+    weight: 0.25
+    validation_method: browser-required
+    sd_source: "SD-P1.1-VERIFY-CHECK-001-sse-wiring.md"
+    scenarios:
+      - "S1.1-session-data-loading"
+      - "S1.2-listener-registration"
+      - "S1.3-sse-connection"
+      - "S1.4-connection-status"
+
+  - id: F2
+    name: "Epic 2 — SSE-Driven Field Advancement (Voice Mode)"
+    weight: 0.30
+    validation_method: hybrid
+    sd_source: "SD-P1.1-VERIFY-CHECK-001-field-advancement.md"
+    scenarios:
+      - "S2.1-field-action-backend"
+      - "S2.2-auto-confirm-frontend"
+      - "S2.3-auto-update-frontend"
+      - "S2.4-confirmation-animation"
+      - "S2.5-backward-compatibility"
+
+  - id: F3
+    name: "Epic 3 — Form Submission & Completion Flow"
+    weight: 0.20
+    validation_method: browser-required
+    sd_source: "SD-P1.1-VERIFY-CHECK-001-form-submission.md"
+    scenarios:
+      - "S3.1-mock-data-removed"
+      - "S3.2-submission-payload"
+      - "S3.3-submit-guard"
+      - "S3.4-thank-you-redirect"
+
+  - id: F4
+    name: "Epic 4 — LiveKit Chat Mode Integration"
+    weight: 0.15
+    validation_method: browser-required
+    sd_source: "SD-P1.1-VERIFY-CHECK-001-chat-mode.md"
+    scenarios:
+      - "S4.1-chat-token-provisioning"
+      - "S4.2-real-agent-messages"
+      - "S4.3-chat-fallback"
+
+  - id: F5
+    name: "Epic 5 — Form Event Publishing (Frontend → Agent)"
+    weight: 0.10
+    validation_method: hybrid
+    sd_source: "SD-P1.1-VERIFY-CHECK-001-form-events.md"
+    scenarios:
+      - "S5.1-publish-form-event"
+      - "S5.2-field-confirmed-event"
+      - "S5.3-discrepancy-event"
+      - "S5.4-agent-acknowledgment"

@@ -42,6 +42,7 @@ VALID_HANDLERS = {
     "wait.human",
     "conditional",
     "parallel",
+    "research",
 }
 
 HANDLER_SHAPE_MAP = {
@@ -52,6 +53,7 @@ HANDLER_SHAPE_MAP = {
     "wait.human": "hexagon",
     "conditional": "diamond",
     "parallel": "parallelogram",
+    "research": "tab",
 }
 
 VALID_CONDITIONS = {"pass", "fail", "partial"}
@@ -65,12 +67,14 @@ REQUIRED_ATTRS: dict[str, list[str]] = {
     "wait.human": ["label", "handler", "gate", "mode"],
     "conditional": ["label", "handler"],
     "parallel": ["label", "handler"],
+    "research": ["label", "handler", "downstream_node", "solution_design"],
 }
 
 # Recommended attributes per handler type — absence emits warnings (not errors).
 # These are needed for Runner context and PRD traceability.
 WARNING_ATTRS: dict[str, list[str]] = {
     "codergen": ["prd_ref", "acceptance"],
+    "research": ["research_queries"],
 }
 
 VALID_WORKER_TYPES = {
