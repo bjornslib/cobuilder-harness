@@ -587,8 +587,9 @@ Two dispatch modes are available. Choose based on the use case:
 
 | Mode | When to Use | How It Works |
 |------|-------------|--------------|
+| **Headless mode** | Default for workers, focused tasks | Workers run via `claude -p` CLI with JSON output — no SDK or tmux needed |
 | **SDK mode** | Automated pipelines, E2E tests, CI/CD | `launch_guardian.py` drives the full chain via `claude_code_sdk` — no tmux |
-| **tmux mode** | Interactive sessions, long-running epics | Guardian spawns orchestrators in tmux sessions for manual monitoring |
+| **tmux mode** | Interactive sessions (DEPRECATED) | Guardian spawns orchestrators in tmux sessions for manual monitoring |
 
 **SDK mode architecture** (validated E2E 2026-03-02):
 ```
@@ -597,7 +598,19 @@ launch_guardian.py ──SDK──► guardian_agent.py ──SDK──► runne
 ```
 All 4 layers run headless via `claude_code_sdk`. No tmux sessions, no interactive prompts. The guardian reads the DOT pipeline, dispatches research nodes (synchronous, Haiku), then refine nodes (synchronous, Sonnet), then spawns runners for codergen nodes. Each runner spawns an orchestrator that implements the work.
 
-**tmux mode architecture** (interactive):
+**Headless mode architecture** (recommended for workers):
+```
+Guardian (this session) ──spawns──► spawn_orchestrator.py --mode headless
+                                       └── claude -p "<task>" --system-prompt <role> --output-format json
+                                       └── Three-Layer Context:
+                                            Layer 1 (ROLE): --system-prompt from .claude/agents/{worker_type}.md
+                                            Layer 2 (TASK): -p argument (task prompt)
+                                            Layer 3 (IDENTITY): env vars (WORKER_NODE_ID, PIPELINE_ID, etc.)
+```
+Workers run as single-shot `claude -p` processes. No tmux, no SDK. JSON output is captured and parsed.
+Monitoring is via process exit code and stdout JSON — no capture-pane polling needed.
+
+**tmux mode architecture** (interactive, DEPRECATED):
 ```
 Guardian (this session) ──spawns──► Orchestrator A (orch-epic1) ──delegates──► Workers
                         ──spawns──► Orchestrator B (orch-epic2) ──delegates──► Workers

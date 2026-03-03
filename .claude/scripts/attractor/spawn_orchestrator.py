@@ -43,6 +43,117 @@ import hook_manager
 logger = logging.getLogger(__name__)
 
 
+def _build_headless_worker_cmd(
+    task_prompt: str,
+    work_dir: str,
+    worker_type: str = "backend-solutions-engineer",
+    model: str = "claude-sonnet-4-6",
+    node_id: str = "",
+    pipeline_id: str = "",
+    runner_id: str = "",
+    prd_ref: str = "",
+) -> tuple[list[str], dict[str, str]]:
+    """Build a headless worker command using ``claude -p``.
+
+    Three-Layer Context:
+      Layer 1 (ROLE): ``--system-prompt`` from ``.claude/agents/{worker_type}.md``
+      Layer 2 (TASK): ``-p`` argument (*task_prompt*)
+      Layer 3 (IDENTITY): env vars (``WORKER_NODE_ID``, ``PIPELINE_ID``, etc.)
+
+    Args:
+        task_prompt: The task description sent as the ``-p`` argument.
+        work_dir: Working directory for the worker process.
+        worker_type: Agent type — filename stem under ``.claude/agents/``.
+        model: Claude model identifier.
+        node_id: Pipeline node identifier.
+        pipeline_id: Pipeline identifier string.
+        runner_id: Runner identifier (for traceability).
+        prd_ref: PRD reference (e.g., PRD-AUTH-001).
+
+    Returns:
+        Tuple of (command list, environment dict).
+    """
+    # Read Layer 1: ROLE from .claude/agents/{worker_type}.md
+    agents_dir = Path(work_dir) / ".claude" / "agents"
+    role_file = agents_dir / f"{worker_type}.md"
+    if role_file.exists():
+        role_content = role_file.read_text()
+        # Strip frontmatter if present
+        if role_content.startswith("---"):
+            _, _, rest = role_content.partition("---")
+            _, _, role_content = rest.partition("---")
+        role_content = role_content.strip()
+    else:
+        role_content = f"You are a specialist agent ({worker_type}). Implement features directly."
+
+    cmd = [
+        "claude",
+        "-p", task_prompt,
+        "--system-prompt", role_content,
+        "--permission-mode", "bypassPermissions",
+        "--output-format", "json",
+        "--model", model,
+    ]
+
+    # Layer 3: IDENTITY as env vars (zero context token cost)
+    env = dict(os.environ)
+    env.update({
+        "WORKER_NODE_ID": node_id,
+        "PIPELINE_ID": pipeline_id,
+        "RUNNER_ID": runner_id,
+        "PRD_REF": prd_ref,
+    })
+    # Remove CLAUDECODE to prevent nested session detection
+    env.pop("CLAUDECODE", None)
+
+    return cmd, env
+
+
+async def run_headless_worker(
+    cmd: list[str],
+    env: dict[str, str],
+    work_dir: str,
+    timeout_seconds: int = 1800,
+) -> dict:
+    """Run a headless worker via subprocess, capture JSON output.
+
+    Args:
+        cmd: Command list (typically from :func:`_build_headless_worker_cmd`).
+        env: Environment dict for the subprocess.
+        work_dir: Working directory for the subprocess.
+        timeout_seconds: Maximum wall-clock time before killing the worker.
+
+    Returns:
+        Dict with ``status`` (``"success"``, ``"error"``, or ``"timeout"``),
+        plus output or error details.
+    """
+    try:
+        result = subprocess.run(
+            cmd,
+            cwd=work_dir,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=timeout_seconds,
+        )
+        if result.returncode == 0:
+            # Parse JSON output
+            try:
+                output = json.loads(result.stdout)
+                return {"status": "success", "output": output, "exit_code": 0}
+            except json.JSONDecodeError:
+                return {"status": "success", "output": result.stdout, "exit_code": 0}
+        else:
+            return {
+                "status": "error",
+                "exit_code": result.returncode,
+                "stdout": result.stdout[-2000:],  # Last 2K chars
+                "stderr": result.stderr[-2000:],
+            }
+    except subprocess.TimeoutExpired:
+        return {"status": "timeout", "timeout_seconds": timeout_seconds}
+
+
 def _build_claude_cmd(node_id: str, prd: str, mode: str) -> str:
     """Build direct claude invocation with explicit env vars.
 
@@ -286,9 +397,10 @@ def main() -> None:
                         help="Repo name in .repomap/config.yaml (required for --on-cleanup)")
     parser.add_argument("--promise-id", default="", dest="promise_id",
                         help="Completion promise ID to inject baseline freshness AC into")
-    parser.add_argument("--mode", choices=["sdk", "tmux"], default="tmux", dest="mode",
-                        help="Launch mode: sdk (no --worktree, guardian already in worktree) "
-                             "or tmux (default, ccorch creates --worktree <node_id>)")
+    parser.add_argument("--mode", choices=["sdk", "tmux", "headless"], default="tmux", dest="mode",
+                        help="Launch mode: sdk (no --worktree, guardian already in worktree), "
+                             "tmux (default, ccorch creates --worktree <node_id>), "
+                             "or headless (claude -p CLI, structured JSON output)")
 
     args = parser.parse_args()
 

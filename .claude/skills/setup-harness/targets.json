@@ -22,6 +22,11 @@
       "description": "DSPy Pre-Employment Directory PoC"
     },
     {
+      "name": "hindsight",
+      "path": "/Users/theb/Documents/Windsurf/hindsight_fork",
+      "description": "Hindsight Memory Bank"
+    },
+    {
       "name": "story-writer",
       "path": "~/Documents/Windsurf/story-writer",
       "description": "Story Writer project"

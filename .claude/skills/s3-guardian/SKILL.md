@@ -1,7 +1,7 @@
 ---
 name: s3-guardian
 description: This skill should be used when System 3 needs to act as an independent guardian angel — designing PRDs with CoBuilder RepoMap context injection, challenging designs via parallel solutioning, spawning orchestrators in tmux, creating blind Gherkin acceptance tests and executable browser test scripts from PRDs, monitoring orchestrator progress, independently validating claims against acceptance criteria using gradient confidence scoring (0.0-1.0), and setting session promises. Use when asked to "spawn and monitor an orchestrator", "create acceptance tests for a PRD", "validate orchestrator claims", "act as guardian angel", "independently verify implementation work", or "design and challenge a PRD".
-version: 0.4.4
+version: 0.5.0
 title: "S3 Guardian"
 status: active
 last_verified: 2026-03-02
@@ -20,15 +20,16 @@ Guardian (this session, config repo)
     |-- Generates executable browser test scripts for UX prototypes
     |-- Dispatches via DOT pipeline (two modes):
     |       |
-    |       +-- SDK mode: launch_guardian.py → guardian → runner → orchestrator (all headless)
-    |       +-- tmux mode: Spawns Orchestrators in tmux (one per epic/DOT node)
+    |       +-- SDK mode: launch_guardian.py → guardian → runner → orchestrator (all headless via SDK)
+    |       +-- Headless mode: Workers run via `claude -p` CLI (structured JSON output, no SDK)
+    |       +-- tmux mode: Spawns Orchestrators in tmux (one per epic/DOT node) [DEPRECATED]
     |       |
     |       +-- Research nodes run BEFORE codergen (validate SD via Context7/Perplexity)
     |       +-- Refine nodes run AFTER research (rewrite SD with findings as first-class content)
     |       +-- Research-only pipelines (no codergen) are valid — guardian completes after refine
     |       +-- Workers (native Agent Teams, spawned by orchestrator)
     |
-    |-- Monitors orchestrator progress (SDK: poll DOT state; tmux: capture-pane)
+    |-- Monitors orchestrator progress (SDK: poll DOT state; headless: JSON output; tmux: capture-pane)
     |-- Independently validates claims against rubric
     |-- Delivers verdict with gradient confidence scores
 ```
@@ -241,8 +242,8 @@ Each level adds independent verification. The key constraint: each guardian stor
 |-------|------------|-----------|
 | 0. PRD Design | Write PRD, ZeroRepo analysis, pipeline, design challenge | [references/phase0-prd-design.md](references/phase0-prd-design.md) |
 | 1. Acceptance Tests | Gherkin rubrics + executable browser tests (Step 3) | [gherkin-test-patterns.md](references/gherkin-test-patterns.md) |
-| 2. Orchestrator Spawn | DOT dispatch, tmux patterns, wisdom inject, `ccorch --worktree` | [guardian-workflow.md](references/guardian-workflow.md) |
-| 3. Monitoring | capture-pane loop, intervention triggers | [monitoring-patterns.md](references/monitoring-patterns.md) |
+| 2. Orchestrator Spawn | DOT dispatch, headless/SDK/tmux patterns, wisdom inject | [guardian-workflow.md](references/guardian-workflow.md) |
+| 3. Monitoring | JSON output parsing (headless), DOT polling (SDK), capture-pane (tmux) | [monitoring-patterns.md](references/monitoring-patterns.md) |
 | 4. Validation | Score scenarios, run executable tests, weighted total | [validation-scoring.md](references/validation-scoring.md) |
 | 4.5 Regression | ZeroRepo diff before journey tests | [references/validation-scoring.md](references/validation-scoring.md) |
 
@@ -262,10 +263,13 @@ python3 .claude/scripts/attractor/launch_guardian.py \
 |--------|-------|-----------|---------|
 | `launch_guardian.py` | 0 (Terminal) | `--dot`, `--multi`, `--dry-run` | Entry point — bridges terminal to headless guardian |
 | `guardian_agent.py` | 1 (Guardian) | `--dot`, `--pipeline-id`, `--max-retries` | Pipeline execution engine |
-| `spawn_orchestrator.py` | 2 (Runner) | `--node`, `--prd`, `--mode {sdk\|tmux}`, `--prompt` | Creates orchestrator sessions |
+| `spawn_orchestrator.py` | 2 (Runner) | `--node`, `--prd`, `--mode {sdk\|headless\|tmux}`, `--prompt` | Creates orchestrator sessions |
 | `runner_agent.py` | 2 (Runner) | `--node`, `--prd`, `--session`, `--check-interval` | Monitors orchestrator, signals guardian |
 
-> **When to use SDK vs tmux**: SDK mode (`launch_guardian.py`) for automated pipelines and CI/CD. tmux mode (`spawn_orchestrator.py --mode tmux`) for interactive sessions where you need to observe and intervene.
+> **When to use each mode**:
+> - **Headless** (`--mode headless`): Default for workers. Uses `claude -p` CLI with structured JSON output. Three-Layer Context: ROLE (--system-prompt), TASK (-p), IDENTITY (env vars). Best for focused implementation tasks.
+> - **SDK** (`launch_guardian.py`): For automated pipelines and CI/CD. Full `claude_code_sdk` integration with multi-turn conversation.
+> - **tmux** (`--mode tmux`): **Deprecated.** For interactive sessions where you need to observe and intervene manually.
 
 ### Key Files
 
@@ -301,12 +305,13 @@ python3 .claude/scripts/attractor/launch_guardian.py \
 
 ---
 
-**Version**: 0.4.4
-**Dependencies**: cs-promise CLI (requires PATH setup — see Prerequisites section), tmux (tmux mode), claude_code_sdk (SDK mode), Hindsight MCP, ccsystem3 shell function, Task Master MCP, ZeroRepo
+**Version**: 0.5.0
+**Dependencies**: cs-promise CLI (requires PATH setup — see Prerequisites section), tmux (tmux mode, deprecated), claude CLI (headless mode), claude_code_sdk (SDK mode), Hindsight MCP, ccsystem3 shell function, Task Master MCP, ZeroRepo
 **Integration**: system3-orchestrator skill, completion-promise skill, acceptance-test-writer skill, parallel-solutioning skill, research-first skill
 **Theory**: Independent verification eliminates self-reporting bias in agentic systems
 
 **Changelog**:
+- v0.5.0: Added headless CLI worker mode (Epic 6). Workers run via `claude -p` with Three-Layer Context: ROLE (--system-prompt from .claude/agents/), TASK (-p prompt), IDENTITY (env vars). New functions: `_build_headless_worker_cmd()` and `run_headless_worker()` in spawn_orchestrator.py. `--mode headless` added to spawn_orchestrator.py, spawn_runner.py, and guardian_agent.py system prompt. tmux mode deprecated in favor of headless. JSON output parsing replaces tmux capture-pane monitoring.
 - v0.4.4: Broadened Step 0 promise creation with work-type-aware decision table (research, PRD design, implementation, maintenance, multi-initiative — not just guardian validation). Added SDK Mode Entry Points section to Quick Reference with 4-layer CLI table and SDK-vs-tmux guidance, linking to `references/sdk-cli-tools.md`. Qualified Session Promise Integration heading to clarify it's the guardian validation template. Root cause: non-standard sessions (research, PRD writing) had no promise template guidance, and SDK CLI parameters were undiscoverable without running `--help`.
 - v0.4.3: Documented research-only pipeline dispatch. Added "Research-Only Pipeline Dispatch" section to guardian-workflow.md with dispatch hierarchy diagram, example DOT file, exact CLI command, and internal behavior walkthrough. Added anti-pattern for calling `run_research.py` per-node instead of using `launch_guardian.py`. Updated SKILL.md architecture diagram to acknowledge research-only as a valid pipeline topology. Root cause: colleague tried to run 4 research nodes via parallel `run_research.py` calls (exit code 2) instead of launching the guardian runner.
 - v0.4.2: Added mandatory research→refine→codergen chain validation to Step 0.2 (bare codergen nodes now fail validation). Added two AskUserQuestion checkpoints to Phase 0 — Checkpoint A (after pipeline creation + chain validation) presents PRD/SD/pipeline summary; Checkpoint B (after design challenge) presents architect verdict. Both offer contextual next-step options. Prevents silent misalignment during long autonomous Phase 0 runs.

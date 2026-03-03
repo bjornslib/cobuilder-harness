@@ -78,9 +78,10 @@ def main() -> None:
                         help="Target working directory for the runner")
     parser.add_argument("--bead-id", default=None, dest="bead_id",
                         help="Beads issue/task identifier")
-    parser.add_argument("--mode", choices=["sdk", "tmux"], default="tmux", dest="mode",
+    parser.add_argument("--mode", choices=["sdk", "tmux", "headless"], default="tmux", dest="mode",
                         help="Launch mode forwarded to runner_agent.py and spawn_orchestrator.py "
-                             "(sdk: no --worktree; tmux: default with --worktree)")
+                             "(sdk: no --worktree; tmux: default with --worktree; "
+                             "headless: claude -p CLI with JSON output)")
     parser.add_argument("--dot-file", default=None, dest="dot_file",
                         help="Path to pipeline .dot file; enables state machine monitoring mode")
 

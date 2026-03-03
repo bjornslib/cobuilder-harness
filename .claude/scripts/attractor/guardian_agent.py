@@ -157,7 +157,8 @@ All scripts are in {scripts_dir}:
 - python3 {scripts_dir}/respond_to_runner.py GUIDANCE --node <id> --message <text>            # Guide
 - python3 {scripts_dir}/respond_to_runner.py KILL_ORCHESTRATOR --node <id> --reason <text>    # Abort
 - python3 {scripts_dir}/escalate_to_terminal.py --pipeline {pipeline_id} --issue <text>   # Escalate
-- python3 {scripts_dir}/spawn_runner.py --node <id> --prd <prd_ref> [--acceptance <text>] [--bead-id <id>] --mode sdk{target_dir_flag} --dot-file {dot_path}  # Launch runner
+- python3 {scripts_dir}/spawn_runner.py --node <id> --prd <prd_ref> [--acceptance <text>] [--bead-id <id>] --mode sdk{target_dir_flag} --dot-file {dot_path}  # Launch runner (SDK mode)
+- python3 {scripts_dir}/spawn_runner.py --node <id> --prd <prd_ref> [--acceptance <text>] [--bead-id <id>] --mode headless{target_dir_flag} --dot-file {dot_path}  # Launch runner (headless CLI mode)
 
 ## Pipeline Execution Flow
 
@@ -409,6 +410,20 @@ Periodically scan for stale agents using:
 
 Stale active agents may indicate crashed orchestrators or runners. Use this
 information alongside signal monitoring to decide when to escalate or respawn.
+
+## Headless Mode (--mode headless)
+When using --mode headless instead of --mode sdk, workers run via `claude -p` CLI instead of
+the Claude SDK. Key differences:
+- Workers use Three-Layer Context: ROLE (--system-prompt from .claude/agents/), TASK (-p prompt), IDENTITY (env vars)
+- Workers produce structured JSON output (--output-format json)
+- Workers run with --permission-mode bypassPermissions (no interactive prompts)
+- Use `--mode headless` in spawn_runner.py commands to activate this mode
+- Headless workers have a 30-minute timeout by default
+- JSON output is parsed automatically; non-JSON stdout is returned as raw text
+
+When to use headless vs sdk:
+- headless: Simple, focused implementation tasks (single node, clear acceptance criteria)
+- sdk: Complex tasks requiring multi-turn conversation, team coordination
 
 ## Important Rules
 - NEVER use Edit or Write tools — you are a coordinator, not an implementer
