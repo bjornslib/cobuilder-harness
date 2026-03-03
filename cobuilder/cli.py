@@ -966,46 +966,57 @@ def pipeline_validate(
     file: str = typer.Argument(..., help="Path to .dot file"),
     json_output: bool = typer.Option(False, "--json", help="Output as JSON"),
 ) -> None:
-    """Validate a pipeline DOT file against schema rules."""
-    from cobuilder.pipeline.validator import validate_file
+    """Validate a pipeline DOT file against the 13 structural rules (Epic 2).
+
+    Runs the pre-execution validation suite before any LLM tokens are spent.
+
+    Exit codes:
+      0 — no ERROR violations (VALID; warnings may be present)
+      1 — one or more ERROR violations (INVALID)
+      2 — file not found or DOT parse error
+    """
+    from cobuilder.engine.parser import parse_dot_file, ParseError
+    from cobuilder.engine.validation.validator import Validator
 
     try:
-        issues = validate_file(file)
+        graph = parse_dot_file(file)
     except FileNotFoundError:
         typer.echo(f"Error: File not found: {file}", err=True)
-        raise typer.Exit(1)
-    except Exception as e:
-        typer.echo(f"Error: {e}", err=True)
-        raise typer.Exit(1)
+        raise typer.Exit(2)
+    except ParseError as exc:
+        typer.echo(f"Error: DOT parse error in '{file}': {exc}", err=True)
+        raise typer.Exit(2)
+    except Exception as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(2)
 
-    errors = [i for i in issues if i.level == "error"]
-    warnings = [i for i in issues if i.level == "warning"]
+    result = Validator(graph).run()
 
     if json_output:
-        result = {
-            "valid": len(errors) == 0,
-            "errors": [i.to_dict() for i in errors],
-            "warnings": [i.to_dict() for i in warnings],
-            "summary": f"{len(errors)} errors, {len(warnings)} warnings",
-        }
-        typer.echo(json.dumps(result, indent=2))
+        typer.echo(json.dumps(result.to_dict(), indent=2))
     else:
-        if not issues:
-            typer.echo(f"VALID: {file} passes all validation rules.")
+        errors = result.errors
+        warnings = result.warnings
+        if result.is_valid and not warnings:
+            typer.echo(f"VALID: {file} passes all 13 validation rules.")
         else:
             if errors:
                 typer.echo(f"\nErrors ({len(errors)}):")
-                for e in errors:
-                    typer.echo(str(e))
+                for v in errors:
+                    typer.echo(str(v))
             if warnings:
                 typer.echo(f"\nWarnings ({len(warnings)}):")
-                for w in warnings:
-                    typer.echo(str(w))
-            typer.echo(f"\nSummary: {len(errors)} errors, {len(warnings)} warnings")
-            if errors:
-                typer.echo("INVALID: Pipeline has structural errors.")
+                for v in warnings:
+                    typer.echo(str(v))
+            typer.echo(
+                f"\nSummary: {len(errors)} error(s), {len(warnings)} warning(s)"
+            )
+            if result.is_valid:
+                typer.echo(f"VALID: {file} — warnings present but execution allowed.")
+            else:
+                typer.echo("INVALID: Pipeline has structural errors that block execution.")
 
-    if errors:
+    if not result.is_valid:
         raise typer.Exit(1)
 
 

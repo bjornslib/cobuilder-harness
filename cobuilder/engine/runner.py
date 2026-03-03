@@ -182,33 +182,22 @@ class EngineRunner:
             CheckpointVersionError:          Checkpoint schema mismatch on resume.
             CheckpointGraphMismatchError:    DOT file changed since checkpoint.
         """
-        # ── 0. Pre-execution validation ───────────────────────────────────
-        if not self._skip_validation:
-            from cobuilder.pipeline.validator import validate_file
-            from cobuilder.engine.exceptions import ValidationError
-            issues = validate_file(str(self.dot_path))
-            errors = [i for i in issues if i.level == "error"]
-            warnings = [i for i in issues if i.level == "warning"]
-            import logging as _logging
-            _vlog = _logging.getLogger(__name__)
-            for w in warnings:
-                _vlog.warning("Pipeline validation warning: %s", w)
-            if errors:
-                raise ValidationError(
-                    f"Pipeline validation failed with {len(errors)} error(s): "
-                    + "; ".join(str(e) for e in errors)
-                )
-
         # ── 1. Parse DOT file ─────────────────────────────────────────────
         graph = parse_dot_file(str(self.dot_path))
         pipeline_id = self.dot_path.stem
 
-        # ── 2. Create or load checkpoint ──────────────────────────────────
+        # ── 2. Pre-execution validation (Epic 2) ──────────────────────────
+        if not self._skip_validation:
+            from cobuilder.engine.validation.validator import Validator
+            from cobuilder.engine.validation import ValidationError as _ValidationError
+            Validator(graph).run_or_raise()  # raises _ValidationError on errors
+
+        # ── 3. Create or load checkpoint ──────────────────────────────────
         checkpoint_mgr, checkpoint = self._setup_checkpoint(pipeline_id, graph)
         run_dir = Path(checkpoint.run_dir)
         is_resume = bool(checkpoint.completed_nodes or checkpoint.current_node_id)
 
-        # ── 3. Hydrate context ────────────────────────────────────────────
+        # ── 4. Hydrate context ────────────────────────────────────────────
         # Seed with caller-supplied initial values.
         context = PipelineContext(initial=dict(self._initial_context))
         # Restore persisted context from checkpoint (handles resume).
@@ -221,7 +210,7 @@ class EngineRunner:
             "$completed_nodes": list(checkpoint.completed_nodes),
         })
 
-        # ── 4. Determine starting node ────────────────────────────────────
+        # ── 5. Determine starting node ────────────────────────────────────
         current_node = self._resolve_start_node(graph, checkpoint)
 
         pipeline_start = time.monotonic()

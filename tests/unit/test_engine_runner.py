@@ -482,6 +482,7 @@ digraph pipeline {
             dot_path=dot_file,
             pipelines_dir=tmp_path / "runs",
             handler_registry=registry,
+            skip_validation=True,  # bypass Epic 2 validator; this test targets NoEdgeError
         )
         with pytest.raises(NoEdgeError) as exc_info:
             await runner.run()
@@ -753,37 +754,39 @@ class TestEngineRunnerValidation:
 
     @pytest.mark.asyncio
     async def test_validation_runs_before_execution(self, tmp_path: Path) -> None:
-        """validate_file is called before parse_dot_file; ValidationError raised on errors."""
-        from cobuilder.engine.exceptions import ValidationError
+        """Epic 2 Validator raises ValidationError on invalid graphs before execution."""
+        from cobuilder.engine.validation import ValidationError
 
-        dot_file = _write_dot(tmp_path, _DOT_2NODE)
+        # A graph with no start node → SingleStartNode rule fires → ValidationError raised
+        dot_no_start = """
+digraph pipeline {
+    impl [shape=box];
+    done [shape=Msquare];
+    impl -> done;
+}
+"""
+        dot_file = _write_dot(tmp_path, dot_no_start)
+        runner = EngineRunner(
+            dot_path=dot_file,
+            pipelines_dir=tmp_path / "runs",
+        )
+        with pytest.raises(ValidationError) as exc_info:
+            await runner.run()
 
-        fake_issue = MagicMock()
-        fake_issue.level = "error"
-        fake_issue.__str__ = lambda self: "rule 1 violated"
-
-        with patch("cobuilder.pipeline.validator.validate_file", return_value=[fake_issue]) as mock_validate:
-            with patch("cobuilder.engine.parser.parse_dot_file") as mock_parse:
-                runner = EngineRunner(
-                    dot_path=dot_file,
-                    pipelines_dir=tmp_path / "runs",
-                )
-                with pytest.raises(ValidationError) as exc_info:
-                    await runner.run()
-
-        mock_validate.assert_called_once_with(str(dot_file))
-        mock_parse.assert_not_called()
-        assert "1 error" in str(exc_info.value)
+        # The ValidationError must carry a ValidationResult with errors
+        assert exc_info.value.result is not None
+        assert not exc_info.value.result.is_valid
+        assert len(exc_info.value.result.errors) >= 1
 
     @pytest.mark.asyncio
     async def test_skip_validation_bypasses_validator(self, tmp_path: Path) -> None:
-        """When skip_validation=True, validate_file is never called."""
+        """When skip_validation=True, Epic 2 Validator is not called."""
         dot_file = _write_dot(tmp_path, _DOT_2NODE)
         registry = _build_registry(
             ("Mdiamond", _make_handler(OutcomeStatus.SKIPPED)),
             ("Msquare", _make_handler(OutcomeStatus.SUCCESS)),
         )
-        with patch("cobuilder.pipeline.validator.validate_file") as mock_validate:
+        with patch("cobuilder.engine.validation.validator.Validator") as mock_validator:
             runner = EngineRunner(
                 dot_path=dot_file,
                 pipelines_dir=tmp_path / "runs",
@@ -792,7 +795,7 @@ class TestEngineRunnerValidation:
             )
             await runner.run()
 
-        mock_validate.assert_not_called()
+        mock_validator.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_validation_warnings_dont_block(self, tmp_path: Path) -> None:
@@ -803,17 +806,15 @@ class TestEngineRunnerValidation:
             ("Msquare", _make_handler(OutcomeStatus.SUCCESS)),
         )
 
-        fake_warning = MagicMock()
-        fake_warning.level = "warning"
-        fake_warning.__str__ = lambda self: "minor style issue"
-
-        with patch("cobuilder.pipeline.validator.validate_file", return_value=[fake_warning]):
-            runner = EngineRunner(
-                dot_path=dot_file,
-                pipelines_dir=tmp_path / "runs",
-                handler_registry=registry,
-            )
-            checkpoint = await runner.run()
+        # The actual valid graph (_DOT_2NODE) passes all rules but may produce
+        # LlmNodesHavePrompts warnings (box node without prompt).
+        # Execution must proceed regardless of warnings.
+        runner = EngineRunner(
+            dot_path=dot_file,
+            pipelines_dir=tmp_path / "runs",
+            handler_registry=registry,
+        )
+        checkpoint = await runner.run()
 
         assert checkpoint.pipeline_id == "pipeline"
         assert "e" in checkpoint.completed_nodes

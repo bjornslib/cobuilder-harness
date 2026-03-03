@@ -1,0 +1,110 @@
+"""Pytest fixtures for the Epic 2 validation test suite.
+
+All fixtures work with the actual Graph model from cobuilder.engine.graph,
+so tests run without any DOT files on disk or LLM calls.
+"""
+from __future__ import annotations
+
+import pytest
+
+from cobuilder.engine.graph import Edge, Graph, Node
+
+
+# ---------------------------------------------------------------------------
+# Node factory
+# ---------------------------------------------------------------------------
+
+def make_node(node_id: str, shape: str = "box", label: str = "", **attrs) -> Node:
+    """Factory for test nodes with minimal required fields.
+
+    Args:
+        node_id: Node identifier.
+        shape:   DOT shape attribute value.
+        label:   Node label (defaults to node_id if empty).
+        **attrs: Additional node attributes stored in ``node.attrs``.
+    """
+    return Node(
+        id=node_id,
+        shape=shape,
+        label=label or node_id,
+        attrs={"shape": shape, **attrs},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Edge factory
+# ---------------------------------------------------------------------------
+
+def make_edge(src: str, dst: str, condition: str = "", **attrs) -> Edge:
+    """Factory for test edges.
+
+    Args:
+        src:       Source node ID.
+        dst:       Target node ID.
+        condition: Condition expression string.  Empty means unconditional.
+        **attrs:   Additional edge attributes.
+    """
+    return Edge(source=src, target=dst, condition=condition, attrs=attrs)
+
+
+# ---------------------------------------------------------------------------
+# Graph factory
+# ---------------------------------------------------------------------------
+
+def make_graph(nodes: list[Node], edges: list[Edge], **graph_attrs) -> Graph:
+    """Build a Graph with computed adjacency maps.
+
+    Args:
+        nodes:       List of ``Node`` objects.
+        edges:       List of ``Edge`` objects.
+        **graph_attrs: Graph-level attribute dict entries.
+    """
+    return Graph(
+        name="test_pipeline",
+        attrs=dict(graph_attrs),
+        nodes={n.id: n for n in nodes},
+        edges=edges,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Pytest fixtures
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def minimal_valid_graph() -> Graph:
+    """Minimal valid pipeline: start → codergen → exit.
+
+    This graph passes all 13 validation rules.
+    """
+    start = make_node("start", shape="Mdiamond", label="Start")
+    work = make_node("impl", shape="box", label="Do work", prompt="Implement feature X")
+    exit_ = make_node("done", shape="Msquare", label="Done")
+    return make_graph(
+        nodes=[start, work, exit_],
+        edges=[
+            make_edge("start", "impl"),
+            make_edge("impl", "done"),
+        ],
+    )
+
+
+# Expose factory functions as fixtures for use in test functions that need
+# them as arguments (parametrize-friendly).
+
+@pytest.fixture
+def make_node_fixture():
+    """Return the ``make_node`` factory function as a fixture."""
+    return make_node
+
+
+@pytest.fixture
+def make_edge_fixture():
+    """Return the ``make_edge`` factory function as a fixture."""
+    return make_edge
+
+
+@pytest.fixture
+def make_graph_fixture():
+    """Return the ``make_graph`` factory function as a fixture."""
+    return make_graph
