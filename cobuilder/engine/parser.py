@@ -68,14 +68,17 @@ class ParseError(Exception):
         message:  Human-readable description of the problem.
         line:     1-based line number in the source where the error occurred.
                   ``0`` means the line could not be determined.
+        column:   1-based column number in the source where the error occurred.
+                  ``0`` means the column could not be determined.
         snippet:  The offending source fragment (up to 80 characters).
     """
 
-    def __init__(self, message: str, line: int = 0, snippet: str = "") -> None:
+    def __init__(self, message: str, line: int = 0, snippet: str = "", column: int = 0) -> None:
         self.message = message
         self.line = line
+        self.column = column
         self.snippet = snippet
-        loc = f" (line {line})" if line else ""
+        loc = f" (line {line}, col {column})" if line else ""
         snip = f": {snippet!r}" if snippet else ""
         super().__init__(f"{message}{loc}{snip}")
 
@@ -349,9 +352,15 @@ class _Parser:
     def _raise(self, message: str, tok: Token | None = None) -> None:
         line = tok.line if tok else 0
         snippet = ""
+        column = 0
         if line and 1 <= line <= len(self._source_lines):
-            snippet = self._source_lines[line - 1].strip()[:80]
-        raise ParseError(message, line=line, snippet=snippet)
+            raw_line = self._source_lines[line - 1]
+            snippet = raw_line.strip()[:80]
+            if tok and tok.value:
+                idx = raw_line.find(tok.value)
+                if idx >= 0:
+                    column = idx + 1  # 1-based
+        raise ParseError(message, line=line, snippet=snippet, column=column)
 
     # ------------------------------------------------------------------
     # Top-level parse

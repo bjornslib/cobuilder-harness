@@ -544,3 +544,20 @@ def test_corpus_dot_file_parses_without_error(dot_path: Path):
     # Must return a Graph with at least some nodes or be an empty pipeline
     assert isinstance(g, Graph)
     # graph name may be empty but should not raise
+
+
+# ---------------------------------------------------------------------------
+# ParseError column field
+# ---------------------------------------------------------------------------
+
+class TestParseErrorColumn:
+    """Verify that ParseError carries a non-negative integer column field."""
+
+    def test_parse_error_has_column(self):
+        """Triggering a ParseError on malformed DOT should populate .column >= 0."""
+        dot = "not_a_digraph { }"
+        with pytest.raises(ParseError) as exc_info:
+            parse(dot)
+        err = exc_info.value
+        assert isinstance(err.column, int), "column must be an int"
+        assert err.column >= 0, "column must be non-negative"
