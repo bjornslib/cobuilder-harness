@@ -17,10 +17,11 @@ from cobuilder.engine.graph import (
 # ---------------------------------------------------------------------------
 
 class TestShapeToHandlerMapping:
-    def test_all_nine_shapes_present(self):
+    def test_all_shapes_present(self):
         expected_shapes = {
             "Mdiamond", "Msquare", "box", "diamond", "hexagon",
             "component", "tripleoctagon", "parallelogram", "house",
+            "tab",
         }
         assert set(SHAPE_TO_HANDLER.keys()) == expected_shapes
 
@@ -34,6 +35,7 @@ class TestShapeToHandlerMapping:
         assert SHAPE_TO_HANDLER["tripleoctagon"] == "fan_in"
         assert SHAPE_TO_HANDLER["parallelogram"] == "tool"
         assert SHAPE_TO_HANDLER["house"] == "manager_loop"
+        assert SHAPE_TO_HANDLER["tab"] == "research"
 
     def test_llm_node_shapes(self):
         assert "box" in LLM_NODE_SHAPES

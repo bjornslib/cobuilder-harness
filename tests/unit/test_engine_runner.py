@@ -742,3 +742,78 @@ class TestEngineRunnerHelpers:
         )
         node = ER._resolve_start_node(graph, checkpoint)
         assert node.id == "work"
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# TestEngineRunnerValidation
+# ──────────────────────────────────────────────────────────────────────────────
+
+class TestEngineRunnerValidation:
+    """Tests for pre-execution validation wiring in EngineRunner."""
+
+    @pytest.mark.asyncio
+    async def test_validation_runs_before_execution(self, tmp_path: Path) -> None:
+        """validate_file is called before parse_dot_file; ValidationError raised on errors."""
+        from cobuilder.engine.exceptions import ValidationError
+
+        dot_file = _write_dot(tmp_path, _DOT_2NODE)
+
+        fake_issue = MagicMock()
+        fake_issue.level = "error"
+        fake_issue.__str__ = lambda self: "rule 1 violated"
+
+        with patch("cobuilder.pipeline.validator.validate_file", return_value=[fake_issue]) as mock_validate:
+            with patch("cobuilder.engine.parser.parse_dot_file") as mock_parse:
+                runner = EngineRunner(
+                    dot_path=dot_file,
+                    pipelines_dir=tmp_path / "runs",
+                )
+                with pytest.raises(ValidationError) as exc_info:
+                    await runner.run()
+
+        mock_validate.assert_called_once_with(str(dot_file))
+        mock_parse.assert_not_called()
+        assert "1 error" in str(exc_info.value)
+
+    @pytest.mark.asyncio
+    async def test_skip_validation_bypasses_validator(self, tmp_path: Path) -> None:
+        """When skip_validation=True, validate_file is never called."""
+        dot_file = _write_dot(tmp_path, _DOT_2NODE)
+        registry = _build_registry(
+            ("Mdiamond", _make_handler(OutcomeStatus.SKIPPED)),
+            ("Msquare", _make_handler(OutcomeStatus.SUCCESS)),
+        )
+        with patch("cobuilder.pipeline.validator.validate_file") as mock_validate:
+            runner = EngineRunner(
+                dot_path=dot_file,
+                pipelines_dir=tmp_path / "runs",
+                handler_registry=registry,
+                skip_validation=True,
+            )
+            await runner.run()
+
+        mock_validate.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_validation_warnings_dont_block(self, tmp_path: Path) -> None:
+        """Validation warnings are logged but do not prevent execution."""
+        dot_file = _write_dot(tmp_path, _DOT_2NODE)
+        registry = _build_registry(
+            ("Mdiamond", _make_handler(OutcomeStatus.SKIPPED)),
+            ("Msquare", _make_handler(OutcomeStatus.SUCCESS)),
+        )
+
+        fake_warning = MagicMock()
+        fake_warning.level = "warning"
+        fake_warning.__str__ = lambda self: "minor style issue"
+
+        with patch("cobuilder.pipeline.validator.validate_file", return_value=[fake_warning]):
+            runner = EngineRunner(
+                dot_path=dot_file,
+                pipelines_dir=tmp_path / "runs",
+                handler_registry=registry,
+            )
+            checkpoint = await runner.run()
+
+        assert checkpoint.pipeline_id == "pipeline"
+        assert "e" in checkpoint.completed_nodes

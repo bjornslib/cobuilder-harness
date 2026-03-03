@@ -1032,6 +1032,11 @@ def pipeline_run(
         "--json",
         help="Emit the final EngineCheckpoint as JSON on stdout",
     ),
+    skip_validation: bool = typer.Option(
+        False,
+        "--skip-validation",
+        help="Skip pre-execution pipeline validation",
+    ),
 ) -> None:
     """Execute a DOT pipeline from start node to exit node.
 
@@ -1060,6 +1065,7 @@ def pipeline_run(
         HandlerError,
         LoopDetectedError,
         NoEdgeError,
+        ValidationError,
     )
     from cobuilder.engine.parser import ParseError
     from cobuilder.engine.runner import EngineRunner
@@ -1073,10 +1079,14 @@ def pipeline_run(
         run_dir=resume,
         pipelines_dir=pipelines_dir,
         max_node_visits=max_visits,
+        skip_validation=skip_validation,
     )
 
     try:
         checkpoint = asyncio.run(runner.run())
+    except ValidationError as exc:
+        typer.echo(f"Validation error: {exc}", err=True)
+        raise typer.Exit(2)
     except ParseError as exc:
         typer.echo(f"Parse error: {exc}", err=True)
         raise typer.Exit(2)

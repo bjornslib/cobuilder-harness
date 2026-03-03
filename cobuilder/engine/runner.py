@@ -132,6 +132,7 @@ class EngineRunner:
         condition_evaluator: Callable | None = None,
         handler_registry: "HandlerRegistry | None" = None,
         initial_context: dict[str, Any] | None = None,
+        skip_validation: bool = False,
     ) -> None:
         self.dot_path = Path(dot_path).resolve()
         self._pipelines_dir = Path(pipelines_dir) if pipelines_dir else None
@@ -140,6 +141,7 @@ class EngineRunner:
         self._edge_selector = EdgeSelector(condition_evaluator)
         self._registry = handler_registry or HandlerRegistry.default()
         self._initial_context = dict(initial_context or {})
+        self._skip_validation = skip_validation
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -163,6 +165,23 @@ class EngineRunner:
             CheckpointVersionError:          Checkpoint schema mismatch on resume.
             CheckpointGraphMismatchError:    DOT file changed since checkpoint.
         """
+        # ── 0. Pre-execution validation ───────────────────────────────────
+        if not self._skip_validation:
+            from cobuilder.pipeline.validator import validate_file
+            from cobuilder.engine.exceptions import ValidationError
+            issues = validate_file(str(self.dot_path))
+            errors = [i for i in issues if i.level == "error"]
+            warnings = [i for i in issues if i.level == "warning"]
+            import logging as _logging
+            _vlog = _logging.getLogger(__name__)
+            for w in warnings:
+                _vlog.warning("Pipeline validation warning: %s", w)
+            if errors:
+                raise ValidationError(
+                    f"Pipeline validation failed with {len(errors)} error(s): "
+                    + "; ".join(str(e) for e in errors)
+                )
+
         # ── 1. Parse DOT file ─────────────────────────────────────────────
         graph = parse_dot_file(str(self.dot_path))
         pipeline_id = self.dot_path.stem
