@@ -230,7 +230,7 @@ As the engine, when a codergen node produces an outcome, I want to evaluate edge
 
 ## 8. Epic 5: Loop Detection and Retry Policy
 
-**Goal**: Prevent infinite retry loops by tracking per-node visit counts, enforcing configurable limits, and escalating to System 3 when loops are detected — addressing a real-world problem observed in production.
+**Goal**: Prevent infinite retry loops by tracking per-node visit counts, enforcing configurable limits, and escalating to the **guardian** when loops are detected — addressing a real-world problem observed in production.
 
 ### Scope
 
@@ -258,7 +258,7 @@ As the engine, when a codergen node produces an outcome, I want to evaluate edge
 - [ ] Node execution blocked when `max_retries` exceeded; `loop.detected` event emitted
 - [ ] Pipeline-wide execution counter stops pipeline at `default_max_retry` total executions
 - [ ] AMD-6: Loop detection relies on per-node visit counter + pipeline-wide execution counter (subsequence pattern detection removed for simplicity)
-- [ ] `ORCHESTRATOR_STUCK` signal written when loop detected, bridging to S3 monitoring
+- [ ] `ORCHESTRATOR_STUCK` signal written when loop detected, bridging to **guardian** monitoring (guardian decides whether to escalate to S3)
 - [ ] `allow_partial=true` accepts PARTIAL_SUCCESS when retries exhausted
 - [ ] `loop_restart=true` edges clear context except graph-level variables
 - [ ] Retry target chain: node-level → graph-level → fallback → fail
@@ -410,8 +410,19 @@ cobuilder pipeline run pipeline.dot
 
 ---
 
-**Version**: 1.1.0 (post design challenge amendments AMD-1 through AMD-8)
+**Version**: 1.2.0 (AMD-9: epic re-ordering, validator consolidation, escalation correction)
 **Author**: System 3 Meta-Orchestrator
-**Date**: 2026-02-28
+**Date**: 2026-03-03
 **Design Challenge**: AMEND verdict — 3 critical issues resolved, 8 blocking amendments applied. See `docs/sds/design-challenge-PRD-PIPELINE-ENGINE-001.md`.
 **Research Foundation**: `docs/research/attractor-spec-analysis.md`, `docs/research/attractor-community-implementations.md`
+
+### AMD-9: Implementation Order & Corrections (2026-03-03)
+
+**Epic execution order changed** from E1→E2→E3→E4→E5 to **E1→E2→E3→E5→E4**:
+- E3 (Conditions) and E5 (Loop Detection) are correctness-critical and must land before E4 (Event Bus/Logfire observability)
+- E5 depends on E3 (`$retry_count < 3` condition expressions on retry edges)
+- E4 (Event Bus) is observability — already substantially implemented, can be completed last
+
+**Epic 2 validator consolidation**: Two validator implementations exist (`cobuilder/pipeline/validator.py` with 11 rules, `.claude/scripts/attractor/validator.py` with 12 rules + refine support). Epic 2 consolidates these into one canonical validator in `cobuilder/pipeline/validator.py`, bringing in refine node support and adding the 13th rule.
+
+**Epic 5 escalation target corrected**: Loop detection signals escalate to the **guardian** (which runs the engine), not directly to System 3. The guardian decides whether to escalate further to S3.
