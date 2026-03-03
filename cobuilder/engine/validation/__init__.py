@@ -107,6 +107,28 @@ class ValidationResult:
         """``True`` when there are no ERROR-level violations."""
         return len(self.errors) == 0
 
+    def by_severity(self, severity: Severity) -> list[RuleViolation]:
+        """Filter violations by severity level.
+
+        Args:
+            severity: The severity level to filter by (ERROR or WARNING).
+
+        Returns:
+            List of violations matching the specified severity.
+        """
+        return [v for v in self.violations if v.severity == severity]
+
+    def by_rule(self, rule_id: str) -> list[RuleViolation]:
+        """Filter violations by rule ID.
+
+        Args:
+            rule_id: The rule identifier to filter by (e.g., "SingleStartNode").
+
+        Returns:
+            List of violations produced by the specified rule.
+        """
+        return [v for v in self.violations if v.rule_id == rule_id]
+
     def to_dict(self) -> dict:
         """Serialise to a JSON-compatible dict.
 

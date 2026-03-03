@@ -83,7 +83,7 @@ Feature: F7 — 13-Rule Validation Suite
     Given test graphs that individually trigger each of Rules 10-13
     When each rule's check(graph) is called
     Then Rule 10 (NodeTypesKnown) warns about unrecognised shape values
-    And Rule 11 (FidelityValuesValid) warns about fidelity not in {full,mock,skip}
+    And Rule 11 (FidelityValuesValid) warns about fidelity not in {full,checkpoint}
     And Rule 12 (GoalGatesHaveRetry) warns about exit nodes without retry edges
     And Rule 13 (LlmNodesHavePrompts) warns about codergen nodes missing prompt attribute
 
