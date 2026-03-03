@@ -1,9 +1,5 @@
 """EdgeSelector — 5-step edge selection algorithm.
 
-**NOTE**: This is a full implementation matching the SD spec (Section 4.4).
-E1.5 will add the full condition expression language; for now the stub
-condition evaluator handles only literal 'true'/'false' and simple equality.
-
 Priority order (highest to lowest):
     1. Condition truth  — edge.condition evaluates True against context
     2. Preferred label  — edge.label matches outcome.preferred_label
@@ -12,14 +8,48 @@ Priority order (highest to lowest):
     5. Default edge     — unlabeled, unconditioned edge; or first outgoing edge
 
 The condition evaluator is provided as an injectable callable so that
-Epic 3's full expression language can replace the stub without touching
-this class.
+alternative evaluators can be substituted in tests without touching
+this class.  The default evaluator uses the full Epic 3 conditions package.
 """
 from __future__ import annotations
 
+import logging
+
+from cobuilder.engine.conditions import evaluate_condition as _real_evaluate_condition
 from cobuilder.engine.exceptions import NoEdgeError
 from cobuilder.engine.graph import Edge, Graph, Node
 from cobuilder.engine.outcome import Outcome
+
+_log = logging.getLogger(__name__)
+
+
+def _default_condition_evaluator(condition: str, context, outcome: Outcome) -> bool:
+    """Real condition evaluator using the conditions package (Epic 3).
+
+    Wraps :func:`~cobuilder.engine.conditions.evaluate_condition` with
+    error isolation so that a malformed condition string never crashes the
+    edge-selection loop — it simply causes the edge to be skipped.
+    """
+    from cobuilder.engine.conditions import (
+        ConditionEvalError,
+        ConditionLexError,
+        ConditionParseError,
+    )
+
+    try:
+        from cobuilder.engine.context import PipelineContext
+
+        if isinstance(context, dict):
+            ctx = PipelineContext(context)
+        else:
+            ctx = context
+        return _real_evaluate_condition(condition, ctx, missing_var_default=False)
+    except (ConditionEvalError, ConditionParseError, ConditionLexError) as exc:
+        _log.warning("condition_eval_error edge=%s error=%s", condition, exc)
+        return False
+    except Exception as exc:  # pragma: no cover — unexpected errors
+        _log.warning("condition_eval_unexpected_error: %s", exc)
+        return False
 
 
 class EdgeSelector:
@@ -27,12 +57,15 @@ class EdgeSelector:
 
     Args:
         condition_evaluator: Optional callable with signature
-                             ``(condition: str, context: dict, outcome: Outcome) -> bool``.
-                             Defaults to the Epic 1 stub evaluator.
+                             ``(condition: str, context, outcome: Outcome) -> bool``.
+                             Defaults to :func:`_default_condition_evaluator`
+                             which uses the full Epic 3 conditions package.
+                             Pass :func:`_stub_condition_evaluator` in tests
+                             that need the legacy simple evaluator.
     """
 
     def __init__(self, condition_evaluator=None) -> None:
-        self._evaluate = condition_evaluator or _stub_condition_evaluator
+        self._evaluate = condition_evaluator or _default_condition_evaluator
 
     def select(
         self,

@@ -151,16 +151,28 @@ class _ConditionParserStub:
             raise _ParseError(f"Unbalanced parentheses in condition: {expr!r}")
 
 
-# Try to import the real condition parser; fall back to the stub.
+# Try to import the real condition validator; fall back to the stub parser.
 try:
+    from cobuilder.engine.conditions import validate_condition_syntax as _validate_condition_syntax
     from cobuilder.engine.conditions.parser import ConditionParser as _ConditionParser
     from cobuilder.engine.conditions.parser import ParseError as _RealParseError
 
     _CONDITION_PARSER_CLS = _ConditionParser
     _CONDITION_PARSE_ERROR = _RealParseError
+    _HAS_REAL_VALIDATOR = True
 except ImportError:
     _CONDITION_PARSER_CLS = _ConditionParserStub  # type: ignore[assignment]
     _CONDITION_PARSE_ERROR = _ParseError  # type: ignore[assignment]
+    _HAS_REAL_VALIDATOR = False
+
+    def _validate_condition_syntax(source: str):  # type: ignore[misc]
+        """Stub fallback: returns (errors, warnings) like the real function."""
+        parser = _ConditionParserStub()
+        try:
+            parser.parse(source)
+            return [], []
+        except _ParseError as exc:
+            return [str(exc)], []
 
 
 # ---------------------------------------------------------------------------
@@ -397,28 +409,45 @@ class ExitNoOutgoing:
 # ---------------------------------------------------------------------------
 
 class ConditionSyntaxValid:
-    """All edge ``condition=`` values must parse without error."""
+    """All edge ``condition=`` values must parse without error.
+
+    Uses the real conditions package validator when available (Epic 3):
+    - Parse errors → ERROR violation (blocks execution).
+    - Bare-word deprecation warnings → WARNING violation (AMD-5).
+    """
 
     rule_id = "ConditionSyntaxValid"
     severity = Severity.ERROR
 
     def check(self, graph: Graph) -> list[RuleViolation]:
-        parser = _CONDITION_PARSER_CLS()
         violations = []
         for edge in graph.edges:
             # Unconditional edges (empty condition string) are always valid.
             if not edge.condition:
                 continue
-            try:
-                parser.parse(edge.condition)
-            except _CONDITION_PARSE_ERROR as exc:
+
+            errors, warnings = _validate_condition_syntax(edge.condition)
+
+            for err in errors:
                 violations.append(
                     _error(
                         self.rule_id,
-                        f"Edge condition expression '{edge.condition}' failed to parse: {exc}",
+                        f"Edge condition expression '{edge.condition}' failed to parse: {err}",
                         "Review the condition expression syntax. Variables use `$` prefix; "
                         "operators are `=`, `!=`, `<`, `>`, `<=`, `>=`; "
                         "connectives are `&&`, `||`, `!`.",
+                        edge_src=edge.source,
+                        edge_dst=edge.target,
+                    )
+                )
+            for warn in warnings:
+                violations.append(
+                    _warning(
+                        self.rule_id,
+                        f"Edge condition '{edge.condition}' uses unquoted bare-word string "
+                        f"(deprecated, AMD-5): {warn}",
+                        "Use quoted strings for clarity: e.g. `$status = \"success\"` "
+                        "instead of `$status = success`.",
                         edge_src=edge.source,
                         edge_dst=edge.target,
                     )
