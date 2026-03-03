@@ -15,8 +15,9 @@ import time
 from dataclasses import asdict, dataclass, field
 from typing import TYPE_CHECKING, Literal
 
+from cobuilder.engine.context import PipelineContext
+
 if TYPE_CHECKING:
-    from cobuilder.engine.context import PipelineContext
     from cobuilder.engine.graph import Graph, Node
 
 
@@ -238,6 +239,60 @@ class LoopDetector:
 # ---------------------------------------------------------------------------
 # Policy resolver
 # ---------------------------------------------------------------------------
+
+
+def resolve_retry_target(
+    failed_node: "Node",
+    graph: "Graph",
+) -> str | None:
+    """Return the node_id to retry from, or None if no retry target exists.
+
+    Resolution order (first non-None/non-empty wins):
+      1. ``failed_node.attrs.get("retry_target")``     — node-level attribute
+      2. ``graph.attrs.get("retry_target")``            — graph-level attribute
+      3. ``graph.attrs.get("fallback_retry_target")``   — last-resort graph attribute
+      4. ``None`` → pipeline FAILS with NoRetryTargetError
+
+    The caller is responsible for raising ``NoRetryTargetError`` when None
+    is returned and the pipeline cannot continue.
+    """
+    return (
+        failed_node.attrs.get("retry_target") or
+        graph.attrs.get("retry_target") or
+        graph.attrs.get("fallback_retry_target") or
+        None
+    )
+
+
+def apply_loop_restart(
+    context: "PipelineContext",
+    graph: "Graph",
+) -> "PipelineContext":
+    """Clear all context keys except preserved ones, returning a new PipelineContext.
+
+    Preserved keys:
+    - Keys starting with ``"graph."`` (graph-level variables)
+    - Keys starting with ``"pipeline_"`` (built-in immutable pipeline keys)
+    - The legacy key ``"$node_visits"`` (if present as a top-level dict)
+    - Keys starting with ``"$node_visits."`` (per-node visit counts with AMD-4 prefix)
+
+    Visit counts are NOT reset — a ``loop_restart`` edge does not grant a fresh
+    retry budget; it resets accumulated state only so loop detection still works.
+
+    Returns a fresh ``PipelineContext`` with only the preserved keys.
+    Does NOT modify the original context.
+    """
+    preserved_prefixes = ("graph.", "pipeline_")
+    snapshot = context.snapshot()
+    new_context = {
+        k: v for k, v in snapshot.items()
+        if (
+            any(k.startswith(p) for p in preserved_prefixes)
+            or k == "$node_visits"
+            or k.startswith("$node_visits.")
+        )
+    }
+    return PipelineContext(new_context)
 
 
 def resolve_loop_policy(

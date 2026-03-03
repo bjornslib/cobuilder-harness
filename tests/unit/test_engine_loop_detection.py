@@ -8,6 +8,12 @@ Covers:
   E5-AC9:  sync_to_context() writes $node_visits.<node_id>
   E5-AC10: sync_to_context() writes $retry_count (0-indexed)
   E5-AC11: serialize() → from_checkpoint() round-trip
+  E5-AC13: resolve_retry_target returns node-level value
+  E5-AC14: resolve_retry_target returns graph-level value
+  E5-AC15: resolve_retry_target returns None when no target
+  E5-AC16: apply_loop_restart preserves graph.* and $node_visits.* keys
+  E5-AC17: apply_loop_restart removes per-run keys
+  E5-AC18: apply_loop_restart does NOT reset visit counts
   E5-AC12: check() continues counting from persisted count after from_checkpoint()
 
 Additional:
@@ -24,12 +30,15 @@ from unittest.mock import MagicMock
 import pytest
 
 from cobuilder.engine.context import PipelineContext
+from cobuilder.engine.exceptions import NoRetryTargetError
 from cobuilder.engine.loop_detection import (
     LoopDetectionResult,
     LoopDetector,
     LoopPolicy,
     VisitRecord,
+    apply_loop_restart,
     resolve_loop_policy,
+    resolve_retry_target,
 )
 
 
@@ -475,3 +484,195 @@ class TestVisitRecordDataclass:
         vr2 = VisitRecord(node_id="b")
         vr1.outcomes.append("X")
         assert vr2.outcomes == []
+
+
+# ---------------------------------------------------------------------------
+# E5-AC13/14/15: resolve_retry_target
+# ---------------------------------------------------------------------------
+
+
+def _node_with_attrs(**attrs):
+    n = MagicMock()
+    n.attrs = attrs
+    return n
+
+
+def _graph_with_attrs(**attrs):
+    g = MagicMock()
+    g.attrs = attrs
+    return g
+
+
+class TestResolveRetryTarget:
+    def test_node_level_retry_target_wins(self):
+        """E5-AC13: node-level retry_target returned when set."""
+        node = _node_with_attrs(retry_target="retry_node")
+        graph = _graph_with_attrs(retry_target="graph_retry", fallback_retry_target="fallback")
+        assert resolve_retry_target(node, graph) == "retry_node"
+
+    def test_graph_level_retry_target_when_node_lacks(self):
+        """E5-AC14: graph-level retry_target used when node has none."""
+        node = _node_with_attrs()  # no retry_target
+        graph = _graph_with_attrs(retry_target="graph_retry")
+        assert resolve_retry_target(node, graph) == "graph_retry"
+
+    def test_fallback_retry_target_when_no_graph_retry(self):
+        """fallback_retry_target used when graph has no retry_target."""
+        node = _node_with_attrs()
+        graph = _graph_with_attrs(fallback_retry_target="fallback_node")
+        assert resolve_retry_target(node, graph) == "fallback_node"
+
+    def test_returns_none_when_no_target(self):
+        """E5-AC15: None returned when neither node nor graph has retry_target."""
+        node = _node_with_attrs()
+        graph = _graph_with_attrs()
+        assert resolve_retry_target(node, graph) is None
+
+    def test_empty_string_node_attr_falls_through_to_graph(self):
+        """Empty string retry_target on node falls through to graph attr."""
+        node = _node_with_attrs(retry_target="")
+        graph = _graph_with_attrs(retry_target="graph_retry")
+        assert resolve_retry_target(node, graph) == "graph_retry"
+
+    def test_empty_string_graph_falls_through_to_fallback(self):
+        """Empty string graph retry_target falls through to fallback."""
+        node = _node_with_attrs()
+        graph = _graph_with_attrs(retry_target="", fallback_retry_target="fallback")
+        assert resolve_retry_target(node, graph) == "fallback"
+
+
+# ---------------------------------------------------------------------------
+# E5-AC16/17/18: apply_loop_restart
+# ---------------------------------------------------------------------------
+
+
+class TestApplyLoopRestart:
+    def _make_context(self, data: dict) -> PipelineContext:
+        return PipelineContext(data)
+
+    def test_preserves_graph_prefix_keys(self):
+        """E5-AC16: keys starting with 'graph.' are preserved."""
+        ctx = self._make_context({
+            "graph.input": "value",
+            "graph.config": 42,
+            "run_data": "dropped",
+        })
+        graph = MagicMock()
+        result = apply_loop_restart(ctx, graph)
+        assert result.get("graph.input") == "value"
+        assert result.get("graph.config") == 42
+
+    def test_preserves_pipeline_prefix_keys(self):
+        """E5-AC16: keys starting with 'pipeline_' are preserved."""
+        ctx = self._make_context({
+            "pipeline_id": "run-001",
+            "pipeline_start": 1234.5,
+            "impl_auth.status": "dropped",
+        })
+        graph = MagicMock()
+        result = apply_loop_restart(ctx, graph)
+        assert result.get("pipeline_id") == "run-001"
+        assert result.get("pipeline_start") == 1234.5
+
+    def test_preserves_node_visits_with_dollar_prefix(self):
+        """E5-AC16: $node_visits.* keys are preserved."""
+        ctx = self._make_context({
+            "$node_visits.impl_auth": 2,
+            "$node_visits.val_auth": 1,
+            "impl_auth.output": "dropped",
+        })
+        graph = MagicMock()
+        result = apply_loop_restart(ctx, graph)
+        assert result.get("$node_visits.impl_auth") == 2
+        assert result.get("$node_visits.val_auth") == 1
+
+    def test_removes_per_run_keys(self):
+        """E5-AC17: per-run keys like 'impl_auth.status' are dropped."""
+        ctx = self._make_context({
+            "impl_auth.status": "SUCCESS",
+            "val_auth.result": {"foo": "bar"},
+            "graph.input": "kept",
+        })
+        graph = MagicMock()
+        result = apply_loop_restart(ctx, graph)
+        assert result.get("impl_auth.status") is None
+        assert result.get("val_auth.result") is None
+        assert result.get("graph.input") == "kept"
+
+    def test_does_not_reset_visit_counts(self):
+        """E5-AC18: visit counts survive loop restart."""
+        d = make_detector()
+        ctx = PipelineContext()
+        d.check("impl_auth")
+        d.check("impl_auth")
+        d.sync_to_context(ctx)
+        # Add some per-run data
+        ctx.update({"impl_auth.output": "data", "pipeline_id": "p-001"})
+        graph = MagicMock()
+        result = apply_loop_restart(ctx, graph)
+        # Visit counts preserved
+        assert result.get("$node_visits.impl_auth") == 2
+        # per-run data dropped
+        assert result.get("impl_auth.output") is None
+        # pipeline_ preserved
+        assert result.get("pipeline_id") == "p-001"
+
+    def test_returns_new_context_not_original(self):
+        """apply_loop_restart returns a NEW context, does not modify original."""
+        ctx = self._make_context({"impl_auth.status": "x", "graph.x": 1})
+        graph = MagicMock()
+        result = apply_loop_restart(ctx, graph)
+        # Original still has the key
+        assert ctx.get("impl_auth.status") == "x"
+        # Result does not
+        assert result.get("impl_auth.status") is None
+
+    def test_empty_context_returns_empty_context(self):
+        """apply_loop_restart on empty context returns empty context."""
+        ctx = PipelineContext()
+        graph = MagicMock()
+        result = apply_loop_restart(ctx, graph)
+        assert len(result) == 0
+
+    def test_preserves_legacy_node_visits_key(self):
+        """Legacy '$node_visits' top-level key is preserved."""
+        ctx = self._make_context({"$node_visits": {"a": 1}, "run_data": "x"})
+        graph = MagicMock()
+        result = apply_loop_restart(ctx, graph)
+        assert result.get("$node_visits") == {"a": 1}
+        assert result.get("run_data") is None
+
+
+# ---------------------------------------------------------------------------
+# NoRetryTargetError
+# ---------------------------------------------------------------------------
+
+
+class TestNoRetryTargetError:
+    def test_raises_with_correct_message(self):
+        """NoRetryTargetError message includes node_id and pipeline_id."""
+        err = NoRetryTargetError(node_id="impl_auth", pipeline_id="my-pipeline")
+        assert "impl_auth" in str(err)
+        assert "my-pipeline" in str(err)
+
+    def test_attributes_set(self):
+        """node_id and pipeline_id attributes set correctly."""
+        err = NoRetryTargetError(node_id="node_x", pipeline_id="pipe-1")
+        assert err.node_id == "node_x"
+        assert err.pipeline_id == "pipe-1"
+
+    def test_default_pipeline_id_is_empty(self):
+        """pipeline_id defaults to empty string."""
+        err = NoRetryTargetError(node_id="node_x")
+        assert err.pipeline_id == ""
+
+    def test_is_engine_error(self):
+        """NoRetryTargetError is a subclass of EngineError."""
+        from cobuilder.engine.exceptions import EngineError
+        assert isinstance(NoRetryTargetError("x"), EngineError)
+
+    def test_is_catchable_as_exception(self):
+        """Can be raised and caught as a standard exception."""
+        with pytest.raises(NoRetryTargetError) as exc_info:
+            raise NoRetryTargetError("impl_auth", "test-pipeline")
+        assert exc_info.value.node_id == "impl_auth"

@@ -164,3 +164,22 @@ class LoopDetectedError(EngineError):
             f"(max_retries={max_retries}). "
             f"Check for cycles in the pipeline or increase max_retries."
         )
+
+
+class NoRetryTargetError(EngineError):
+    """No retry target is configured for a node that needs to retry.
+
+    Raised when ``resolve_retry_target()`` returns ``None`` and the engine
+    cannot continue — the pipeline has no path for recovery.
+
+    Attributes:
+        node_id:     Node for which no retry target was found.
+        pipeline_id: Pipeline ID (from graph attributes), if available.
+    """
+
+    def __init__(self, node_id: str, pipeline_id: str = "") -> None:
+        self.node_id = node_id
+        self.pipeline_id = pipeline_id
+        super().__init__(
+            f"No retry target configured for node '{node_id}' in pipeline '{pipeline_id}'"
+        )
