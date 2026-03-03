@@ -454,6 +454,7 @@ digraph pipeline {
             pipelines_dir=tmp_path / "runs",
             handler_registry=registry,
             max_node_visits=3,
+            skip_validation=True,  # condition="false" is not valid syntax; test is for loop detection
         )
         with pytest.raises(LoopDetectedError) as exc_info:
             await runner.run()

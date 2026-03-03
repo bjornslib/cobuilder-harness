@@ -140,6 +140,11 @@ class EngineCheckpoint(BaseModel):
     total_node_executions: int = 0    # For pipeline-wide loop detection (Epic 5)
     total_tokens_used: int = 0        # Aggregated from CodergenHandler metadata
 
+    # ── Epic 5: LoopDetector state ─────────────────────────────────────────
+    # Serialized LoopDetector state for checkpoint/resume support.
+    # None means Epic 5 is not active (no LoopDetector was instantiated).
+    visit_records_data: dict | None = Field(default=None)
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # CheckpointManager

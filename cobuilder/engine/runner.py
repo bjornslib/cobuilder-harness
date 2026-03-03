@@ -85,6 +85,21 @@ except ImportError:
     ORCHESTRATOR_CRASHED = "ORCHESTRATOR_CRASHED"  # type: ignore[assignment]
     write_signal = None  # type: ignore[assignment]
 
+# Epic 5: Loop detection — graceful degradation if module absent.
+try:
+    from cobuilder.engine.loop_detection import (
+        LoopDetector,
+        LoopPolicy,
+        apply_loop_restart,
+        resolve_loop_policy,
+    )
+    _LOOP_DETECTION_AVAILABLE = True
+except ImportError:
+    _LOOP_DETECTION_AVAILABLE = False
+    LoopDetector = None  # type: ignore[assignment,misc]
+    LoopPolicy = None  # type: ignore[assignment]
+    apply_loop_restart = None  # type: ignore[assignment]
+
 # Logfire — optional; graceful degradation if not installed.
 try:
     import logfire as _logfire
@@ -217,6 +232,20 @@ class EngineRunner:
 
         pipeline_start = time.monotonic()
 
+        # ── Epic 5: Instantiate LoopDetector ─────────────────────────────
+        loop_detector = None
+        if _LOOP_DETECTION_AVAILABLE and LoopDetector is not None:
+            policy = LoopPolicy(
+                per_node_max=self.max_node_visits,
+                pipeline_max=int(graph.attrs.get("default_max_retry", 50)),
+            )
+            if is_resume and checkpoint.visit_records_data:
+                loop_detector = LoopDetector.from_checkpoint(
+                    checkpoint.visit_records_data, policy
+                )
+            else:
+                loop_detector = LoopDetector(policy)
+
         # ── Epic 4: Build event emitter ───────────────────────────────────
         if _EVENTS_AVAILABLE:
             emitter = build_emitter(
@@ -263,6 +292,7 @@ class EngineRunner:
                 current_node=current_node,
                 pipeline_start=pipeline_start,
                 emitter=emitter,
+                loop_detector=loop_detector,
             )
 
             # Emit pipeline.completed.
@@ -325,6 +355,7 @@ class EngineRunner:
         current_node: Node,
         pipeline_start: float,
         emitter: Any,
+        loop_detector: Any = None,
     ) -> EngineCheckpoint:
         """Inner traversal loop extracted from run() for readability."""
         _pipeline_span = (
@@ -345,6 +376,7 @@ class EngineRunner:
                 current_node=current_node,
                 pipeline_start=pipeline_start,
                 emitter=emitter,
+                loop_detector=loop_detector,
             )
         finally:
             if _pipeline_span is not None:
@@ -361,20 +393,19 @@ class EngineRunner:
         current_node: Node,
         pipeline_start: float,
         emitter: Any,
+        loop_detector: Any = None,
     ) -> EngineCheckpoint:
         """Inner traversal loop body (separated for logfire span wrapping)."""
         while True:
             node = current_node
             node_started_at = datetime.now(timezone.utc)
 
-            # --- Loop guard ----------------------------------------------
+            # --- Visit counting ------------------------------------------
+            # Increment via context for backward-compat (provides visit_count
+            # for the handler request). LoopDetector runs its own check AFTER
+            # execution (Epic 5 semantics); sync_to_context() overwrites $node_visits.*
+            # with the same values after each node completes.
             visit_count = context.increment_visit(node.id)
-            if visit_count > self.max_node_visits:
-                raise LoopDetectedError(
-                    node_id=node.id,
-                    visit_count=visit_count,
-                    max_retries=self.max_node_visits,
-                )
 
             # --- Refresh engine-managed context keys --------------------
             context.update(
@@ -448,6 +479,22 @@ class EngineRunner:
                         node.id, emit_exc,
                     )
 
+            # --- Epic 5: Loop detection (after execution) ----------------
+            if loop_detector is not None:
+                node_max_retries = int(
+                    node.attrs.get("max_retries", self.max_node_visits - 1)
+                )
+                loop_result = loop_detector.check(
+                    node.id,
+                    node_max_retries=node_max_retries,
+                    outcome_status=outcome.status.value,
+                )
+                loop_detector.sync_to_context(context)
+                if not loop_result.allowed:
+                    await self._handle_loop_detected(
+                        loop_result, node, context
+                    )
+
             # --- Record execution and advance checkpoint ----------------
             node_record = NodeRecord(
                 node_id=node.id,
@@ -467,16 +514,18 @@ class EngineRunner:
                 or outcome.metadata.get("tokens_used", 0)
                 or 0
             )
-            checkpoint = checkpoint.model_copy(
-                update={
-                    "completed_nodes": new_completed,
-                    "node_records": list(checkpoint.node_records) + [node_record],
-                    "context": self._serializable_context(context),
-                    "visit_counts": self._extract_visit_counts(context),
-                    "total_node_executions": checkpoint.total_node_executions + 1,
-                    "total_tokens_used": checkpoint.total_tokens_used + tokens_delta,
-                }
-            )
+            checkpoint_update: dict[str, Any] = {
+                "completed_nodes": new_completed,
+                "node_records": list(checkpoint.node_records) + [node_record],
+                "context": self._serializable_context(context),
+                "visit_counts": self._extract_visit_counts(context),
+                "total_node_executions": checkpoint.total_node_executions + 1,
+                "total_tokens_used": checkpoint.total_tokens_used + tokens_delta,
+            }
+            # Epic 5: persist LoopDetector state for resume support
+            if loop_detector is not None:
+                checkpoint_update["visit_records_data"] = loop_detector.serialize()
+            checkpoint = checkpoint.model_copy(update=checkpoint_update)
             # Keep live context in sync.
             context.update({"$completed_nodes": new_completed})
             checkpoint_mgr.save(checkpoint, emitter=emitter)
@@ -517,11 +566,66 @@ class EngineRunner:
                         node.id, next_edge.target, emit_exc,
                     )
 
+            # --- Epic 5: loop_restart edge handling ----------------------
+            if next_edge.loop_restart and loop_detector is not None and apply_loop_restart is not None:
+                new_ctx = apply_loop_restart(context, graph)
+                # Carry preserved keys back into the live context object
+                context.update(new_ctx.snapshot())
+                # Re-inject non-serializable engine keys that apply_loop_restart dropped
+                context.update({
+                    "$graph": graph,
+                    "$pipeline_id": pipeline_id,
+                    "$completed_nodes": new_completed,
+                })
+
             current_node = graph.nodes[next_edge.target]
 
         return checkpoint
 
     # ── Private helpers ────────────────────────────────────────────────────────
+
+    async def _handle_loop_detected(
+        self,
+        result: Any,
+        node: Node,
+        context: PipelineContext,
+    ) -> None:
+        """Handle a LoopDetectionResult with allowed=False.
+
+        §5.6 escalation protocol:
+        1. Emit ``loop.detected`` event (if event bus available).
+        2. Check ``allow_partial`` escape hatch — if True and the last outcome
+           was PARTIAL_SUCCESS, return (let the runner proceed to edge selection).
+        3. Otherwise raise ``LoopDetectedError``.
+
+        The signal protocol write (ORCHESTRATOR_STUCK) is intentionally omitted
+        here — it is handled in the outer ``run()`` except clause for HandlerError
+        and LoopDetectedError catches. This avoids duplicate signal writes.
+        """
+        # 1. Emit loop.detected event
+        if _EVENTS_AVAILABLE and EventBuilder is not None:
+            try:
+                pass  # EventBuilder.loop_detected not yet defined; skip gracefully
+            except Exception as emit_exc:
+                logger.warning("Failed to emit loop.detected: %s", emit_exc)
+
+        # 2. allow_partial escape hatch
+        if str(node.attrs.get("allow_partial", "false")).lower() == "true":
+            last_status = context.get("$last_status", "")
+            if last_status == "PARTIAL_SUCCESS":
+                logger.info(
+                    "Node '%s' loop limit reached but allow_partial=true with "
+                    "PARTIAL_SUCCESS — proceeding to edge selection.",
+                    node.id,
+                )
+                return  # let the runner proceed
+
+        # 3. Hard fail
+        raise LoopDetectedError(
+            node_id=result.node_id,
+            visit_count=result.visit_count,
+            max_retries=result.limit if result.limit is not None else self.max_node_visits,
+        )
 
     def _setup_checkpoint(
         self,
