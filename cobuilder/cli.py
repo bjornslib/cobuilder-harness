@@ -1015,7 +1015,9 @@ def pipeline_run(
     resume: Optional[str] = typer.Option(
         None,
         "--resume",
-        help="Resume from an existing run directory (path to the run-<timestamp> dir)",
+        is_flag=False,
+        flag_value="",
+        help="Resume from a previous run. Optionally specify the run directory path.",
     ),
     pipelines_dir: Optional[str] = typer.Option(
         None,
@@ -1073,6 +1075,25 @@ def pipeline_run(
     if not Path(file).exists():
         typer.echo(f"Error: File not found: {file}", err=True)
         raise typer.Exit(1)
+
+    # Resolve bare --resume (no path) to the most recent run directory
+    if resume is not None and resume == "":
+        _pdir = Path(pipelines_dir) if pipelines_dir else Path.cwd() / ".claude" / "attractor" / "pipelines"
+        if _pdir.is_dir():
+            run_dirs = sorted(
+                [d for d in _pdir.iterdir() if d.is_dir() and "-run-" in d.name],
+                key=lambda d: d.stat().st_mtime,
+                reverse=True,
+            )
+            if run_dirs:
+                resume = str(run_dirs[0])
+                typer.echo(f"Resuming from most recent run: {resume}", err=True)
+            else:
+                typer.echo(f"Error: No run directories found in {_pdir}", err=True)
+                raise typer.Exit(1)
+        else:
+            typer.echo(f"Error: Pipelines directory does not exist: {_pdir}", err=True)
+            raise typer.Exit(1)
 
     runner = EngineRunner(
         dot_path=file,

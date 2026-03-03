@@ -27,7 +27,6 @@ import asyncio
 import json
 import logging
 import os
-import time
 from pathlib import Path
 from typing import Any
 
@@ -190,9 +189,10 @@ class CodergenHandler:
             return self._signal_to_outcome(node.id, result)
 
         # Default filesystem poller
-        start_time = time.monotonic()
+        loop = asyncio.get_event_loop()
+        start_time = loop.time()
         while True:
-            elapsed = time.monotonic() - start_time
+            elapsed = loop.time() - start_time
 
             if elapsed >= self._timeout_s:
                 # AC-F6: Timeout → FAILURE with TIMEOUT metadata
