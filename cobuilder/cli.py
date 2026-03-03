@@ -1067,9 +1067,9 @@ def pipeline_run(
         HandlerError,
         LoopDetectedError,
         NoEdgeError,
+        ParseError,
         ValidationError,
     )
-    from cobuilder.engine.parser import ParseError
     from cobuilder.engine.runner import EngineRunner
 
     if not Path(file).exists():

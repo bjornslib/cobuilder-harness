@@ -17,7 +17,8 @@ from pathlib import Path
 
 import pytest
 
-from cobuilder.engine.parser import DotParser, ParseError, parse_dot_file, parse_dot_string
+from cobuilder.engine.exceptions import ParseError
+from cobuilder.engine.parser import DotParser, parse_dot_file, parse_dot_string
 from cobuilder.engine.graph import Graph, Node, Edge
 
 

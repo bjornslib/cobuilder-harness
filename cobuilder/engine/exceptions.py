@@ -7,7 +7,7 @@ still being able to discriminate between specific error types.
 Error taxonomy (from SD Section 7):
 
 Fatal (exit non-zero, no automatic retry):
-    ParseError          — already defined in parser.py; re-exported here
+    ParseError          — DOT parser encountered unrecoverable syntax error
     ValidationError     — 13-rule validator (Epic 2); stub present
     UnknownShapeError   — node shape not in handler registry
     NoEdgeError         — EdgeSelector exhausted all 5 steps
@@ -30,6 +30,28 @@ class EngineError(Exception):
 # ---------------------------------------------------------------------------
 # Fatal errors
 # ---------------------------------------------------------------------------
+
+class ParseError(EngineError):
+    """Raised when the DOT source cannot be parsed.
+
+    Attributes:
+        message:  Human-readable description of the problem.
+        line:     1-based line number in the source where the error occurred.
+                  ``0`` means the line could not be determined.
+        column:   1-based column number in the source where the error occurred.
+                  ``0`` means the column could not be determined.
+        snippet:  The offending source fragment (up to 80 characters).
+    """
+
+    def __init__(self, message: str, line: int = 0, snippet: str = "", column: int = 0) -> None:
+        self.message = message
+        self.line = line
+        self.column = column
+        self.snippet = snippet
+        loc = f" (line {line}, col {column})" if line else ""
+        snip = f": {snippet!r}" if snippet else ""
+        super().__init__(f"{message}{loc}{snip}")
+
 
 class ValidationError(EngineError):
     """13-rule validation failed before pipeline execution.

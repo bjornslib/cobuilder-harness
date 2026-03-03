@@ -1,0 +1,23 @@
+prd_id: PRD-VERIFY-CHECK-002-G12
+prd_title: "Form Events Topic Mismatch Fix"
+prd_source: "/Users/theb/Documents/Windsurf/zenagent2/zenagent/agencheck/documentation/prds/phase-1.1/unified-form-page/SD-VERIFY-CHECK-002-G12-form-events-topic-fix.md"
+parent_prd: "GAP-PRD-P1.1-VERIFY-CHECK-002"
+generated: "2026-03-03T00:00:00Z"
+bead_id: "zenagent-ma04"
+promise_id: "promise-dfd4f35e"
+
+decision_thresholds:
+  accept: 0.60
+  investigate: 0.40
+
+features:
+  - name: "G12 - Form Events Data Channel Topic Alignment"
+    weight: 1.00
+    validation_method: code-analysis
+    scenarios:
+      - "topic_string_fix"
+      - "backend_handler_alignment"
+      - "no_regressions"
+
+service_prerequisites:
+  notes: "G12 is a code-analysis validation. No running services required for scoring. However, full E2E validation (AC-G12.1 through AC-G12.3) requires Docker backend + frontend running."

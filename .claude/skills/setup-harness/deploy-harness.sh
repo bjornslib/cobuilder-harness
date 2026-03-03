@@ -256,13 +256,6 @@ deploy_to_target() {
 
     ok "Copied harness to $target_dir/.claude/"
 
-    # ── Verify .claude/CLAUDE.md ──
-    if [ -f "$target_dir/.claude/CLAUDE.md" ]; then
-        ok ".claude/CLAUDE.md updated from harness source"
-    else
-        warn ".claude/CLAUDE.md missing after copy"
-    fi
-
     # ── Handle .mcp.json ──
     if [ "$INCLUDE_MCP" = true ]; then
         if [ -f "$HARNESS_SOURCE/.mcp.json" ]; then

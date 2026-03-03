@@ -11,13 +11,14 @@ from cobuilder.engine.exceptions import (
     HandlerError,
     LoopDetectedError,
     NoEdgeError,
+    ParseError,
     UnknownShapeError,
     ValidationError,
 )
 from cobuilder.engine.graph import SHAPE_TO_HANDLER, Edge, Graph, Node
 from cobuilder.engine.handlers import Handler, HandlerRegistry, HandlerRequest
 from cobuilder.engine.outcome import Outcome, OutcomeStatus
-from cobuilder.engine.parser import DotParser, ParseError, parse_dot_file, parse_dot_string
+from cobuilder.engine.parser import DotParser, parse_dot_file, parse_dot_string
 from cobuilder.engine.runner import EngineRunner
 
 __all__ = [

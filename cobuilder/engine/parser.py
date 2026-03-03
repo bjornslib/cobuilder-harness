@@ -54,33 +54,8 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Any
 
+from cobuilder.engine.exceptions import ParseError
 from cobuilder.engine.graph import Edge, Graph, Node
-
-
-# ---------------------------------------------------------------------------
-# Errors
-# ---------------------------------------------------------------------------
-
-class ParseError(Exception):
-    """Raised when the DOT source cannot be parsed.
-
-    Attributes:
-        message:  Human-readable description of the problem.
-        line:     1-based line number in the source where the error occurred.
-                  ``0`` means the line could not be determined.
-        column:   1-based column number in the source where the error occurred.
-                  ``0`` means the column could not be determined.
-        snippet:  The offending source fragment (up to 80 characters).
-    """
-
-    def __init__(self, message: str, line: int = 0, snippet: str = "", column: int = 0) -> None:
-        self.message = message
-        self.line = line
-        self.column = column
-        self.snippet = snippet
-        loc = f" (line {line}, col {column})" if line else ""
-        snip = f": {snippet!r}" if snippet else ""
-        super().__init__(f"{message}{loc}{snip}")
 
 
 # ---------------------------------------------------------------------------
