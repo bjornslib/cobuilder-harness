@@ -37,7 +37,7 @@ from typing import Any, Callable
 from cobuilder.engine.checkpoint import CheckpointManager, EngineCheckpoint, NodeRecord
 from cobuilder.engine.context import PipelineContext
 from cobuilder.engine.edge_selector import EdgeSelector
-from cobuilder.engine.exceptions import LoopDetectedError, NoEdgeError
+from cobuilder.engine.exceptions import HandlerError, LoopDetectedError, NoEdgeError
 from cobuilder.engine.graph import Graph, Node
 from cobuilder.engine.handlers import HandlerRegistry
 from cobuilder.engine.handlers.base import HandlerRequest
@@ -75,6 +75,23 @@ except ImportError:
     _MIDDLEWARE_AVAILABLE = False
     compose_middleware = None  # type: ignore[assignment]
     MiddlewareHandlerRequest = None  # type: ignore[assignment]
+
+# Signal protocol — optional; graceful degradation if pipeline pkg absent.
+try:
+    from cobuilder.pipeline.signal_protocol import ORCHESTRATOR_CRASHED, write_signal
+    _SIGNAL_PROTOCOL_AVAILABLE = True
+except ImportError:
+    _SIGNAL_PROTOCOL_AVAILABLE = False
+    ORCHESTRATOR_CRASHED = "ORCHESTRATOR_CRASHED"  # type: ignore[assignment]
+    write_signal = None  # type: ignore[assignment]
+
+# Logfire — optional; graceful degradation if not installed.
+try:
+    import logfire as _logfire
+    _LOGFIRE_AVAILABLE = True
+except ImportError:
+    _logfire = None  # type: ignore[assignment]
+    _LOGFIRE_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -272,6 +289,20 @@ class EngineRunner:
             return checkpoint
 
         except Exception as fatal_exc:
+            # Write ORCHESTRATOR_CRASHED signal when a HandlerError occurs.
+            if isinstance(fatal_exc, HandlerError) and _SIGNAL_PROTOCOL_AVAILABLE and write_signal is not None:
+                try:
+                    node_id = context.get("$current_node_id", "unknown")
+                    write_signal(
+                        source="runner",
+                        target="guardian",
+                        signal_type=ORCHESTRATOR_CRASHED,
+                        payload={"node_id": node_id, "error": str(fatal_exc)},
+                        signals_dir=str(run_dir),
+                    )
+                except Exception as sig_exc:
+                    logger.warning("Failed to write ORCHESTRATOR_CRASHED signal: %s", sig_exc)
+
             # Emit pipeline.failed before propagating.
             if _EVENTS_AVAILABLE and EventBuilder is not None:
                 try:
@@ -304,6 +335,42 @@ class EngineRunner:
         emitter: Any,
     ) -> EngineCheckpoint:
         """Inner traversal loop extracted from run() for readability."""
+        _pipeline_span = (
+            _logfire.span("pipeline.run", pipeline_id=pipeline_id)
+            if _LOGFIRE_AVAILABLE and _logfire is not None
+            else None
+        )
+        if _pipeline_span is not None:
+            _pipeline_span.__enter__()
+        try:
+            return await self._run_loop_inner(
+                graph=graph,
+                pipeline_id=pipeline_id,
+                checkpoint=checkpoint,
+                checkpoint_mgr=checkpoint_mgr,
+                run_dir=run_dir,
+                context=context,
+                current_node=current_node,
+                pipeline_start=pipeline_start,
+                emitter=emitter,
+            )
+        finally:
+            if _pipeline_span is not None:
+                _pipeline_span.__exit__(None, None, None)
+
+    async def _run_loop_inner(
+        self,
+        graph: Graph,
+        pipeline_id: str,
+        checkpoint: EngineCheckpoint,
+        checkpoint_mgr: CheckpointManager,
+        run_dir: Path,
+        context: PipelineContext,
+        current_node: Node,
+        pipeline_start: float,
+        emitter: Any,
+    ) -> EngineCheckpoint:
+        """Inner traversal loop body (separated for logfire span wrapping)."""
         while True:
             node = current_node
             node_started_at = datetime.now(timezone.utc)
@@ -339,14 +406,25 @@ class EngineRunner:
             )
 
             # --- Execute handler (via middleware chain) ------------------
-            outcome = await self._execute_node(
-                node=node,
-                context=context,
-                pipeline_id=pipeline_id,
-                visit_count=visit_count,
-                run_dir=run_dir,
-                emitter=emitter,
+            _node_span = (
+                _logfire.span("node.execute", node_id=node.id, handler_type=node.handler_type)
+                if _LOGFIRE_AVAILABLE and _logfire is not None
+                else None
             )
+            if _node_span is not None:
+                _node_span.__enter__()
+            try:
+                outcome = await self._execute_node(
+                    node=node,
+                    context=context,
+                    pipeline_id=pipeline_id,
+                    visit_count=visit_count,
+                    run_dir=run_dir,
+                    emitter=emitter,
+                )
+            finally:
+                if _node_span is not None:
+                    _node_span.__exit__(None, None, None)
 
             node_completed_at = datetime.now(timezone.utc)
 

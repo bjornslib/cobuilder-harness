@@ -817,3 +817,118 @@ class TestEngineRunnerValidation:
 
         assert checkpoint.pipeline_id == "pipeline"
         assert "e" in checkpoint.completed_nodes
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# TestHandlerErrorCrashSignal
+# ──────────────────────────────────────────────────────────────────────────────
+
+class TestHandlerErrorCrashSignal:
+    """Verify that HandlerError triggers an ORCHESTRATOR_CRASHED signal file."""
+
+    @pytest.mark.asyncio
+    async def test_handler_error_writes_crash_signal(self, tmp_path: Path) -> None:
+        """When a handler raises HandlerError, a crash signal file is written to run_dir."""
+        dot_file = _write_dot(tmp_path, _DOT_2NODE)
+
+        # Handler that raises HandlerError on execute
+        crashing_handler = MagicMock()
+        crashing_handler.execute = AsyncMock(
+            side_effect=HandlerError("simulated crash")
+        )
+        registry = _build_registry(
+            ("Mdiamond", crashing_handler),
+            ("Msquare", _make_handler(OutcomeStatus.SUCCESS)),
+        )
+
+        signals_dir = tmp_path / "signals"
+        signals_dir.mkdir()
+
+        runner = EngineRunner(
+            dot_path=dot_file,
+            pipelines_dir=tmp_path / "runs",
+            handler_registry=registry,
+            skip_validation=True,
+        )
+
+        # Patch write_signal to write into our signals_dir
+        import cobuilder.engine.runner as runner_module
+        from cobuilder.pipeline.signal_protocol import write_signal as real_write_signal
+
+        written_paths: list[str] = []
+
+        def _capturing_write_signal(source, target, signal_type, payload, signals_dir=None):
+            path = real_write_signal(
+                source=source,
+                target=target,
+                signal_type=signal_type,
+                payload=payload,
+                signals_dir=str(tmp_path / "signals"),
+            )
+            written_paths.append(path)
+            return path
+
+        with patch.object(runner_module, "write_signal", side_effect=_capturing_write_signal):
+            with patch.object(runner_module, "_SIGNAL_PROTOCOL_AVAILABLE", True):
+                with pytest.raises(HandlerError):
+                    await runner.run()
+
+        # Assert that at least one signal file matching *ORCHESTRATOR_CRASHED* was written
+        crash_signals = list((tmp_path / "signals").glob("*ORCHESTRATOR_CRASHED*"))
+        assert len(crash_signals) >= 1, (
+            f"Expected at least one ORCHESTRATOR_CRASHED signal file in {tmp_path / 'signals'}, "
+            f"but found none. Written paths: {written_paths}"
+        )
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# TestLogfireSpans
+# ──────────────────────────────────────────────────────────────────────────────
+
+class TestLogfireSpans:
+    """Verify that direct logfire spans are created in runner._run_loop."""
+
+    @pytest.mark.asyncio
+    async def test_logfire_spans_created(self, tmp_path: Path) -> None:
+        """Running a 2-node pipeline creates pipeline.run and node.execute logfire spans."""
+        dot_file = _write_dot(tmp_path, _DOT_2NODE)
+        registry = _build_registry(
+            ("Mdiamond", _make_handler(OutcomeStatus.SKIPPED)),
+            ("Msquare", _make_handler(OutcomeStatus.SUCCESS)),
+        )
+
+        runner = EngineRunner(
+            dot_path=dot_file,
+            pipelines_dir=tmp_path / "runs",
+            handler_registry=registry,
+            skip_validation=True,
+        )
+
+        import cobuilder.engine.runner as runner_module
+
+        span_calls: list[tuple] = []
+
+        class _MockSpanCtx:
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                pass
+
+        def _mock_span(name, **kwargs):
+            span_calls.append((name, kwargs))
+            return _MockSpanCtx()
+
+        mock_logfire = MagicMock()
+        mock_logfire.span = MagicMock(side_effect=_mock_span)
+
+        with patch.object(runner_module, "_logfire", mock_logfire):
+            with patch.object(runner_module, "_LOGFIRE_AVAILABLE", True):
+                await runner.run()
+
+        span_names = [c[0] for c in span_calls]
+        assert "pipeline.run" in span_names, (
+            f"Expected 'pipeline.run' span but got: {span_names}"
+        )
+        assert "node.execute" in span_names, (
+            f"Expected 'node.execute' span but got: {span_names}"
+        )
