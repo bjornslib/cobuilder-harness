@@ -408,41 +408,40 @@ Feature: Documentation files are tracked in git
     # - File name truncated or renamed during git add
     # - File moved to wrong directory (e.g., root documentation/)
 
-  @scenario-sdk_cli_tools_ref_tracked
-  Scenario: sdk-cli-tools.md reference file is tracked in git
-    Then the file ".claude/skills/s3-guardian/references/sdk-cli-tools.md" should exist
-    And ".claude/skills/s3-guardian/references/sdk-cli-tools.md" should be tracked by git
+  @scenario-sdk_cli_tools_ref_deleted
+  Scenario: sdk-cli-tools.md stale reference file has been deleted
+    Then the file ".claude/skills/s3-guardian/references/sdk-cli-tools.md" should NOT exist
+    And git should NOT track ".claude/skills/s3-guardian/references/sdk-cli-tools.md"
 
+    # Context: This file referenced launch_guardian.py, guardian_agent.py, runner_agent.py
+    # which were deleted in the PR #29 destructive merge. It was stale and removed in the
+    # harness context reduction cleanup (plan: fluttering-sniffing-forest).
+    #
     # Confidence scoring guide:
-    # 1.0 — File exists and is tracked by git
-    # 0.5 — File staged but not committed
-    # 0.0 — File absent or untracked
+    # 1.0 — File absent and git ls-files returns nothing for it
+    # 0.5 — File staged as deleted but not yet committed
+    # 0.0 — File still exists on disk
 
     # Evidence to check:
-    # - git ls-files .claude/skills/s3-guardian/references/sdk-cli-tools.md
-    # - git status | grep sdk-cli-tools (should produce no output)
+    # - ls .claude/skills/s3-guardian/references/sdk-cli-tools.md (should fail)
+    # - git ls-files .claude/skills/s3-guardian/references/sdk-cli-tools.md (should return empty)
 
-    # Red flags:
-    # - references/ directory is gitignored
-    # - File exists but is in a different path (e.g., skills/s3-guardian/sdk-cli-tools.md)
+  @scenario-sdk_mode_ref_deleted
+  Scenario: sdk-mode.md stale reference file has been deleted
+    Then the file ".claude/skills/s3-guardian/references/sdk-mode.md" should NOT exist
+    And git should NOT track ".claude/skills/s3-guardian/references/sdk-mode.md"
 
-  @scenario-sdk_mode_ref_tracked
-  Scenario: sdk-mode.md reference file is tracked in git
-    Then the file ".claude/skills/s3-guardian/references/sdk-mode.md" should exist
-    And ".claude/skills/s3-guardian/references/sdk-mode.md" should be tracked by git
-
+    # Context: This file described the 4-layer SDK chain using old script names
+    # (launch_guardian.py, guardian_agent.py) deleted in PR #29. Stale, removed in cleanup.
+    #
     # Confidence scoring guide:
-    # 1.0 — File exists and is tracked by git
-    # 0.5 — File staged but not committed
-    # 0.0 — File absent or untracked
+    # 1.0 — File absent and git ls-files returns nothing for it
+    # 0.5 — File staged as deleted but not yet committed
+    # 0.0 — File still exists on disk
 
     # Evidence to check:
-    # - git ls-files .claude/skills/s3-guardian/references/sdk-mode.md
-    # - git status | grep sdk-mode (should produce no output)
-
-    # Red flags:
-    # - File tracked under a different name
-    # - Both sdk-cli-tools.md and sdk-mode.md missing (entire references/ dir not committed)
+    # - ls .claude/skills/s3-guardian/references/sdk-mode.md (should fail)
+    # - git ls-files .claude/skills/s3-guardian/references/sdk-mode.md (should return empty)
 
 
 # ============================================================================
