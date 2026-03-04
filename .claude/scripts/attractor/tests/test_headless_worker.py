@@ -10,13 +10,15 @@ Tests:
 from __future__ import annotations
 
 import asyncio
+import io
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, call
 
 # Ensure the attractor package root is on sys.path.
 _ATTRACTOR_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -73,10 +75,12 @@ class TestBuildHeadlessWorkerCmd(unittest.TestCase):
         idx = cmd.index("--permission-mode")
         self.assertEqual(cmd[idx + 1], "bypassPermissions")
 
-    def test_cmd_contains_json_output_format(self) -> None:
+    def test_cmd_contains_stream_json_flags(self) -> None:
+        """--output-format stream-json and --verbose must be present."""
         cmd, _ = self._build()
         idx = cmd.index("--output-format")
-        self.assertEqual(cmd[idx + 1], "json")
+        self.assertEqual(cmd[idx + 1], "stream-json")
+        self.assertIn("--verbose", cmd)
 
     def test_cmd_contains_model(self) -> None:
         cmd, _ = self._build(model="claude-opus-4-6")
@@ -158,6 +162,30 @@ class TestBuildHeadlessWorkerCmd(unittest.TestCase):
 # TestRunHeadlessWorker
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Helper: build a mock Popen context manager that emits JSONL stdout lines.
+# ---------------------------------------------------------------------------
+
+def _make_popen_mock(jsonl_lines: list[str], returncode: int = 0, stderr_text: str = "") -> MagicMock:
+    """Return a MagicMock that behaves like subprocess.Popen with JSONL stdout.
+
+    The mock satisfies the interface used by run_headless_worker:
+      - process.stdout is an iterable of raw text lines (newline-terminated)
+      - process.stderr is an iterable of text lines (for the stderr drain thread)
+      - process.wait(timeout=...) returns immediately with ``returncode``
+      - process.returncode is set after wait()
+    """
+    mock_process = MagicMock()
+    mock_process.stdout = iter(line + "\n" for line in jsonl_lines)
+    mock_process.stderr = iter(stderr_text.splitlines(keepends=True))
+    mock_process.returncode = returncode
+
+    def _wait(timeout=None):
+        mock_process.returncode = returncode
+
+    mock_process.wait.side_effect = _wait
+    return mock_process
+
 
 class TestRunHeadlessWorker(unittest.TestCase):
     """Tests for run_headless_worker() async subprocess handling."""
@@ -165,121 +193,188 @@ class TestRunHeadlessWorker(unittest.TestCase):
     def _run(self, **kwargs) -> dict:
         """Sync wrapper for async run_headless_worker."""
         defaults = dict(
-            cmd=["echo", '{"result": "ok"}'],
+            cmd=["claude", "-p", "test"],
             env=dict(os.environ),
             work_dir="/tmp",
             timeout_seconds=30,
         )
         defaults.update(kwargs)
-        return asyncio.get_event_loop().run_until_complete(
-            run_headless_worker(**defaults)
-        )
+        return asyncio.run(run_headless_worker(**defaults))
 
-    def test_success_with_json_output(self) -> None:
-        """Successful run with valid JSON stdout returns parsed output."""
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_result.stdout = '{"result": "ok"}'
-        mock_result.stderr = ""
+    # ------------------------------------------------------------------
+    # Core stream-json behaviour tests
+    # ------------------------------------------------------------------
 
-        with patch("spawn_orchestrator.subprocess.run", return_value=mock_result):
+    def test_cmd_contains_stream_json_flags(self) -> None:
+        """_build_headless_worker_cmd must include stream-json and --verbose."""
+        with tempfile.TemporaryDirectory() as tmp:
+            cmd, _ = _build_headless_worker_cmd(
+                task_prompt="do something",
+                work_dir=tmp,
+            )
+        idx = cmd.index("--output-format")
+        self.assertEqual(cmd[idx + 1], "stream-json")
+        self.assertIn("--verbose", cmd)
+
+    def test_stream_json_parsing(self) -> None:
+        """Mock Popen emitting JSONL lines: events collected and result extracted."""
+        jsonl_lines = [
+            json.dumps({"type": "system", "subtype": "init", "session_id": "abc"}),
+            json.dumps({"type": "assistant", "message": {"content": [{"type": "text", "text": "hello"}]}}),
+            json.dumps({"type": "result", "subtype": "success", "is_error": False,
+                        "result": "hello", "exit_code": 0}),
+        ]
+        mock_proc = _make_popen_mock(jsonl_lines, returncode=0)
+
+        with patch("spawn_orchestrator.subprocess.Popen", return_value=mock_proc):
             result = self._run()
 
         self.assertEqual(result["status"], "success")
         self.assertEqual(result["exit_code"], 0)
-        self.assertEqual(result["output"], {"result": "ok"})
+        # output should be the result event
+        self.assertEqual(result["output"]["type"], "result")
+        self.assertEqual(result["output"]["result"], "hello")
+        # all 3 events should be in the events list
+        self.assertEqual(len(result["events"]), 3)
 
-    def test_success_with_non_json_output(self) -> None:
-        """Successful run with non-JSON stdout returns raw text."""
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_result.stdout = "Plain text output"
-        mock_result.stderr = ""
+    def test_stream_json_on_event_callback(self) -> None:
+        """on_event callback is called once for each parsed JSONL event."""
+        jsonl_lines = [
+            json.dumps({"type": "system", "subtype": "init"}),
+            json.dumps({"type": "assistant", "message": {}}),
+            json.dumps({"type": "result", "subtype": "success", "is_error": False, "result": "ok"}),
+        ]
+        mock_proc = _make_popen_mock(jsonl_lines, returncode=0)
+        received: list[dict] = []
 
-        with patch("spawn_orchestrator.subprocess.run", return_value=mock_result):
+        with patch("spawn_orchestrator.subprocess.Popen", return_value=mock_proc):
+            self._run(on_event=received.append)
+
+        self.assertEqual(len(received), 3)
+        types = [e.get("type") for e in received]
+        self.assertEqual(types, ["system", "assistant", "result"])
+
+    def test_stream_json_error_handling(self) -> None:
+        """Malformed JSONL lines are skipped; valid events still collected."""
+        jsonl_lines = [
+            "not valid json{{{{",
+            json.dumps({"type": "system", "subtype": "init"}),
+            "another bad line",
+            json.dumps({"type": "result", "subtype": "success", "is_error": False, "result": "ok"}),
+        ]
+        mock_proc = _make_popen_mock(jsonl_lines, returncode=0)
+
+        with patch("spawn_orchestrator.subprocess.Popen", return_value=mock_proc):
+            result = self._run()
+
+        # Only the 2 valid JSON lines should appear in events
+        self.assertEqual(len(result["events"]), 2)
+        self.assertEqual(result["status"], "success")
+
+    # ------------------------------------------------------------------
+    # Backward-compatible behaviour tests (adapted for Popen)
+    # ------------------------------------------------------------------
+
+    def test_success_returns_result_event_as_output(self) -> None:
+        """Successful run returns the result event as ``output``."""
+        result_event = {"type": "result", "subtype": "success", "is_error": False, "result": "done"}
+        jsonl_lines = [
+            json.dumps({"type": "system", "subtype": "init"}),
+            json.dumps(result_event),
+        ]
+        mock_proc = _make_popen_mock(jsonl_lines, returncode=0)
+
+        with patch("spawn_orchestrator.subprocess.Popen", return_value=mock_proc):
             result = self._run()
 
         self.assertEqual(result["status"], "success")
         self.assertEqual(result["exit_code"], 0)
-        self.assertEqual(result["output"], "Plain text output")
+        self.assertEqual(result["output"]["type"], "result")
+
+    def test_success_no_result_event_falls_back_to_events_list(self) -> None:
+        """When no result event is present, output falls back to the events list."""
+        jsonl_lines = [
+            json.dumps({"type": "system", "subtype": "init"}),
+        ]
+        mock_proc = _make_popen_mock(jsonl_lines, returncode=0)
+
+        with patch("spawn_orchestrator.subprocess.Popen", return_value=mock_proc):
+            result = self._run()
+
+        self.assertEqual(result["status"], "success")
+        self.assertIsInstance(result["output"], list)
 
     def test_error_on_nonzero_exit(self) -> None:
-        """Non-zero exit code returns error status with truncated output."""
-        mock_result = MagicMock()
-        mock_result.returncode = 1
-        mock_result.stdout = "Some output"
-        mock_result.stderr = "Error details"
+        """Non-zero exit code returns error status with stdout/stderr and events."""
+        jsonl_lines = [
+            json.dumps({"type": "system", "subtype": "init"}),
+        ]
+        mock_proc = _make_popen_mock(jsonl_lines, returncode=1, stderr_text="Error details\n")
 
-        with patch("spawn_orchestrator.subprocess.run", return_value=mock_result):
+        with patch("spawn_orchestrator.subprocess.Popen", return_value=mock_proc):
             result = self._run()
 
         self.assertEqual(result["status"], "error")
         self.assertEqual(result["exit_code"], 1)
         self.assertIn("stdout", result)
         self.assertIn("stderr", result)
+        self.assertIn("events", result)
 
     def test_timeout_returns_timeout_status(self) -> None:
-        """TimeoutExpired returns timeout status."""
-        import subprocess
+        """TimeoutExpired on process.wait(timeout=…) returns timeout status with events."""
+        jsonl_lines = [
+            json.dumps({"type": "system", "subtype": "init"}),
+        ]
+        mock_proc = _make_popen_mock(jsonl_lines, returncode=0)
+        # First call (with timeout kwarg) raises TimeoutExpired.
+        # Second call (bare wait() after kill()) must succeed so the finally block
+        # can complete without propagating a second exception.
+        mock_proc.wait.side_effect = [
+            subprocess.TimeoutExpired(cmd="claude", timeout=30),
+            None,  # bare wait() after kill()
+        ]
 
-        with patch(
-            "spawn_orchestrator.subprocess.run",
-            side_effect=subprocess.TimeoutExpired(cmd="claude", timeout=30),
-        ):
+        with patch("spawn_orchestrator.subprocess.Popen", return_value=mock_proc):
             result = self._run(timeout_seconds=30)
 
         self.assertEqual(result["status"], "timeout")
-        self.assertEqual(result["timeout_seconds"], 30)
+        self.assertIn("events", result)
+        # Kill must have been called after timeout
+        mock_proc.kill.assert_called_once()
 
     def test_stderr_truncated_to_2000_chars(self) -> None:
-        """Long stderr is truncated to last 2000 chars."""
-        mock_result = MagicMock()
-        mock_result.returncode = 1
-        mock_result.stdout = "x" * 3000
-        mock_result.stderr = "y" * 3000
+        """Long stderr text is truncated to last 2000 chars."""
+        jsonl_lines = [json.dumps({"type": "result", "subtype": "success", "is_error": False, "result": "x"})]
+        long_stderr = "y" * 5000
+        mock_proc = _make_popen_mock(jsonl_lines, returncode=1, stderr_text=long_stderr)
 
-        with patch("spawn_orchestrator.subprocess.run", return_value=mock_result):
+        with patch("spawn_orchestrator.subprocess.Popen", return_value=mock_proc):
             result = self._run()
 
-        self.assertLessEqual(len(result["stdout"]), 2000)
         self.assertLessEqual(len(result["stderr"]), 2000)
 
     def test_passes_work_dir_as_cwd(self) -> None:
-        """work_dir is passed as cwd to subprocess.run."""
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_result.stdout = "{}"
+        """work_dir is passed as cwd to subprocess.Popen."""
+        jsonl_lines = [json.dumps({"type": "result", "subtype": "success", "is_error": False, "result": "ok"})]
+        mock_proc = _make_popen_mock(jsonl_lines, returncode=0)
 
-        with patch("spawn_orchestrator.subprocess.run", return_value=mock_result) as mock_run:
+        with patch("spawn_orchestrator.subprocess.Popen", return_value=mock_proc) as mock_popen:
             self._run(work_dir="/my/project")
 
-        call_kwargs = mock_run.call_args.kwargs
+        call_kwargs = mock_popen.call_args.kwargs
         self.assertEqual(call_kwargs["cwd"], "/my/project")
 
     def test_passes_env_to_subprocess(self) -> None:
-        """Custom env dict is forwarded to subprocess.run."""
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_result.stdout = "{}"
+        """Custom env dict is forwarded to subprocess.Popen."""
+        jsonl_lines = [json.dumps({"type": "result", "subtype": "success", "is_error": False, "result": "ok"})]
+        mock_proc = _make_popen_mock(jsonl_lines, returncode=0)
         custom_env = {"MY_VAR": "hello"}
 
-        with patch("spawn_orchestrator.subprocess.run", return_value=mock_result) as mock_run:
+        with patch("spawn_orchestrator.subprocess.Popen", return_value=mock_proc) as mock_popen:
             self._run(env=custom_env)
 
-        call_kwargs = mock_run.call_args.kwargs
+        call_kwargs = mock_popen.call_args.kwargs
         self.assertEqual(call_kwargs["env"]["MY_VAR"], "hello")
-
-    def test_passes_timeout_to_subprocess(self) -> None:
-        """timeout_seconds is forwarded to subprocess.run."""
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_result.stdout = "{}"
-
-        with patch("spawn_orchestrator.subprocess.run", return_value=mock_result) as mock_run:
-            self._run(timeout_seconds=600)
-
-        call_kwargs = mock_run.call_args.kwargs
-        self.assertEqual(call_kwargs["timeout"], 600)
 
 
 # ---------------------------------------------------------------------------

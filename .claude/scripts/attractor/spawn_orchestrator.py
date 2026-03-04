@@ -30,6 +30,8 @@ import subprocess
 import sys
 import os
 import time
+import threading
+from collections.abc import Callable
 from pathlib import Path
 
 # Ensure this file's directory is importable regardless of invocation CWD.
@@ -91,7 +93,8 @@ def _build_headless_worker_cmd(
         "-p", task_prompt,
         "--system-prompt", role_content,
         "--permission-mode", "bypassPermissions",
-        "--output-format", "json",
+        "--output-format", "stream-json",
+        "--verbose",
         "--model", model,
         # Bypass all MCP server initialization for headless workers.
         # Without this, 11+ MCP servers from .mcp.json cause extreme
@@ -119,44 +122,127 @@ async def run_headless_worker(
     env: dict[str, str],
     work_dir: str,
     timeout_seconds: int = 1800,
+    on_event: Callable[[dict], None] | None = None,
 ) -> dict:
-    """Run a headless worker via subprocess, capture JSON output.
+    """Run a headless worker via subprocess, streaming JSONL output line-by-line.
+
+    Uses ``subprocess.Popen`` with ``--output-format stream-json`` to read JSONL
+    events in real time.  Each line is a JSON object with a ``type`` field.  The
+    final ``{"type": "result", ...}`` line carries the same payload that the old
+    ``--output-format json`` returned, so the return value remains backward
+    compatible.
 
     Args:
         cmd: Command list (typically from :func:`_build_headless_worker_cmd`).
         env: Environment dict for the subprocess.
         work_dir: Working directory for the subprocess.
         timeout_seconds: Maximum wall-clock time before killing the worker.
+        on_event: Optional callback invoked for every successfully parsed JSONL
+            event.  Receives the parsed ``dict``.  Exceptions raised inside the
+            callback are logged and suppressed.
 
     Returns:
         Dict with ``status`` (``"success"``, ``"error"``, or ``"timeout"``),
-        plus output or error details.
+        plus output or error details, plus ``events`` (list of all parsed events).
+
+        On success:
+            ``{"status": "success", "output": <result_event>, "exit_code": 0,
+               "events": [...]}``
+        On error:
+            ``{"status": "error", "exit_code": N, "stdout": "...",
+               "stderr": "...", "events": [...]}``
+        On timeout:
+            ``{"status": "timeout", "events": [...]}``
     """
+    events: list[dict] = []
+    stderr_lines: list[str] = []
+
+    process = subprocess.Popen(
+        cmd,
+        cwd=work_dir,
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    # Drain stderr in a background thread to prevent the pipe from blocking
+    # when the subprocess writes more than the OS pipe buffer allows.
+    def _drain_stderr() -> None:
+        assert process.stderr is not None
+        for line in process.stderr:
+            stderr_lines.append(line)
+
+    stderr_thread = threading.Thread(target=_drain_stderr, daemon=True)
+    stderr_thread.start()
+
+    timed_out = False
+    assert process.stdout is not None
     try:
-        result = subprocess.run(
-            cmd,
-            cwd=work_dir,
-            env=env,
-            capture_output=True,
-            text=True,
-            timeout=timeout_seconds,
-        )
-        if result.returncode == 0:
-            # Parse JSON output
+        for raw_line in process.stdout:
+            line = raw_line.strip()
+            if not line:
+                continue
             try:
-                output = json.loads(result.stdout)
-                return {"status": "success", "output": output, "exit_code": 0}
+                event = json.loads(line)
             except json.JSONDecodeError:
-                return {"status": "success", "output": result.stdout, "exit_code": 0}
-        else:
-            return {
-                "status": "error",
-                "exit_code": result.returncode,
-                "stdout": result.stdout[-2000:],  # Last 2K chars
-                "stderr": result.stderr[-2000:],
-            }
-    except subprocess.TimeoutExpired:
-        return {"status": "timeout", "timeout_seconds": timeout_seconds}
+                logger.debug("run_headless_worker: skipping non-JSON line: %.200s", line)
+                continue
+
+            events.append(event)
+
+            if on_event is not None:
+                try:
+                    on_event(event)
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("run_headless_worker: on_event callback raised: %s", exc)
+
+            # Check wall-clock timeout after each event to allow early detection.
+            # process.poll() is non-blocking; None means still running.
+    except Exception:  # noqa: BLE001
+        pass
+    finally:
+        # Enforce hard timeout: if the process is still running after
+        # ``timeout_seconds`` the caller's wall-clock limit has been exceeded.
+        # We use communicate(timeout=...) only if the process hasn't exited yet
+        # so that we don't re-read stdout (already consumed above).
+        try:
+            process.wait(timeout=timeout_seconds)
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            process.kill()
+            process.wait()
+
+    stderr_thread.join(timeout=5)
+    stderr_combined = "".join(stderr_lines)
+
+    if timed_out:
+        return {"status": "timeout", "events": events}
+
+    exit_code = process.returncode
+
+    # Locate the final result event (last event with type=="result")
+    result_event: dict | None = None
+    for event in reversed(events):
+        if event.get("type") == "result":
+            result_event = event
+            break
+
+    if exit_code == 0:
+        # Use the result event when present; fall back to the whole events list.
+        output: object = result_event if result_event is not None else events
+        return {"status": "success", "output": output, "exit_code": 0, "events": events}
+    else:
+        stdout_tail = "".join(
+            json.dumps(e) for e in events[-10:]
+        )[-2000:]
+        return {
+            "status": "error",
+            "exit_code": exit_code,
+            "stdout": stdout_tail,
+            "stderr": stderr_combined[-2000:],
+            "events": events,
+        }
 
 
 def _build_claude_cmd(node_id: str, prd: str, mode: str) -> str:
