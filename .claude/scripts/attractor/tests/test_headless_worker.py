@@ -295,11 +295,15 @@ class TestHeadlessModeArgparse(unittest.TestCase):
             "--worktree", "/tmp/work",
             "--mode", "headless",
         ]
+        async def _fake_run_headless(*a, **kw):
+            return {"status": "success", "exit_code": 0, "output": {}}
+
         with patch("sys.argv", argv), \
              patch("spawn_orchestrator.subprocess.run") as mock_run, \
              patch("spawn_orchestrator.time.sleep"), \
              patch("spawn_orchestrator.check_orchestrator_alive", return_value=True), \
-             patch("spawn_orchestrator._tmux_send"):
+             patch("spawn_orchestrator._tmux_send"), \
+             patch("spawn_orchestrator.run_headless_worker", side_effect=_fake_run_headless):
             mock_run.return_value = MagicMock(returncode=0)
             buf = io.StringIO()
             exit_code = 0

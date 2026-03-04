@@ -1,6 +1,6 @@
 ---
 name: s3-guardian
-description: This skill should be used when System 3 needs to act as an independent guardian angel — designing PRDs with CoBuilder RepoMap context injection, challenging designs via parallel solutioning, spawning orchestrators in tmux, creating blind Gherkin acceptance tests and executable browser test scripts from PRDs, monitoring orchestrator progress, independently validating claims against acceptance criteria using gradient confidence scoring (0.0-1.0), and setting session promises. Use when asked to "spawn and monitor an orchestrator", "create acceptance tests for a PRD", "validate orchestrator claims", "act as guardian angel", "independently verify implementation work", or "design and challenge a PRD".
+description: This skill should be used when System 3 needs to act as an independent guardian angel — designing PRDs with CoBuilder RepoMap context injection, challenging designs via parallel solutioning, spawning orchestrators via headless CLI dispatch, creating blind Gherkin acceptance tests and executable browser test scripts from PRDs, monitoring orchestrator progress, independently validating claims against acceptance criteria using gradient confidence scoring (0.0-1.0), and setting session promises. Use when asked to "spawn and monitor an orchestrator", "create acceptance tests for a PRD", "validate orchestrator claims", "act as guardian angel", "independently verify implementation work", or "design and challenge a PRD".
 version: 0.5.0
 title: "S3 Guardian"
 status: active
@@ -9,7 +9,7 @@ last_verified: 2026-03-02
 
 # S3 Guardian — Independent Validation Pattern
 
-The guardian angel pattern provides independent, blind validation of System 3 meta-orchestrator work. A guardian session creates acceptance tests from PRDs, stores them outside the implementation repo where meta-orchestrators cannot see them, spawns and monitors S3 meta-orchestrators in tmux, and independently validates claims against a gradient confidence rubric.
+The guardian angel pattern provides independent, blind validation of System 3 meta-orchestrator work. A guardian session creates acceptance tests from PRDs, stores them outside the implementation repo where meta-orchestrators cannot see them, dispatches orchestrators via headless CLI (`claude -p`) or SDK pipelines, and independently validates claims against a gradient confidence rubric.
 
 ```
 Guardian (this session, config repo)
@@ -170,7 +170,7 @@ cs-promise --start <promise-id>
 |-------|---------|-----------|
 | **Phase 0** | PRD authoring with CoBuilder RepoMap context injection, DOT pipeline creation (with research→refine→codergen chain validation), Task Master parsing, design challenge. **2 user checkpoints**: Checkpoint A (after pipeline creation) and Checkpoint B (after design challenge) | [references/phase0-prd-design.md](references/phase0-prd-design.md) |
 | **Phase 1** | Generate per-epic Gherkin tests, journey tests, and executable browser test scripts | [references/gherkin-test-patterns.md](references/gherkin-test-patterns.md) |
-| **Phase 2** | Orchestrator spawning via `spawn_orchestrator.py`, tmux patterns, DOT-driven dispatch | [references/guardian-workflow.md](references/guardian-workflow.md) |
+| **Phase 2** | Orchestrator spawning via `spawn_orchestrator.py`, headless/SDK/tmux dispatch, DOT-driven dispatch | [references/guardian-workflow.md](references/guardian-workflow.md) |
 | **Phase 3** | Monitoring cadence, pause-and-check pattern, intervention triggers, AskUserQuestion handling | [references/monitoring-patterns.md](references/monitoring-patterns.md) |
 | **Phase 4** | Independent validation, evidence gathering, DOT pipeline integration, regression detection | [references/validation-scoring.md](references/validation-scoring.md) |
 
@@ -208,7 +208,7 @@ cs-promise --create "Guardian: Validate PRD-{ID} implementation" \
 ```bash
 # Meet criteria as work progresses
 cs-promise --meet <id> --ac-id AC-1 --evidence "acceptance-tests/PRD-{ID}/ created with N scenarios + executable browser tests" --type manual
-cs-promise --meet <id> --ac-id AC-2 --evidence "tmux session orch-{initiative} running, output style verified" --type manual
+cs-promise --meet <id> --ac-id AC-2 --evidence "headless worker process running for orch-{initiative}, output style verified" --type manual
 ```
 
 ### At Validation Complete
@@ -242,8 +242,8 @@ Each level adds independent verification. The key constraint: each guardian stor
 |-------|------------|-----------|
 | 0. PRD Design | Write PRD, ZeroRepo analysis, pipeline, design challenge | [references/phase0-prd-design.md](references/phase0-prd-design.md) |
 | 1. Acceptance Tests | Gherkin rubrics + executable browser tests (Step 3) | [gherkin-test-patterns.md](references/gherkin-test-patterns.md) |
-| 2. Orchestrator Spawn | DOT dispatch, headless/SDK/tmux patterns, wisdom inject | [guardian-workflow.md](references/guardian-workflow.md) |
-| 3. Monitoring | JSON output parsing (headless), DOT polling (SDK), capture-pane (tmux) | [monitoring-patterns.md](references/monitoring-patterns.md) |
+| 2. Orchestrator Spawn | DOT dispatch, headless CLI / SDK / legacy tmux patterns, wisdom inject | [guardian-workflow.md](references/guardian-workflow.md) |
+| 3. Monitoring | JSON output parsing (headless), DOT polling (SDK), signal-file monitoring | [monitoring-patterns.md](references/monitoring-patterns.md) |
 | 4. Validation | Score scenarios, run executable tests, weighted total | [validation-scoring.md](references/validation-scoring.md) |
 | 4.5 Regression | ZeroRepo diff before journey tests | [references/validation-scoring.md](references/validation-scoring.md) |
 
@@ -295,7 +295,7 @@ python3 .claude/scripts/attractor/launch_guardian.py \
 | Ignoring AMEND verdict | Sunk cost fallacy — beads already exist | Re-parse is cheap, bad design is expensive |
 | Only writing scoring rubrics for UX PRDs | Cannot automatically verify browser behavior | Write executable-tests/ alongside scenarios.feature |
 | Scoring UX at 0.9 from code reading alone | Code may compile but render incorrectly | Executable browser tests cap/floor confidence scores |
-| Ad-hoc Bash spawn (plain `claude` in tmux) | Missing output style, session ID, agent teams, model — orchestrator is crippled | Always use `spawn_orchestrator.py` |
+| Ad-hoc Bash spawn (plain `claude` in tmux or raw subprocess) | Missing output style, session ID, agent teams, model — orchestrator is crippled | Always use `spawn_orchestrator.py --mode headless` (default) or `--mode sdk` for pipelines |
 | Skipping `/output-style orchestrator` step | Orchestrator has no delegation rules, tries to implement directly | Script handles this automatically |
 | Wisdom without `Skill("orchestrator-multiagent")` | Orchestrator cannot create teams or delegate to workers | Include in `--prompt` or wisdom file |
 | Codergen node without preceding research node | Orchestrator implements with potentially outdated API patterns | Add `handler="research"` node before each codergen |
@@ -306,7 +306,7 @@ python3 .claude/scripts/attractor/launch_guardian.py \
 ---
 
 **Version**: 0.5.0
-**Dependencies**: cs-promise CLI (requires PATH setup — see Prerequisites section), tmux (tmux mode, deprecated), claude CLI (headless mode), claude_code_sdk (SDK mode), Hindsight MCP, ccsystem3 shell function, Task Master MCP, ZeroRepo
+**Dependencies**: cs-promise CLI (requires PATH setup — see Prerequisites section), claude CLI (headless mode, default), claude_code_sdk (SDK mode), tmux (legacy tmux mode, for debugging only), Hindsight MCP, ccsystem3 shell function, Task Master MCP, ZeroRepo
 **Integration**: system3-orchestrator skill, completion-promise skill, acceptance-test-writer skill, parallel-solutioning skill, research-first skill
 **Theory**: Independent verification eliminates self-reporting bias in agentic systems
 

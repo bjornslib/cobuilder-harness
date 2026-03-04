@@ -25,8 +25,8 @@ ls -la acceptance-tests/ 2>/dev/null || echo "Directory will be created"
 # Verify implementation repo is accessible
 ls -la /path/to/impl-repo/.taskmaster/docs/ 2>/dev/null || echo "ERROR: impl repo not found"
 
-# Verify tmux is available
-tmux -V
+# Verify claude CLI is available (required for headless mode)
+claude --version
 
 # Add cs-* scripts to PATH (REQUIRED — they are not system-wide commands)
 export PATH="${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/completion-state:$PATH"
@@ -51,8 +51,8 @@ grep -E "^#|^##|acceptance|criteria|epic|feature" /path/to/impl-repo/.taskmaster
 ### 1.3 Conflict Checks
 
 ```bash
-# No existing tmux session with same name
-tmux has-session -t "s3-{initiative}" 2>/dev/null && echo "WARNING: session exists" || echo "OK: no conflict"
+# No existing headless worker process or signal files for same initiative
+ls .claude/attractor/signals/*-s3-{initiative}-*.json 2>/dev/null && echo "WARNING: active signals exist" || echo "OK: no conflict"
 
 # No existing acceptance tests (or confirm overwrite intent)
 ls acceptance-tests/PRD-{ID}/ 2>/dev/null && echo "WARNING: tests exist, will be overwritten" || echo "OK: fresh"
@@ -203,78 +203,39 @@ cs-promise --create "Guardian: Validate PRD-{ID} implementation" \
 cs-promise --start <promise-id>
 ```
 
-### 3.2 Spawn Meta-Orchestrator
+### 3.2 Spawn Meta-Orchestrator (Headless — Default)
 
-Execute the spawn sequence with proper error handling:
+Use `spawn_orchestrator.py --mode headless` for all new dispatches. The headless mode runs the orchestrator as a `claude -p` subprocess with structured JSON output.
 
 ```bash
-# Step 1: Create tmux session at implementation repo
-tmux new-session -d -s "s3-{initiative}" -c "/path/to/impl-repo"
-if [ $? -ne 0 ]; then
-    echo "ERROR: Failed to create tmux session"
-    exit 1
-fi
+# Spawn via headless mode (DEFAULT — no tmux needed)
+python3 "${IMPL_REPO}/.claude/scripts/attractor/spawn_orchestrator.py" \
+    --node "s3-${INITIATIVE}" \
+    --prd "${PRD_ID}" \
+    --repo-root "${IMPL_REPO}" \
+    --mode headless \
+    --prompt "You are the System 3 meta-orchestrator. Invoke Skill('s3-guardian') first. Then read PRD-${PRD_ID} at .taskmaster/docs/PRD-${PRD_ID}.md. Parse tasks with Task Master. Spawn orchestrators as needed. Report when all epics are complete."
 
-# Step 2: Unset CLAUDECODE (prevents nested session error)
-tmux send-keys -t "s3-{initiative}" "unset CLAUDECODE"
-tmux send-keys -t "s3-{initiative}" Enter
-sleep 1
-
-# Step 3: Launch ccsystem3
-tmux send-keys -t "s3-{initiative}" "ccsystem3"
-tmux send-keys -t "s3-{initiative}" Enter
-
-# Step 4: Wait for initialization
-sleep 15
-
-# Step 5: Set output style for System 3 meta-orchestrator
-tmux send-keys -t "s3-{initiative}" "/output-style system3-meta-orchestrator"
-tmux send-keys -t "s3-{initiative}" Enter
-sleep 3
-
-# Step 6: Verify output style loaded
-PANE_OUTPUT=$(tmux capture-pane -t "s3-{initiative}" -p -S -30)
-echo "$PANE_OUTPUT" | grep -iE "system3-meta-orchestrator"
-if [ $? -ne 0 ]; then
-    echo "WARNING: Output style may not have loaded. Check manually."
-fi
+# The process runs as a subprocess. Output is captured as JSON.
+# Monitor via signal files: .claude/attractor/signals/<node>.json
 ```
+
+**What headless mode does internally**:
+1. Builds `claude -p "<prompt>" --system-prompt <role> --permission-mode bypassPermissions --output-format json`
+2. Sets Three-Layer Context: ROLE (--system-prompt), TASK (-p), IDENTITY (env vars)
+3. Captures structured JSON output from stdout
+4. Writes signal files for guardian monitoring
 
 ### 3.3 Send Initial Instructions
 
-After verification, send the meta-orchestrator its mission:
+In headless mode, the initial instructions are passed via the `--prompt` flag at spawn time (see above). There is no separate "send instructions" step — the prompt IS the instructions.
+
+For SDK mode, instructions are part of the `launch_guardian.py` pipeline configuration (see SDK Mode Dispatch section below).
+
+### 3.4 Meet Spawn Acceptance Criteria
 
 ```bash
-# Construct the instruction payload
-INSTRUCTION="You are the System 3 meta-orchestrator. Invoke Skill('s3-guardian') first. Then read PRD-{ID} at .taskmaster/docs/PRD-{ID}.md. Parse tasks with Task Master. Spawn orchestrators as needed. Report when all epics are complete."
-
-# Send via tmux (text first, then Enter separately)
-tmux send-keys -t "s3-{initiative}" "$INSTRUCTION"
-sleep 2  # Large pastes need time for bracketed paste processing
-tmux send-keys -t "s3-{initiative}" Enter
-```
-
-### 3.4 Session Resume (Alternative)
-
-If resuming a previous meta-orchestrator session:
-
-```bash
-# Check if the session supports resume
-tmux capture-pane -t "s3-{initiative}" -p -S -20 | grep -i "resume\|continue\|previous"
-
-# Send resume command
-tmux send-keys -t "s3-{initiative}" "/resume"
-tmux send-keys -t "s3-{initiative}" Enter
-sleep 5
-
-# Verify resumed successfully
-tmux capture-pane -t "s3-{initiative}" -p -S -20 | grep -iE "resumed|continuing|loaded"
-```
-
-### 3.5 Meet Spawn Acceptance Criteria
-
-```bash
-cs-promise --meet <id> --ac-id AC-2 --evidence "tmux session s3-{initiative} created, ccsystem3 launched, output style verified" --type manual
+cs-promise --meet <id> --ac-id AC-2 --evidence "headless worker process launched for s3-${INITIATIVE}, output style injected via --system-prompt" --type manual
 ```
 
 ---
@@ -288,16 +249,15 @@ Once the meta-orchestrator is confirmed running, enter the monitoring loop:
 ```
 MONITORING LOOP:
   |
-  +-- Capture tmux output
+  +-- Check signal files / process status
   |
   +-- Scan for signals
   |     |
-  |     +-- AskUserQuestion → Intervene
   |     +-- Error pattern → Assess
   |     +-- Completion claim → Validate (Phase 4)
   |     +-- Normal work → Continue
   |
-  +-- Check context percentage
+  +-- Check context percentage (if tmux legacy mode)
   |     |
   |     +-- Above 80% → Expect auto-compact
   |     +-- Above 90% → Consider intervention
@@ -309,21 +269,22 @@ MONITORING LOOP:
 
 ### 4.2 Cadence Adaptation
 
-Adjust monitoring frequency based on what the meta-orchestrator is doing:
+Adjust monitoring frequency based on signal file content:
 
 ```bash
-# Check meta-orchestrator activity
-OUTPUT=$(tmux capture-pane -t "s3-{initiative}" -p -S -30)
+# Check signal files for the initiative (headless mode — DEFAULT)
+SIGNAL_DIR=".claude/attractor/signals"
+LATEST_SIGNAL=$(ls -t "${SIGNAL_DIR}"/*-s3-${INITIATIVE}-*.json 2>/dev/null | head -1)
 
-# Determine cadence
-if echo "$OUTPUT" | grep -qiE "edit|write|commit|test"; then
-    CADENCE=30   # Active implementation — check frequently
-elif echo "$OUTPUT" | grep -qiE "read|grep|analyze|plan"; then
-    CADENCE=60   # Investigation phase — less frequent
-elif echo "$OUTPUT" | grep -qiE "sleep|wait|idle|background"; then
-    CADENCE=120  # Waiting for workers — infrequent
+if [ -n "$LATEST_SIGNAL" ]; then
+    STATUS=$(python3 -c "import json; print(json.load(open('$LATEST_SIGNAL')).get('signal_type',''))")
+    case "$STATUS" in
+        NEEDS_REVIEW|NODE_COMPLETE) CADENCE=10 ;;   # Completion — check quickly
+        ORCHESTRATOR_STUCK)         CADENCE=15 ;;   # Problem — investigate
+        *)                          CADENCE=60 ;;   # Normal — default
+    esac
 else
-    CADENCE=60   # Default
+    CADENCE=60  # No signals yet — default
 fi
 
 sleep $CADENCE
@@ -333,25 +294,22 @@ sleep $CADENCE
 
 When intervention is needed, follow this decision tree:
 
-1. **AskUserQuestion / Permission Dialog**:
-   - Check what is being asked
-   - If it is a routine permission (file access, tool use): approve via Down/Enter
-   - If it is a strategic question: answer based on PRD scope
-
-2. **Repeated Errors**:
+1. **Repeated Errors** (detected via signal files or process exit codes):
    - Count occurrences of the same error pattern
-   - After 3 occurrences: send corrective guidance via tmux
-   - After 5 occurrences: consider killing and restarting the session
+   - After 3 occurrences: send corrective guidance (re-launch with updated prompt)
+   - After 5 occurrences: consider restarting the headless process with a different approach
 
-3. **Scope Creep**:
+2. **Scope Creep** (detected via git diff against expected file scope):
    - Compare current work against PRD scope
-   - If meta-orchestrator is working on unrelated features: send correction
-   - If meta-orchestrator is over-engineering: remind of scope boundaries
+   - If meta-orchestrator is working on unrelated features: re-launch with scoped prompt
+   - If meta-orchestrator is over-engineering: remind of scope boundaries in re-launch
 
-4. **Time Limits**:
+3. **Time Limits**:
    - Typical initiative: 1-3 hours for implementation
-   - At 2 hours: check progress percentage
+   - At 2 hours: check progress percentage via signal files
    - At 3 hours: seriously consider partial completion + validation
+
+**Note**: In headless mode, there is no interactive session to send keystrokes to. Interventions are done by re-launching the process with an updated prompt or by writing guidance signal files. For legacy tmux mode intervention patterns, see [monitoring-patterns.md](monitoring-patterns.md) Legacy section.
 
 ### 4.4 Meet Monitoring Acceptance Criteria
 
@@ -545,18 +503,19 @@ cs-verify --log --action "REJECT verdict for PRD-{ID}" --outcome "failed" \
 After validation is complete (regardless of verdict):
 
 ```bash
-# Check if meta-orchestrator session is still running
-tmux has-session -t "s3-{initiative}" 2>/dev/null
+# Check if headless worker process is still running (DEFAULT)
+SIGNAL_DIR=".claude/attractor/signals"
+ls "${SIGNAL_DIR}"/*-s3-${INITIATIVE}-*.json 2>/dev/null && echo "Active signals exist" || echo "Process likely complete"
 
-# If running and verdict is ACCEPT — let it finish naturally or send shutdown
-tmux send-keys -t "s3-{initiative}" "All work validated. You may finalize and exit."
-sleep 2
-tmux send-keys -t "s3-{initiative}" Enter
+# Clean up signal files after validation
+mkdir -p "${SIGNAL_DIR}/processed"
+mv "${SIGNAL_DIR}"/*-s3-${INITIATIVE}-*.json "${SIGNAL_DIR}/processed/" 2>/dev/null
 
-# If running and verdict is REJECT — send correction
-tmux send-keys -t "s3-{initiative}" "Guardian validation REJECTED. Gaps: {summary}. Address these issues."
-sleep 2
-tmux send-keys -t "s3-{initiative}" Enter
+# For legacy tmux mode — check and clean up tmux session:
+# tmux has-session -t "s3-{initiative}" 2>/dev/null
+# tmux send-keys -t "s3-{initiative}" "All work validated. You may finalize and exit."
+# sleep 2
+# tmux send-keys -t "s3-{initiative}" Enter
 ```
 
 ---
@@ -569,7 +528,7 @@ Typical guardian session timeline for a medium-complexity PRD:
 |-------|----------|------------|
 | Pre-flight | 5 min | Environment checks, Hindsight queries |
 | Acceptance test creation | 15-30 min | PRD analysis, Gherkin writing, manifest creation |
-| Meta-orchestrator spawning | 2-5 min | tmux setup, ccsystem3 launch, verification |
+| Meta-orchestrator spawning | 2-5 min | Headless dispatch via spawn_orchestrator.py, verification |
 | Monitoring | 1-3 hours | Continuous oversight, periodic interventions |
 | Independent validation | 15-30 min | Evidence gathering, scoring, report generation |
 | Post-validation | 5-10 min | Hindsight storage, cleanup, promise completion |
@@ -797,9 +756,9 @@ python3 .claude/scripts/attractor/launch_guardian.py \
 
 **Common mistake**: Calling `run_research.py` per-node in parallel Bash jobs. This bypasses the guardian's state machine (no DOT transitions, no checkpoints, no completion detection) and the scripts fail with exit code 2 when required pipeline context is missing.
 
-### tmux Mode Pre-flight Checks
+### Pre-flight Checks
 
-Before spawning in tmux mode, verify:
+Before spawning orchestrators (any mode), verify:
 - [ ] Implementation repo exists and is accessible
 - [ ] PRD exists in `.taskmaster/docs/PRD-{ID}.md` (business artifact)
 - [ ] SD exists per epic in `.taskmaster/docs/SD-{ID}.md` (technical spec; Task Master input)
@@ -807,7 +766,7 @@ Before spawning in tmux mode, verify:
 - [ ] DOT pipeline exists AND validates: `cobuilder pipeline validate <pipeline.dot>` exits 0. If missing, STOP and run Step 0.2 first — do NOT proceed to spawn without a pipeline.
 - [ ] DOT codergen nodes have `solution_design` attribute pointing to their SD file
 - [ ] Research nodes precede codergen nodes with correct `downstream_node` edges
-- [ ] No existing tmux session with the same name
+- [ ] No existing process/session with the same node name
 - [ ] Hindsight wisdom gathered from project bank
 
 ### Gather Wisdom from Hindsight
@@ -842,66 +801,66 @@ $CLI checkpoint save "$PIPELINE"
 
 Each orchestrator targets one pipeline node. Include the node's `acceptance`, `worker_type`, `file_path/folder_path`, and `bead_id` attributes in the initialization prompt.
 
-### Critical tmux Patterns
+### Headless Dispatch Patterns
 
-**These patterns are mandatory. Violating them causes silent failures.**
+**These patterns apply to headless mode (DEFAULT). For legacy tmux patterns, see the Legacy section below.**
 
-**Pattern 1 — Enter as separate send-keys call** (not appended to the command):
+**Pattern 1 — Always use `spawn_orchestrator.py --mode headless`** (never raw `claude -p`):
 ```bash
-# WRONG — Enter gets silently ignored
-tmux send-keys -t "orch-epic1" "ccorch" Enter
-
-# CORRECT
-tmux send-keys -t "orch-epic1" "ccorch"
-tmux send-keys -t "orch-epic1" Enter
-```
-
-**Pattern 2 — Use `ccorch` not plain `claude`** (prevents invisible permission dialog blocks):
-```bash
-# WRONG — orchestrator blocks silently on approval dialogs
-tmux send-keys -t "orch-epic1" "claude"
-tmux send-keys -t "orch-epic1" Enter
-
-# CORRECT
-tmux send-keys -t "orch-epic1" "ccorch"
-tmux send-keys -t "orch-epic1" Enter
-```
-
-**Pattern 3 — Interactive mode is MANDATORY** (headless orchestrators cannot spawn native teams):
-```bash
-# WRONG — headless mode cannot spawn workers
+# WRONG — missing Three-Layer Context, no signal file management
 claude -p "Do the work"
 
-# CORRECT — interactive allows team spawning
-tmux send-keys -t "orch-epic1" "ccorch"
-tmux send-keys -t "orch-epic1" Enter
+# CORRECT — canonical spawn with full context injection
+python3 "${IMPL_REPO}/.claude/scripts/attractor/spawn_orchestrator.py" \
+    --node "${EPIC_NAME}" \
+    --prd "${PRD_ID}" \
+    --repo-root "${IMPL_REPO}" \
+    --mode headless \
+    --prompt "Your task: ${TASK_DESCRIPTION}"
 ```
 
-**Pattern 4 — Large pastes need `sleep 2` before Enter** (bracketed paste processing takes time):
+**Pattern 2 — Three-Layer Context** (how headless workers receive their instructions):
+```
+Layer 1 (ROLE):     --system-prompt from .claude/agents/{worker_type}.md
+Layer 2 (TASK):     -p argument (the task prompt)
+Layer 3 (IDENTITY): env vars (WORKER_NODE_ID, PIPELINE_ID, etc.)
+```
+
+**Pattern 3 — Monitor via signal files, not process polling**:
 ```bash
-tmux send-keys -t "orch-epic1" "$(cat /tmp/wisdom-epic1.md)"
-sleep 2   # Wait for bracketed paste to complete
-tmux send-keys -t "orch-epic1" Enter
+# Check for completion/error signals
+SIGNAL_DIR=".claude/attractor/signals"
+cat "${SIGNAL_DIR}"/*-${NODE_ID}-*.json 2>/dev/null | python3 -c "import json,sys; print(json.load(sys.stdin).get('signal_type',''))"
 ```
 
-### The Mandatory 3-Step Boot Sequence
+**Pattern 4 — JSON output capture** (headless mode returns structured results):
+```bash
+# spawn_orchestrator.py captures stdout JSON from `claude -p --output-format json`
+# Parse the result for completion status, errors, and evidence
+```
 
-Every orchestrator MUST go through these 3 steps in this exact order. No exceptions.
+### The Boot Sequence (Headless vs Legacy)
 
+**Headless mode (DEFAULT)**: `spawn_orchestrator.py --mode headless` handles all context injection in a single command:
+```
+--system-prompt  → Sets the orchestrator role (replaces Step 1 + Step 2 of tmux boot)
+-p prompt        → Delivers the task with Skill invocation instruction (replaces Step 3)
+--permission-mode bypassPermissions → No interactive dialogs
+--output-format json → Structured output for monitoring
+```
+
+**Legacy tmux mode** (3-Step Boot Sequence — for debugging only):
 ```
 Step 1: ccorch          → Sets 9 env vars (output style, session ID, agent teams, etc.)
 Step 2: /output-style   → Loads orchestrator persona and delegation rules
 Step 3: Skill prompt    → Orchestrator invokes Skill("orchestrator-multiagent") before any work
 ```
 
-Skipping ANY step produces a crippled orchestrator that either:
-- Has no delegation rules (missing Step 2) → tries to implement directly
-- Has no team coordination patterns (missing Step 3) → cannot spawn workers
-- Has no session tracking, no model selection, no chrome (missing Step 1) → everything breaks silently
+Skipping ANY step in tmux mode produces a crippled orchestrator. In headless mode, these steps are handled automatically by the spawn script.
 
 ### Spawn Sequence: Use `spawn_orchestrator.py` (MANDATORY)
 
-**Always use the canonical spawn script.** Never write ad-hoc tmux Bash for spawning.
+**Always use the canonical spawn script.** Never write ad-hoc Bash for spawning (whether tmux or raw `claude -p` subprocesses).
 
 The script at `.claude/scripts/attractor/spawn_orchestrator.py` handles:
 - tmux session creation with `exec zsh` and correct dimensions
@@ -971,6 +930,14 @@ python3 "${IMPL_REPO}/.claude/scripts/attractor/spawn_orchestrator.py" \
 ```
 
 **What `spawn_orchestrator.py` does internally** (you should NOT replicate this manually):
+
+**Headless mode** (`--mode headless`, DEFAULT):
+1. Constructs `claude -p <prompt> --system-prompt <role> --permission-mode bypassPermissions --output-format json`
+2. Sets env vars: `WORKER_NODE_ID`, `PIPELINE_ID`, `CLAUDE_SESSION_ID`, etc.
+3. Launches subprocess, captures JSON stdout
+4. Writes signal file on completion/error
+
+**Legacy tmux mode** (for debugging only):
 1. Creates tmux session with `exec zsh` in `--repo-root` directory
 2. Sends `unset CLAUDECODE && ccorch --worktree <node>` (8s pause) — **Step 1**
 3. Sends `/output-style orchestrator` (3s pause) — **Step 2**
@@ -979,7 +946,15 @@ python3 "${IMPL_REPO}/.claude/scripts/attractor/spawn_orchestrator.py" \
 
 ### Anti-Pattern: Ad-Hoc Bash Spawn (NEVER DO THIS)
 
-The following code was found in a real session. It produces a **broken orchestrator** that lacks output style, delegation patterns, session tracking, and agent team support:
+The following examples show ad-hoc spawning patterns (both tmux and raw subprocess) that produce **broken orchestrators** lacking output style, delegation patterns, session tracking, and agent team support.
+
+**Headless anti-pattern** (raw `claude -p` without spawn script):
+```bash
+# WRONG — no Three-Layer Context, no signal management, no env vars
+claude -p "Implement the auth feature" --output-format json
+```
+
+**Legacy tmux anti-pattern** (found in a real session):
 
 ```bash
 # ❌ WRONG — 5 critical violations that produce a crippled orchestrator
@@ -1029,19 +1004,21 @@ done
 
 ### After Spawn: Communication Hierarchy
 
-The guardian monitors orchestrators DIRECTLY:
+The guardian monitors orchestrators via signal files (headless) or session output (legacy tmux):
 
 ```
 Guardian ──monitors──► Orchestrator ──delegates──► Workers (native teams)
    │                       ▲
-   └──── sends guidance ───┘
+   └── signal files / ─────┘
+       re-launch with
+       updated prompt
 ```
 
-| Action | Target | When |
-|--------|--------|------|
-| Send guidance/corrections | Orchestrator tmux session | Primary channel |
-| Monitor output (read-only) | Orchestrator tmux session | Continuous |
-| Answer AskUserQuestion | Whichever session shows the dialog | Immediately (blocks are time-critical) |
+| Action | Headless Mode (Default) | Legacy tmux Mode |
+|--------|------------------------|-----------------|
+| Monitor output | Signal files (`.claude/attractor/signals/`) | `tmux capture-pane` |
+| Send guidance | Re-launch with updated prompt | `tmux send-keys` |
+| Detect completion | Process exit + JSON stdout | `tmux capture-pane` + grep |
 
 Proceed to **Phase 3: Monitoring** after all orchestrators are spawned and running.
 
@@ -1052,7 +1029,7 @@ Since `.repomap/` is committed to git and worktrees are full git checkouts, the
 baseline is already present. The orchestrator only needs to verify it and know
 the refresh commands for post-node-validation use.
 
-Include these commands in the initial prompt sent to every orchestrator tmux session:
+Include these commands in the initial prompt sent to every orchestrator (via `--prompt` in headless mode, or pasted in legacy tmux mode):
 
 ```
 ## CoBuilder Commands Available in This Session
@@ -1067,7 +1044,7 @@ cobuilder repomap refresh --name ${REPO_NAME} --scope <file1> --scope <file2>
 cobuilder repomap sync --name ${REPO_NAME}
 ```
 
-Set these environment variables in the tmux session alongside CLAUDE_SESSION_ID:
+Set these environment variables in the orchestrator session (automatically handled by `spawn_orchestrator.py` in headless mode; manually set in legacy tmux mode alongside CLAUDE_SESSION_ID):
 
 ```bash
 export COBUILDER_REPO_NAME="${REPO_NAME}"

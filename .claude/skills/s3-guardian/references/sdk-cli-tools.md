@@ -161,7 +161,7 @@ usage: escalate_to_terminal.py [-h] --pipeline PIPELINE --issue ISSUE
 
 ### `runner_agent.py`
 
-Orchestrator monitor. Spawns orchestrator in tmux, polls output, signals Guardian at decision points.
+Orchestrator monitor. Spawns orchestrator (headless by default, legacy tmux for debugging), monitors progress via signal files, and signals Guardian at decision points.
 
 ```
 usage: runner_agent.py [-h] --node NODE --prd PRD --session SESSION
@@ -178,7 +178,7 @@ usage: runner_agent.py [-h] --node NODE --prd PRD --session SESSION
 |------|----------|---------|-------------|
 | `--node NODE` | Yes | — | Pipeline node identifier |
 | `--prd PRD` | Yes | — | PRD reference |
-| `--session SESSION` | Yes | — | tmux session name for orchestrator |
+| `--session SESSION` | Yes | — | Session name for orchestrator (Legacy: tmux session name; headless: used for state file naming) |
 | `--dot-file PATH` | No | — | Path to pipeline .dot file |
 | `--solution-design PATH` | No | — | Path to solution design doc |
 | `--acceptance TEXT` | No | — | Acceptance criteria text |
@@ -191,7 +191,7 @@ usage: runner_agent.py [-h] --node NODE --prd PRD --session SESSION
 | `--signals-dir DIR` | No | auto | Override signals directory |
 | `--dry-run` | No | false | Log config only |
 
-**Monitoring loop**: Every `check-interval` seconds, captures tmux output → LLM interpretation → decide: continue monitoring, signal Guardian, or escalate.
+**Monitoring loop**: Every `check-interval` seconds, checks signal files and process health → LLM interpretation → decide: continue monitoring, signal Guardian, or escalate. (Legacy: captures tmux output instead of signal files when in tmux mode.)
 
 ### `signal_guardian.py`
 
@@ -224,7 +224,7 @@ usage: signal_guardian.py [-h] --node NODE [--evidence EVIDENCE]
 - `NEEDS_INPUT` — Runner has a question for Guardian
 - `VIOLATION` — Detected a protocol violation
 - `ORCHESTRATOR_STUCK` — No progress for `stuck-threshold` seconds
-- `ORCHESTRATOR_CRASHED` — tmux session died
+- `ORCHESTRATOR_CRASHED` — Orchestrator process died (headless: subprocess exited unexpectedly; legacy tmux: session terminated)
 - `NODE_COMPLETE` — Node implementation finished
 
 ### `wait_for_guardian.py`
@@ -244,11 +244,12 @@ usage: wait_for_guardian.py [-h] --node NODE [--timeout TIMEOUT]
 
 ### `spawn_orchestrator.py`
 
-Creates a tmux session running Claude Code as orchestrator.
+Launches Claude Code as orchestrator. Headless mode (default) runs `claude -p` as a subprocess; legacy tmux mode creates an interactive terminal session for debugging.
 
 ```
 usage: spawn_orchestrator.py [-h] --node NODE --prd PRD [--worktree WORKTREE]
                              [--session-name SESSION_NAME] [--prompt PROMPT]
+                             [--mode {headless,tmux}]
 ```
 
 | Flag | Required | Default | Description |
@@ -256,12 +257,13 @@ usage: spawn_orchestrator.py [-h] --node NODE --prd PRD [--worktree WORKTREE]
 | `--node NODE` | Yes | — | Node identifier |
 | `--prd PRD` | Yes | — | PRD reference |
 | `--worktree PATH` | No | — | Working directory path |
-| `--session-name NAME` | No | `orch-{node}` | tmux session name |
-| `--prompt TEXT` | No | — | Initial prompt to send after launch |
+| `--session-name NAME` | No | `orch-{node}` | Session name (headless: state file naming; legacy tmux: session name) |
+| `--prompt TEXT` | No | — | Initial prompt (headless: passed as `-p` argument; legacy tmux: sent after launch) |
+| `--mode MODE` | No | `headless` | Dispatch mode: `headless` (subprocess, default) or `tmux` (interactive, debugging only) |
 
-### `capture_output.py`
+### `capture_output.py` *(Legacy: tmux debugging only)*
 
-Captures recent output from a tmux session pane.
+Captures recent output from a tmux session pane. Only used in legacy tmux mode for debugging; headless mode uses signal files instead.
 
 ```
 usage: capture_output.py [-h] --session SESSION [--lines LINES] [--pane PANE]
@@ -273,9 +275,9 @@ usage: capture_output.py [-h] --session SESSION [--lines LINES] [--pane PANE]
 | `--lines N` | No | 100 | Number of lines to capture |
 | `--pane ID` | No | first pane | Pane identifier |
 
-### `check_orchestrator_alive.py`
+### `check_orchestrator_alive.py` *(Legacy: tmux debugging only)*
 
-Checks if a tmux session exists (exit code 0 = alive, 1 = dead).
+Checks if a tmux session exists (exit code 0 = alive, 1 = dead). Only used in legacy tmux mode; headless mode checks process liveness via PID.
 
 ```
 usage: check_orchestrator_alive.py [-h] --session SESSION
@@ -285,9 +287,9 @@ usage: check_orchestrator_alive.py [-h] --session SESSION
 |------|----------|-------------|
 | `--session NAME` | Yes | tmux session name to check |
 
-### `send_to_orchestrator.py`
+### `send_to_orchestrator.py` *(Legacy: tmux debugging only)*
 
-Sends text to a tmux session via `send-keys`.
+Sends text to a tmux session via `send-keys`. Only used in legacy tmux mode; headless mode communicates via signal files (`respond_to_runner.py`).
 
 ```
 usage: send_to_orchestrator.py [-h] --session SESSION --message MESSAGE

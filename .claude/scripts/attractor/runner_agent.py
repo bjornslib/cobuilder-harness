@@ -393,7 +393,7 @@ Examples:
                         help="Override signals directory path")
     parser.add_argument("--dry-run", action="store_true", dest="dry_run",
                         help="Log config without spawning the SDK agent (for testing)")
-    parser.add_argument("--mode", choices=["sdk", "tmux"], default="tmux", dest="mode",
+    parser.add_argument("--mode", choices=["sdk", "tmux", "headless"], default="tmux", dest="mode",
                         help="Orchestrator launch mode: sdk (no --worktree) or tmux (default)")
 
     args = parser.parse_args(argv)

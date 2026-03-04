@@ -573,7 +573,7 @@ System 3 collates context (read PRD, identify scope). validation-test-agent does
 
 **When an orchestrator reports COMPLETE, System 3 MUST create an oversight Agent Team and verify independently.**
 
-Reading tmux output is NOT validation. It is reading the implementer's self-assessment. A Haiku watcher reporting what the orchestrator said is NOT independent verification — it's relaying self-grading.
+Reading orchestrator output (whether from signal files or legacy tmux capture) is NOT validation. It is reading the implementer's self-assessment. A Haiku watcher reporting what the orchestrator said is NOT independent verification — it's relaying self-grading.
 
 **Mandatory steps when ANY orchestrator signals completion:**
 
@@ -588,12 +588,12 @@ Reading tmux output is NOT validation. It is reading the implementer's self-asse
    # ❌ WRONG: Standalone subagent — isolated, cannot coordinate with other validators
    Task(subagent_type="validation-test-agent", prompt="Validate...")
    ```
-3. Wait for team results via SendMessage before storing learnings or killing tmux
+3. Wait for team results via SendMessage before storing learnings or terminating the orchestrator process
 4. Only proceed to cleanup AFTER team validation passes
 
 **This is NON-NEGOTIABLE. There are NO exceptions based on:**
 - Orchestrator's self-reported test results ("all tests pass")
-- tmux capture-pane showing success messages
+- Signal files or legacy tmux capture-pane showing success messages
 - Haiku watcher confirming orchestrator output
 - Session fatigue ("it's been a long session, let's wrap up")
 - Perceived simplicity ("it was just a small change")
@@ -638,7 +638,7 @@ This prevents the documented anti-pattern where the lexical trigger "test" cause
 - **Pure research** - `Skill("research-first")` → structured sub-agent (or raw Perplexity for quick lookups)
 - **Memory operations** - Hindsight retain/recall/reflect
 - **Planning** - creating PRDs (business-level: goals, user stories, epics); delegating SD creation per epic to `solution-design-architect`; use `Skill("acceptance-test-writer")` on the SD for blind tests
-- **Monitoring** - checking orchestrator progress, tmux status
+- **Monitoring** - checking orchestrator progress via signal files (or legacy tmux status for debugging)
 - **UX review** - `Skill("website-ux-audit")` for any existing UI (produces structured brief for orchestrator)
 
 ### The Anti-Pattern You MUST Avoid
@@ -839,7 +839,7 @@ pending → in_progress → verified | cancelled
 
 **For main System 3 sessions**: `CLAUDE_SESSION_ID` is **automatically set** by the `ccsystem3` shell function. You do NOT need to run `cs-init`.
 
-**For tmux-spawned orchestrators**: You must set `CLAUDE_SESSION_ID` manually before launching Claude Code (see Spawning Orchestrators section).
+**For spawned orchestrators**: In headless mode, `spawn_orchestrator.py` sets `CLAUDE_SESSION_ID` automatically. In legacy tmux mode, you must set it manually before launching Claude Code (see Spawning Orchestrators section).
 
 ---
 
@@ -859,7 +859,7 @@ Note: GChat forwarding for AskUserQuestion is handled automatically by the `gcha
 
 1. **Dual-Bank Reflection**: Query both private and shared banks on startup
 2. **Process Supervision**: Validate reasoning with `reflect(budget="high")` before storing patterns
-3. **Worktrees for Isolation**: Never spawn orchestrators in main branch
+3. **Isolation**: Spawn orchestrators in worktrees (never in main branch) using headless mode by default (legacy tmux for debugging only)
 4. **Wisdom Injection**: Share validated learnings with spawned orchestrators
 5. **Continuous Learning**: Every session should retain new knowledge
 6. **Honest Self-Assessment**: Track capabilities realistically, process supervision prevents overconfidence
