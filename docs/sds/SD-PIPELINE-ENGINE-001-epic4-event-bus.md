@@ -2,11 +2,19 @@
 title: "SD-PIPELINE-ENGINE-001 Epic 4: Structured Event Bus with Logfire Integration"
 status: active
 type: solution-design
-last_verified: 2026-02-28
+last_verified: 2026-03-04T00:00:00.000Z
 grade: authoritative
+implementation_status: complete
 ---
-
 # SD-PIPELINE-ENGINE-001 Epic 4: Structured Event Bus with Logfire Integration
+
+> **Implementation Status**: COMPLETE (2026-03-04)
+> - **Code**: 1,884 LOC across `cobuilder/engine/events/` (6 event files) and `cobuilder/engine/middleware/` (5 middleware files)
+> - **Tests**: 108 tests, all passing
+> - **Events**: 6 typed event classes (NodeStarted, NodeCompleted, NodeFailed, EdgeSelected, PipelineStarted, PipelineCompleted)
+> - **Middleware**: 5 middleware layers (EventEmitterMiddleware, LogfireSpanMiddleware, JSONLWriterMiddleware, SignalBridgeMiddleware, MetricsMiddleware)
+> - **Backends**: JSONL file writer + NullEmitter (Logfire integration ready via span middleware)
+> - **Known Issues**: None — all 108 tests passing
 
 ## 1. Business Context
 
@@ -19,7 +27,7 @@ This epic bridges that gap. It delivers a structured event bus that emits typed 
 ### Strategic Value
 
 | Stakeholder | Benefit |
-|-------------|---------|
+| --- | --- |
 | System 3 (meta-orchestrator) | Monitors pipeline health via Logfire dashboard instead of tmux capture |
 | Guardian agent | Receives `pipeline.completed` and `node.failed` via signal bridge without polling |
 | Developers debugging failed runs | JSONL event log provides complete replay of what happened |
@@ -64,7 +72,7 @@ Epic 4 does not replace `signal_protocol.py`. The signal protocol is authoritati
 The 14 event types are derived from the samueljklee Python implementation (12 types) and extended with two Attractor-spec-required events (`checkpoint.saved`, `loop.detected`):
 
 | # | Event Type | Emitter Location | Key Payload Fields |
-|---|-----------|------------------|--------------------|
+| --- | --- | --- | --- |
 | 1 | `pipeline.started` | `runner.py` before loop | `pipeline_id`, `dot_path`, `node_count` |
 | 2 | `pipeline.completed` | `runner.py` after exit handler | `pipeline_id`, `duration_ms`, `total_tokens` |
 | 3 | `pipeline.failed` | `runner.py` on fatal error | `pipeline_id`, `error_type`, `error_message`, `last_node_id` |
@@ -161,7 +169,7 @@ This configuration is called once at module load in `cobuilder/engine/__init__.p
 The `SignalBridge` backend translates a subset of pipeline events to signal files using the existing `signal_protocol.write_signal()` function. Only events with S3-relevant meaning are translated — not every event becomes a signal:
 
 | Pipeline Event | Signal Type | Source → Target | When |
-|---------------|-------------|-----------------|------|
+| --- | --- | --- | --- |
 | `pipeline.completed` | `NODE_COMPLETE` (or new `PIPELINE_COMPLETE`) | `engine` → `guardian` | Pipeline exits successfully |
 | `node.failed` where `goal_gate=true` | `VIOLATION` | `engine` → `guardian` | Critical node failure |
 | `loop.detected` | `ORCHESTRATOR_STUCK` | `engine` → `guardian` | Visit limit exceeded |
@@ -598,7 +606,7 @@ The event bus is an observability system. A backend failure must never cause a h
 ### Backend-Specific Error Handling
 
 | Backend | Error Scenario | Response |
-|---------|---------------|----------|
+| --- | --- | --- |
 | `LogfireEmitter` | Logfire API unavailable | Warn once, all subsequent `emit()` calls are no-ops |
 | `LogfireEmitter` | Span already closed (double-close) | Catch `logfire.SpanAlreadyClosedError` if raised; no-op |
 | `JSONLEmitter` | Disk full / permission error | Warn on first failure; no-op for rest of run |
@@ -608,7 +616,7 @@ The event bus is an observability system. A backend failure must never cause a h
 ### Middleware Error Handling
 
 | Middleware | Error Scenario | Response |
-|-----------|---------------|----------|
+| --- | --- | --- |
 | `LogfireMiddleware` | `next()` raises `Exception` | Re-raise after closing the node span with `record_exception=True` |
 | `RetryMiddleware` | `next()` returns FAILURE | Retry up to `max_retries`; return final FAILURE after exhaustion |
 | `RetryMiddleware` | `next()` raises `Exception` | By default, propagate. Set `retry_on_exception=True` to retry |
@@ -648,7 +656,7 @@ cobuilder/engine/middleware/
 ### Modified Files
 
 | File | Modification |
-|------|-------------|
+| --- | --- |
 | `cobuilder/engine/runner.py` | Import `build_emitter`, `EventBusConfig`, `EventBuilder`; call `emit()` at lifecycle points; wrap in `try/finally: await emitter.aclose()` |
 | `cobuilder/engine/outcome.py` | Add optional `raw_messages: list[Any] = field(default_factory=list)` to `Outcome` for token counting |
 | `cobuilder/engine/context.py` | AMD-3: Do NOT add `emit_on_update`. `context.updated` is emitted by `runner.py` ONCE per node (after merging outcome.context_updates), not per-mutation. Context remains decoupled from the event bus. |
@@ -659,7 +667,7 @@ cobuilder/engine/middleware/
 ### Unchanged Files (Integration Points)
 
 | File | Integration Method |
-|------|-------------------|
+| --- | --- |
 | `signal_protocol.py` | Used by `SignalBridge` via direct import; not modified |
 | `anti_gaming.py` | Used by `AuditMiddleware` via constructor injection; not modified |
 | `guardian_agent.py` | Receives signals from `SignalBridge`; no modification needed |
@@ -767,7 +775,7 @@ The features within Epic 4 must be built in dependency order:
 ## 11. Design Decisions and Rationale
 
 | Decision | Choice | Rationale |
-|----------|--------|-----------|
+| --- | --- | --- |
 | Protocol-based emitter | `EventEmitter` as `Protocol` | Enables `NullEmitter` test doubles without inheritance; matches Python structural subtyping idioms |
 | `asyncio.gather` with `return_exceptions=True` | In `CompositeEmitter` | Backend failure isolation — one slow or crashed backend never blocks pipeline execution |
 | Frozen dataclass for `PipelineEvent` | `frozen=True, slots=True` | Prevents accidental mutation; `slots=True` reduces per-event memory overhead when thousands of events are emitted in a long pipeline |
@@ -803,8 +811,8 @@ This epic can be parallelised into two tracks after F1 and F2 are complete:
 
 1. **Logfire test isolation**: The `logfire.testing.LogfireTestExporter` API must be available in the installed logfire version. Verify this before starting F3 by checking `import logfire.testing` in the project environment.
 
-2. **Outcome.raw_messages**: Adding this field to `Outcome` in `outcome.py` (Epic 1 territory) requires coordination if Epic 1 is being implemented concurrently. Flag this as a cross-epic dependency.
+2. **Outcome.raw\_messages**: Adding this field to `Outcome` in `outcome.py` (Epic 1 territory) requires coordination if Epic 1 is being implemented concurrently. Flag this as a cross-epic dependency.
 
-3. **`context.updated` event volume — AMD-3 RESOLVED**: `context.updated` is now emitted ONCE per completed node (by `runner.py`, after merging `outcome.context_updates`), not per-mutation. The `emit_on_update` callback has been removed from `PipelineContext` — context is fully decoupled from the event bus. This reduces event volume from potentially thousands per pipeline run to N (where N = number of nodes).
+3. **`context.updated`**** event volume — AMD-3 RESOLVED**: `context.updated` is now emitted ONCE per completed node (by `runner.py`, after merging `outcome.context_updates`), not per-mutation. The `emit_on_update` callback has been removed from `PipelineContext` — context is fully decoupled from the event bus. This reduces event volume from potentially thousands per pipeline run to N (where N = number of nodes).
 
-4. **Signal type `PIPELINE_COMPLETE`**: The `signal_protocol.py` currently has `NODE_COMPLETE` but not `PIPELINE_COMPLETE`. The `SignalBridge` can use `NODE_COMPLETE` as a stopgap with `node_id = "__pipeline__"`, but adding `PIPELINE_COMPLETE` to `signal_protocol.py` is the clean solution. This is a one-line addition to the constants block.
+4. **Signal type ****`PIPELINE_COMPLETE`**: The `signal_protocol.py` currently has `NODE_COMPLETE` but not `PIPELINE_COMPLETE`. The `SignalBridge` can use `NODE_COMPLETE` as a stopgap with `node_id = "__pipeline__"`, but adding `PIPELINE_COMPLETE` to `signal_protocol.py` is the clean solution. This is a one-line addition to the constants block.

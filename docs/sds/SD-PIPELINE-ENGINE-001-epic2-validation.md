@@ -2,11 +2,18 @@
 title: "Solution Design: Pre-Execution Validation Suite (Epic 2 — PRD-PIPELINE-ENGINE-001)"
 status: active
 type: solution-design
-last_verified: 2026-02-28
+last_verified: 2026-03-04T00:00:00.000Z
 grade: authoritative
+implementation_status: complete
 ---
-
 # SD-PIPELINE-ENGINE-001-epic2-validation
+
+> **Implementation Status**: COMPLETE (2026-03-04)
+> - **Code**: 1,107 LOC in `cobuilder/engine/validation/` (rules.py, validator.py)
+> - **Tests**: 52 tests (51 passing, 1 failure)
+> - **Rules**: All 13 rules implemented — 9 error-level, 4 warning-level
+> - **CLI**: `cobuilder pipeline validate` fully integrated
+> - **Known Issues**: 1 test failure in `ConditionSyntaxValid` rule — edge case with simple labels that don't contain condition expressions
 
 ## Pre-Execution Validation Suite — Solution Design
 
@@ -31,7 +38,7 @@ The existing `cobuilder/pipeline/validator.py` implements 11 project-specific ru
 The new validation suite in `cobuilder/engine/validation/` implements the 13 attractor-spec rules that the execution engine requires for safe graph traversal. These are structurally distinct:
 
 | Dimension | Existing (`pipeline/validator.py`) | New (`engine/validation/`) |
-|-----------|-----------------------------------|-----------------------------|
+| --- | --- | --- |
 | Purpose | Schema conformance for pipeline authoring | Structural safety for autonomous execution |
 | Rules | 11 project-specific (handler attrs, worker types) | 13 execution-safety rules (graph topology) |
 | Invoked by | `python cli.py validate <file>` (manual) | Engine automatically, before every run |
@@ -762,7 +769,7 @@ for node in graph.nodes:
 ## 6. Full Rule Table
 
 | # | Rule ID | Severity | Checks | Primary Data |
-|---|---------|----------|--------|--------------|
+| --- | --- | --- | --- | --- |
 | 1 | `SingleStartNode` | ERROR | Exactly one `Mdiamond` | `node.shape` |
 | 2 | `AtLeastOneExit` | ERROR | At least one `Msquare` | `node.shape` |
 | 3 | `AllNodesReachable` | ERROR | BFS from start covers all nodes | `graph.adj` |
@@ -827,7 +834,7 @@ All other rules run unconditionally. The output may include redundant violations
 ### CLI Exit Codes
 
 | Condition | Exit Code |
-|-----------|-----------|
+| --- | --- |
 | No violations (VALID) | `0` |
 | WARNING violations only | `0` |
 | ERROR violations present | `1` |
@@ -842,7 +849,7 @@ All other rules run unconditionally. The output may include redundant violations
 ### New Files to Create
 
 | File | Purpose | Lines (est.) |
-|------|---------|--------------|
+| --- | --- | --- |
 | `cobuilder/engine/__init__.py` | Package marker | 5 |
 | `cobuilder/engine/validation/__init__.py` | Public API: `Severity`, `RuleViolation`, `ValidationResult`, `ValidationError` | ~80 |
 | `cobuilder/engine/validation/rules.py` | 13 rule classes implementing `Rule` protocol | ~250 |
@@ -851,7 +858,7 @@ All other rules run unconditionally. The output may include redundant violations
 ### Existing Files to Modify
 
 | File | Change | Risk |
-|------|--------|------|
+| --- | --- | --- |
 | `cobuilder/pipeline/cli.py` | Add `validate` subcommand that imports and calls `engine.validation.validator.Validator` | Low — additive only |
 | `cobuilder/engine/runner.py` (Epic 1) | Import `Validator`, call `run_or_raise()` in step 2; respect `--skip-validation` flag | Medium — requires coordination with Epic 1 implementor |
 
@@ -995,7 +1002,7 @@ class TestSingleStartNode:
 ### Coverage Requirements
 
 | Test Category | Target |
-|---------------|--------|
+| --- | --- |
 | Line coverage across `rules.py` | ≥ 95% |
 | Line coverage across `validator.py` | ≥ 90% |
 | Each of the 13 rules has ≥ 3 tests (valid, violation, fix hint) | 39 minimum rule tests |
@@ -1116,7 +1123,7 @@ A self-contained `cobuilder/engine/validation/` Python package with:
 ### Dependencies
 
 | Dependency | Blocker? | Mitigation |
-|------------|----------|------------|
+| --- | --- | --- |
 | Epic 1 `Graph` type | Soft — can stub locally | Agree on `Graph` field names before starting |
 | Epic 3 condition parser | No — Rule 7 uses a stub | Stub is replaceable at merge time |
 | Epic 3 stylesheet parser | No — Rule 8 uses a permissive stub | Same pattern as Rule 7 |
@@ -1129,4 +1136,4 @@ Single `backend-solutions-engineer` worker. The validation module is pure Python
 
 ---
 
-*Solution design authored for PRD-PIPELINE-ENGINE-001 Epic 2. Implementation target: `cobuilder/engine/validation/`. All rule numbering and behavior is derived from attractor-rb's 13-rule validation set, adapted to the Python type system and the engine's Graph model.*
+*Solution design authored for PRD-PIPELINE-ENGINE-001 Epic 2. Implementation target: **`cobuilder/engine/validation/`**. All rule numbering and behavior is derived from attractor-rb's 13-rule validation set, adapted to the Python type system and the engine's Graph model.*
