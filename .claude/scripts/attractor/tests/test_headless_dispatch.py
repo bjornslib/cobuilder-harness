@@ -1,6 +1,6 @@
 """E2E integration tests for headless dispatch chain.
 
-Validates that the full dispatch chain (runner_agent -> spawn_orchestrator)
+Validates that the full dispatch chain (runner -> spawn_orchestrator)
 correctly handles --mode headless without crashing.
 """
 from __future__ import annotations
@@ -22,16 +22,16 @@ SCRIPTS_DIR = Path(_ATTRACTOR_DIR)
 
 
 # ---------------------------------------------------------------------------
-# A1: runner_agent.py parser accepts --mode headless
+# A1: runner.py parser accepts --mode headless
 # ---------------------------------------------------------------------------
 
 
 class TestRunnerAcceptsHeadless:
-    """A1: runner_agent.py parser accepts --mode headless."""
+    """A1: runner.py parser accepts --mode headless."""
 
     def test_parser_accepts_headless(self):
-        """runner_agent.py argparse should accept 'headless' as a mode choice."""
-        from runner_agent import parse_args
+        """runner.py argparse should accept 'headless' as a mode choice."""
+        from runner import parse_args
 
         args = parse_args([
             "--node", "test",
@@ -44,7 +44,7 @@ class TestRunnerAcceptsHeadless:
 
     def test_parser_still_accepts_sdk(self):
         """Existing 'sdk' mode should still work."""
-        from runner_agent import parse_args
+        from runner import parse_args
 
         args = parse_args([
             "--node", "test",
@@ -57,7 +57,7 @@ class TestRunnerAcceptsHeadless:
 
     def test_parser_still_accepts_tmux(self):
         """Existing 'tmux' mode should still work."""
-        from runner_agent import parse_args
+        from runner import parse_args
 
         args = parse_args([
             "--node", "test",
@@ -70,7 +70,7 @@ class TestRunnerAcceptsHeadless:
 
     def test_parser_rejects_invalid_mode(self):
         """An invalid mode should be rejected by argparse."""
-        from runner_agent import parse_args
+        from runner import parse_args
 
         with pytest.raises(SystemExit):
             parse_args([
@@ -82,11 +82,11 @@ class TestRunnerAcceptsHeadless:
             ])
 
     def test_headless_in_source_code(self):
-        """runner_agent.py source should contain 'headless' in choices."""
-        runner_path = SCRIPTS_DIR / "runner_agent.py"
+        """runner.py source should contain 'headless' in choices."""
+        runner_path = SCRIPTS_DIR / "runner.py"
         content = runner_path.read_text()
         assert '"headless"' in content or "'headless'" in content, \
-            "runner_agent.py parser does not contain 'headless' in mode choices"
+            "runner.py parser does not contain 'headless' in mode choices"
 
 
 # ---------------------------------------------------------------------------

@@ -420,9 +420,9 @@ class TestHeadlessModeArgparse(unittest.TestCase):
         self.assertNotEqual(exit_code, 2, "argparse rejected --mode headless")
 
     def test_spawn_runner_accepts_headless_mode(self) -> None:
-        """spawn_runner.py argparse accepts --mode headless without rejection."""
+        """runner.py argparse accepts --mode headless without rejection."""
         import importlib
-        import spawn_runner
+        import runner
 
         # We just need to verify argparse doesn't reject headless
         # The simplest way is to check the choices directly
@@ -454,11 +454,11 @@ class TestHeadlessModeArgparse(unittest.TestCase):
 
 
 class TestHeadlessGuardianPrompt(unittest.TestCase):
-    """Tests that guardian_agent system prompt includes headless mode guidance."""
+    """Tests that guardian system prompt includes headless mode guidance."""
 
     def _make_prompt(self) -> str:
-        import guardian_agent
-        return guardian_agent.build_system_prompt(
+        import guardian
+        return guardian.build_system_prompt(
             dot_path="/tmp/pipeline.dot",
             pipeline_id="test-pipe",
             scripts_dir="/tmp/scripts",

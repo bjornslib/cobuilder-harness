@@ -1,30 +1,11 @@
 #!/usr/bin/env python3
-"""Runner Agent (Layer 2) — Guardian Architecture.
+"""runner.py — Runner Agent (Layer 2) + Spawn entrypoint.
 
-Invokes Claude via the claude_code_sdk to monitor an orchestrator tmux session
-and signal the Guardian at decision points.
+Merged from runner_agent.py (monitoring agent) and spawn_runner.py (fire-and-forget
+subprocess launcher). Canonical Layer 2 file.
 
-Architecture:
-    runner_agent.py (Python process)
-        │
-        ├── Parse CLI args
-        ├── build_system_prompt()    → monitoring instructions for Claude
-        ├── build_initial_prompt()   → first user message with immediate context
-        ├── build_options()          → ClaudeCodeOptions (Bash only, max_turns, model)
-        └── asyncio.run(_run_agent())
-               │
-               └── async for message in query(initial_prompt, options=options):
-                       # Claude uses Bash to run CLI tools in scripts_dir
-                       pass
-
-CLAUDECODE environment note:
-    The Runner may be launched from inside a Claude Code session. To avoid
-    nested-session conflicts, we pass env={"CLAUDECODE": ""} as a workaround
-    to suppress the variable. The definitive fix (subprocess.Popen with a
-    cleaned env) lives in spawn_runner.py and will be implemented in a later epic.
-
-Usage:
-    python runner_agent.py \\
+Direct usage (monitoring agent):
+    python runner.py \\
         --node <node_id> \\
         --prd <prd_ref> \\
         --session <tmux_session_name> \\
@@ -39,6 +20,53 @@ Usage:
         [--model <model_id>] \\
         [--signals-dir <path>] \\
         [--dry-run]
+
+Spawn usage (fire-and-forget subprocess):
+    python runner.py --spawn \\
+        --node <node_id> \\
+        --prd <prd_ref> \\
+        --target-dir <path> \\
+        [--solution-design <path>] \\
+        [--acceptance <text>] \\
+        [--bead-id <id>] \\
+        [--mode sdk|tmux|headless] \\
+        [--dot-file <path>]
+
+Architecture:
+    runner.py (Python process)
+        │
+        ├── Parse CLI args
+        ├── build_system_prompt()    → monitoring instructions for Claude
+        ├── build_initial_prompt()   → first user message with immediate context
+        ├── build_options()          → ClaudeCodeOptions (Bash only, max_turns, model)
+        └── asyncio.run(_run_agent())
+               │
+               └── async for message in query(initial_prompt, options=options):
+                       # Claude uses Bash to run CLI tools in scripts_dir
+                       pass
+
+    spawn() function — fire-and-forget subprocess:
+        - Registers identity + hook for runner
+        - Launches runner.py (itself) as a detached subprocess with cleaned environment
+        - Writes a state file with the PID using the atomic tmp+rename pattern
+        - Outputs JSON confirming the launch
+
+Output when --spawn (stdout, JSON):
+    {
+        "status": "ok",
+        "node": "<node_id>",
+        "prd": "<prd_ref>",
+        "runner_pid": <pid>,
+        "state_file": "<path>",
+        "identity_file": "<path>",
+        "hook_file": "<path>"
+    }
+
+CLAUDECODE environment note:
+    The Runner may be launched from inside a Claude Code session. To avoid
+    nested-session conflicts, we pass env={"CLAUDECODE": ""} as a workaround
+    to suppress the variable. The definitive fix (subprocess.Popen with a
+    cleaned env) lives in the spawn() function in this file.
 """
 
 from __future__ import annotations
@@ -49,6 +77,7 @@ import enum
 import json
 import os
 import re
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -342,7 +371,7 @@ def build_options(
 
     The Runner is restricted to Bash only — it must not call Edit/Write/etc.
     CLAUDECODE is overridden to an empty string to suppress nested session
-    warnings (the authoritative fix is in spawn_runner.py using Popen).
+    warnings (the authoritative fix is in spawn() in this file using Popen).
 
     Args:
         system_prompt: Monitoring instructions for Claude.
@@ -363,13 +392,13 @@ def build_options(
             model=model,
             max_turns=max_turns,
             # Suppress CLAUDECODE env var to avoid nested-session conflicts.
-            # Definitive fix (subprocess.Popen with cleaned env) is in spawn_runner.py.
+            # Definitive fix (subprocess.Popen with cleaned env) is in spawn().
             env={"CLAUDECODE": ""},
         )
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    """Parse CLI arguments for runner_agent.py.
+    """Parse CLI arguments for runner.py.
 
     Args:
         argv: Argument list (defaults to sys.argv[1:]).
@@ -378,20 +407,33 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         Parsed namespace.
     """
     parser = argparse.ArgumentParser(
-        prog="runner_agent.py",
-        description="Runner Agent (Layer 2): monitors orchestrator via claude_code_sdk.",
+        prog="runner.py",
+        description="Runner Agent (Layer 2): monitors orchestrator via claude_code_sdk. "
+                    "Use --spawn for fire-and-forget subprocess launch.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python runner_agent.py --node impl_auth --prd PRD-AUTH-001 --session orch-auth
+  # Direct agent (monitoring loop):
+  python runner.py --node impl_auth --prd PRD-AUTH-001 --session orch-auth --target-dir /path/to/repo
 
-  python runner_agent.py --node impl_auth --prd PRD-AUTH-001 --session orch-auth \\
+  python runner.py --node impl_auth --prd PRD-AUTH-001 --session orch-auth \\
       --acceptance "Auth module passes all tests" --check-interval 60 --dry-run
+
+  # Spawn (fire-and-forget subprocess):
+  python runner.py --spawn --node impl_auth --prd PRD-AUTH-001 --target-dir /path/to/repo
         """,
     )
+
+    # Spawn mode flag — when set, runs the fire-and-forget subprocess launcher
+    parser.add_argument("--spawn", action="store_true", default=False,
+                        help="Fire-and-forget: register identity/hook, launch runner.py as "
+                             "a detached subprocess, write state file, and output JSON")
+
     parser.add_argument("--node", required=True, help="Pipeline node identifier")
     parser.add_argument("--prd", required=True, help="PRD reference (e.g. PRD-AUTH-001)")
-    parser.add_argument("--session", required=True, help="tmux session name for orchestrator")
+    parser.add_argument("--session", default=None,
+                        help="tmux session name for orchestrator (required in direct mode; "
+                             "auto-derived from --node in --spawn mode)")
     parser.add_argument("--dot-file", default=None, dest="dot_file",
                         help="Path to pipeline .dot file")
     parser.add_argument("--solution-design", default=None, dest="solution_design",
@@ -439,7 +481,7 @@ def resolve_scripts_dir() -> str:
     """Return the absolute path to the attractor scripts directory.
 
     Resolution order:
-    1. The directory containing this file (runner_agent.py is inside attractor/).
+    1. The directory containing this file (runner.py is inside attractor/).
     2. Falls back to current working directory if for some reason _THIS_DIR is unavailable.
 
     Returns:
@@ -453,7 +495,7 @@ def build_env_config() -> dict[str, str]:
 
     We cannot *delete* env keys via ClaudeCodeOptions.env (it only adds/overrides),
     so we override CLAUDECODE to an empty string. The authoritative fix is in
-    spawn_runner.py which uses subprocess.Popen with a fully cleaned environment.
+    spawn() which uses subprocess.Popen with a fully cleaned environment.
 
     Returns:
         Dict of env var overrides to pass to ClaudeCodeOptions.
@@ -834,22 +876,194 @@ async def _run_agent(initial_prompt: str, options: Any) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Spawn helpers (from spawn_runner.py)
+# ---------------------------------------------------------------------------
+
+
+def _find_git_root(start: str):
+    """Walk up directory tree to find .git root."""
+    current = os.path.abspath(start)
+    while True:
+        if os.path.exists(os.path.join(current, ".git")):
+            return current
+        parent = os.path.dirname(current)
+        if parent == current:
+            return None
+        current = parent
+
+
+def _runner_state_dir() -> str:
+    """Resolve the runner state directory."""
+    git_root = _find_git_root(os.getcwd())
+    if git_root:
+        return os.path.join(git_root, ".claude", "attractor", "runner-state")
+    return os.path.join(os.path.expanduser("~"), ".claude", "attractor", "runner-state")
+
+
+def spawn(args: argparse.Namespace) -> None:
+    """Fire-and-forget subprocess launcher for runner.py.
+
+    Registers identity and hook for the runner, then launches runner.py as a
+    detached subprocess with a cleaned environment (CLAUDECODE removed). Writes
+    a state file with the PID using the atomic tmp+rename pattern and outputs
+    JSON confirming the launch.
+
+    Args:
+        args: Parsed CLI arguments from parse_args() with --spawn flag set.
+    """
+    # 1. Register identity for runner
+    try:
+        identity_registry.create_identity(
+            role="runner",
+            name=args.node,
+            session_id=f"runner-{args.node}",
+            worktree=args.target_dir,
+        )
+    except Exception as exc:
+        print(json.dumps({"status": "error", "message": f"Identity registration failed: {exc}"}))
+        sys.exit(1)
+
+    # 2. Create hook for runner
+    try:
+        hook_manager.create_hook(
+            role="runner",
+            name=args.node,
+            phase="planning",
+        )
+    except Exception as exc:
+        print(json.dumps({"status": "error", "message": f"Hook creation failed: {exc}"}))
+        sys.exit(1)
+
+    # 3. Build runner command — launch runner.py (this file) directly
+    runner_script = os.path.join(_THIS_DIR, "runner.py")
+    cmd = [sys.executable, runner_script,
+           "--node", args.node,
+           "--prd", args.prd,
+           "--session", f"orch-{args.node}",
+           "--target-dir", args.target_dir,
+           "--mode", args.mode]
+
+    if args.solution_design:
+        cmd += ["--solution-design", args.solution_design]
+    if args.bead_id:
+        cmd += ["--bead-id", args.bead_id]
+    if args.dot_file:
+        cmd += ["--dot-file", args.dot_file]
+
+    # 4. Launch with cleaned environment (no CLAUDECODE token)
+    env = os.environ.copy()
+    env.pop("CLAUDECODE", None)
+
+    # Redirect runner stdout/stderr to log files instead of PIPE to avoid
+    # pipe buffer deadlock (PIPE is never read since we detach immediately).
+    try:
+        log_dir = _runner_state_dir()
+        os.makedirs(log_dir, exist_ok=True)
+        timestamp_log = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        stdout_log_path = os.path.join(log_dir, f"{timestamp_log}-{args.node}-stdout.log")
+        stderr_log_path = os.path.join(log_dir, f"{timestamp_log}-{args.node}-stderr.log")
+        stdout_log = open(stdout_log_path, "w", encoding="utf-8")
+        stderr_log = open(stderr_log_path, "w", encoding="utf-8")
+    except Exception:
+        # Fallback to DEVNULL if log files can't be created
+        stdout_log_path = None
+        stderr_log_path = None
+        stdout_log = subprocess.DEVNULL
+        stderr_log = subprocess.DEVNULL
+
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            env=env,
+            cwd=args.target_dir,
+            stdout=stdout_log,
+            stderr=stderr_log,
+        )
+    except Exception as exc:
+        print(json.dumps({"status": "error", "message": f"Failed to launch runner: {exc}"}))
+        sys.exit(1)
+
+    # 5. Write state file with PID (atomic tmp+rename pattern)
+    try:
+        state_dir = _runner_state_dir()
+        os.makedirs(state_dir, exist_ok=True)
+
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        state_filename = f"{timestamp}-{args.node}-{args.prd}.json"
+        state_path = os.path.join(state_dir, state_filename)
+
+        state_data = {
+            "spawned_at": timestamp,
+            "status": "running",
+            "runner_pid": proc.pid,
+            "node_id": args.node,
+            "prd_ref": args.prd,
+            "target_dir": args.target_dir,
+            "identity_file": f".claude/state/identities/runner-{args.node}.json",
+            "hook_file": f".claude/state/hooks/runner-{args.node}.json",
+            "runner_config": {
+                "node_id": args.node,
+                "prd_ref": args.prd,
+                "solution_design": args.solution_design,
+                "acceptance_criteria": args.acceptance,
+                "target_dir": args.target_dir,
+                "bead_id": args.bead_id,
+                "dot_file": args.dot_file,
+            },
+            "stdout_log": stdout_log_path,
+            "stderr_log": stderr_log_path,
+        }
+
+        tmp_path = state_path + ".tmp"
+        with open(tmp_path, "w", encoding="utf-8") as fh:
+            json.dump(state_data, fh, indent=2)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.rename(tmp_path, state_path)
+
+        print(json.dumps({
+            "status": "ok",
+            "node": args.node,
+            "prd": args.prd,
+            "runner_pid": proc.pid,
+            "state_file": state_path,
+            "identity_file": state_data["identity_file"],
+            "hook_file": state_data["hook_file"],
+            "runner_config": state_data["runner_config"],
+        }))
+
+    except Exception as exc:
+        print(json.dumps({"status": "error", "message": str(exc)}))
+        sys.exit(1)
+
+
+# ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
 
 
 def main(argv: list[str] | None = None) -> None:
-    """Parse arguments, build prompts/options, and run the monitoring agent."""
+    """Parse arguments and route to spawn() or monitoring agent."""
     args = parse_args(argv)
 
-    with logfire.span("runner.main", node_id=args.node, prd_ref=args.prd, session=args.session, dry_run=args.dry_run):
+    # --spawn mode: fire-and-forget subprocess launch
+    if args.spawn:
+        spawn(args)
+        return
+
+    # Direct agent mode: monitoring loop
+    with logfire.span("runner.main", node_id=args.node, prd_ref=args.prd,
+                      session=args.session, dry_run=args.dry_run):
         cwd = args.target_dir
         scripts_dir = resolve_scripts_dir()
+
+        # --session defaults to orch-{node} in direct mode if not provided
+        session_name = args.session or f"orch-{args.node}"
 
         system_prompt = build_system_prompt(
             node_id=args.node,
             prd_ref=args.prd,
-            session_name=args.session,
+            session_name=session_name,
             acceptance=args.acceptance or "",
             scripts_dir=scripts_dir,
             check_interval=args.check_interval,
@@ -860,7 +1074,7 @@ def main(argv: list[str] | None = None) -> None:
         initial_prompt = build_initial_prompt(
             node_id=args.node,
             prd_ref=args.prd,
-            session_name=args.session,
+            session_name=session_name,
             acceptance=args.acceptance or "",
             scripts_dir=scripts_dir,
             check_interval=args.check_interval,
@@ -880,7 +1094,7 @@ def main(argv: list[str] | None = None) -> None:
                 "dry_run": True,
                 "node_id": args.node,
                 "prd_ref": args.prd,
-                "session_name": args.session,
+                "session_name": session_name,
                 "dot_file": args.dot_file,
                 "solution_design": args.solution_design,
                 "acceptance": args.acceptance,
@@ -937,7 +1151,7 @@ def main(argv: list[str] | None = None) -> None:
                 machine = RunnerStateMachine(
                     node_id=node_id,
                     prd_ref=args.prd,
-                    session_name=args.session,
+                    session_name=session_name,
                     target_dir=cwd,
                     dot_file=args.dot_file,
                     signals_dir=args.signals_dir,

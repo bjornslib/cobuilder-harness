@@ -1,4 +1,4 @@
-"""Unit tests for runner_agent.py — Layer 2 Runner Agent.
+"""Unit tests for runner.py — Layer 2 Runner Agent.
 
 Tests:
     TestParseArgs               - parse_args() with various CLI combinations
@@ -28,8 +28,8 @@ _ATTRACTOR_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ATTRACTOR_DIR not in sys.path:
     sys.path.insert(0, _ATTRACTOR_DIR)
 
-import runner_agent  # noqa: E402
-from runner_agent import (  # noqa: E402
+import runner  # noqa: E402
+from runner import (  # noqa: E402
     build_env_config,
     build_initial_prompt,
     build_options,
@@ -402,7 +402,7 @@ class TestDryRunMode(unittest.TestCase):
         buf = io.StringIO()
         with self.assertRaises(SystemExit) as cm:
             with redirect_stdout(buf):
-                runner_agent.main(base_args)
+                runner.main(base_args)
 
         self.assertEqual(cm.exception.code, 0)
         return buf.getvalue()
@@ -471,11 +471,11 @@ class TestDryRunMode(unittest.TestCase):
         import io
         from contextlib import redirect_stdout
 
-        with patch("runner_agent._run_agent") as mock_run:
+        with patch("runner._run_agent") as mock_run:
             buf = io.StringIO()
             with self.assertRaises(SystemExit):
                 with redirect_stdout(buf):
-                    runner_agent.main(
+                    runner.main(
                         ["--node", "n", "--prd", "P", "--session", "s", "--dry-run"]
                     )
             mock_run.assert_not_called()
@@ -554,11 +554,11 @@ class TestResolveScriptsDir(unittest.TestCase):
         self.assertEqual(result1, result2)
 
     def test_contains_runner_agent_itself(self) -> None:
-        """The scripts dir IS the attractor dir, which contains runner_agent.py."""
+        """The scripts dir IS the attractor dir, which contains runner.py."""
         result = resolve_scripts_dir()
         self.assertTrue(
-            os.path.exists(os.path.join(result, "runner_agent.py")),
-            f"runner_agent.py not found in {result}",
+            os.path.exists(os.path.join(result, "runner.py")),
+            f"runner.py not found in {result}",
         )
 
 
@@ -571,7 +571,7 @@ class TestLogfireInstrumentation(unittest.TestCase):
     """Tests that logfire instrumentation is present and doesn't break functionality."""
 
     def test_logfire_is_imported(self):
-        """runner_agent should import logfire directly (required dependency)."""
+        """runner should import logfire directly (required dependency)."""
         import logfire as _lf
         self.assertTrue(hasattr(_lf, 'span'))
 
@@ -796,7 +796,7 @@ class TestEmitEvent(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
-def _make_machine(**overrides) -> "runner_agent.RunnerStateMachine":
+def _make_machine(**overrides) -> "runner.RunnerStateMachine":
     """Construct a RunnerStateMachine with signal_protocol mocked out.
 
     signal_protocol is imported lazily inside RunnerStateMachine.__init__
@@ -805,7 +805,7 @@ def _make_machine(**overrides) -> "runner_agent.RunnerStateMachine":
     then overwrite the instance attribute immediately after construction
     so _write_safety_net_if_needed is also fully mocked.
     """
-    from runner_agent import RunnerStateMachine
+    from runner import RunnerStateMachine
 
     kwargs = dict(
         node_id="impl_auth",
@@ -827,7 +827,7 @@ def _make_machine(**overrides) -> "runner_agent.RunnerStateMachine":
 class TestRunnerStateMachineEvents(unittest.TestCase):
     """Tests that RunnerStateMachine.run() emits the expected JSONL events."""
 
-    def _run_and_collect(self, machine: "runner_agent.RunnerStateMachine") -> list[dict]:
+    def _run_and_collect(self, machine: "runner.RunnerStateMachine") -> list[dict]:
         """Execute machine.run() and return a list of parsed JSONL event dicts."""
         buf = io.StringIO()
         with redirect_stdout(buf):

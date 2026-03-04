@@ -1,6 +1,6 @@
 """E2E Integration Tests for Session Resilience (Epic 5).
 
-Tests the full integration of identity_registry, hook_manager, spawn_runner,
+Tests the full integration of identity_registry, hook_manager, runner,
 merge_queue, and spawn_orchestrator respawn wisdom injection.
 
 All tests use tmp_path isolation — no real Claude API, tmux, or git operations.
@@ -45,7 +45,7 @@ from hook_manager import (
 import merge_queue
 from merge_queue import _read_queue, enqueue, process_next
 
-import spawn_runner
+import runner
 import spawn_orchestrator
 from spawn_orchestrator import respawn_orchestrator
 
@@ -230,7 +230,7 @@ class TestHookManagerCLI:
 
 
 class TestSpawnRunnerIntegration:
-    """Test that spawn_runner.py creates identity + hook before launch."""
+    """Test that runner.py creates identity + hook before launch."""
 
     def _make_identity_side_effect(self, identity_dir):
         """Return a side_effect function that calls the real create_identity with tmp state_dir."""
@@ -255,7 +255,7 @@ class TestSpawnRunnerIntegration:
         return _side_effect
 
     def test_spawn_runner_creates_identity(self, tmp_path):
-        """spawn_runner.main() registers runner identity before Popen."""
+        """runner.main() registers runner identity before Popen."""
         identity_dir = str(tmp_path / "identities")
         hooks_dir = str(tmp_path / "hooks")
         runner_state_dir = str(tmp_path / "runner-state")
@@ -263,19 +263,19 @@ class TestSpawnRunnerIntegration:
         mock_proc = MagicMock()
         mock_proc.pid = 12345
 
-        with patch("spawn_runner.subprocess.Popen", return_value=mock_proc) as mock_popen, \
-             patch("spawn_runner.identity_registry.create_identity",
+        with patch("runner.subprocess.Popen", return_value=mock_proc) as mock_popen, \
+             patch("runner.identity_registry.create_identity",
                    side_effect=self._make_identity_side_effect(identity_dir)) as mock_create_id, \
-             patch("spawn_runner.hook_manager.create_hook",
+             patch("runner.hook_manager.create_hook",
                    side_effect=self._make_hook_side_effect(hooks_dir)), \
-             patch("spawn_runner._runner_state_dir", return_value=runner_state_dir), \
-             patch("sys.argv", ["spawn_runner.py",
+             patch("runner._runner_state_dir", return_value=runner_state_dir), \
+             patch("sys.argv", ["runner.py", "--spawn",
                                 "--node", "test_node",
                                 "--prd", "PRD-TEST-001",
                                 "--target-dir", str(tmp_path)]):
             buf = io.StringIO()
             with redirect_stdout(buf):
-                spawn_runner.main()
+                runner.main()
 
         # Verify identity creation was called
         assert mock_create_id.called
@@ -290,7 +290,7 @@ class TestSpawnRunnerIntegration:
         assert identity_data["name"] == "test_node"
 
     def test_spawn_runner_creates_hook(self, tmp_path):
-        """spawn_runner.main() creates hook with phase=planning before Popen."""
+        """runner.main() creates hook with phase=planning before Popen."""
         identity_dir = str(tmp_path / "identities")
         hooks_dir = str(tmp_path / "hooks")
         runner_state_dir = str(tmp_path / "runner-state")
@@ -298,19 +298,19 @@ class TestSpawnRunnerIntegration:
         mock_proc = MagicMock()
         mock_proc.pid = 99999
 
-        with patch("spawn_runner.subprocess.Popen", return_value=mock_proc), \
-             patch("spawn_runner.identity_registry.create_identity",
+        with patch("runner.subprocess.Popen", return_value=mock_proc), \
+             patch("runner.identity_registry.create_identity",
                    side_effect=self._make_identity_side_effect(identity_dir)), \
-             patch("spawn_runner.hook_manager.create_hook",
+             patch("runner.hook_manager.create_hook",
                    side_effect=self._make_hook_side_effect(hooks_dir)) as mock_create_hook, \
-             patch("spawn_runner._runner_state_dir", return_value=runner_state_dir), \
-             patch("sys.argv", ["spawn_runner.py",
+             patch("runner._runner_state_dir", return_value=runner_state_dir), \
+             patch("sys.argv", ["runner.py", "--spawn",
                                 "--node", "hook_test_node",
                                 "--prd", "PRD-TEST-002",
                                 "--target-dir", str(tmp_path)]):
             buf = io.StringIO()
             with redirect_stdout(buf):
-                spawn_runner.main()
+                runner.main()
 
         # Verify hook creation was called
         assert mock_create_hook.called
@@ -326,7 +326,7 @@ class TestSpawnRunnerIntegration:
         assert hook_data["phase"] == "planning"
 
     def test_spawn_runner_writes_state_with_pid(self, tmp_path):
-        """spawn_runner.main() writes state file with runner_pid field."""
+        """runner.main() writes state file with runner_pid field."""
         runner_state_dir = str(tmp_path / "runner-state")
         identity_dir = str(tmp_path / "identities")
         hooks_dir = str(tmp_path / "hooks")
@@ -334,19 +334,19 @@ class TestSpawnRunnerIntegration:
         mock_proc = MagicMock()
         mock_proc.pid = 54321
 
-        with patch("spawn_runner.subprocess.Popen", return_value=mock_proc), \
-             patch("spawn_runner.identity_registry.create_identity",
+        with patch("runner.subprocess.Popen", return_value=mock_proc), \
+             patch("runner.identity_registry.create_identity",
                    side_effect=self._make_identity_side_effect(identity_dir)), \
-             patch("spawn_runner.hook_manager.create_hook",
+             patch("runner.hook_manager.create_hook",
                    side_effect=self._make_hook_side_effect(hooks_dir)), \
-             patch("spawn_runner._runner_state_dir", return_value=runner_state_dir), \
-             patch("sys.argv", ["spawn_runner.py",
+             patch("runner._runner_state_dir", return_value=runner_state_dir), \
+             patch("sys.argv", ["runner.py", "--spawn",
                                 "--node", "pid_test_node",
                                 "--prd", "PRD-TEST-003",
                                 "--target-dir", str(tmp_path)]):
             buf = io.StringIO()
             with redirect_stdout(buf):
-                spawn_runner.main()
+                runner.main()
 
         # Verify output JSON contains runner_pid
         output = buf.getvalue()

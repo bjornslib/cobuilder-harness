@@ -1,4 +1,4 @@
-"""Unit tests for RunnerStateMachine in runner_agent.py.
+"""Unit tests for RunnerStateMachine in runner.py.
 
 Tests:
     TestRunnerMode              - RunnerMode constants have expected string values
@@ -39,10 +39,10 @@ def _make_machine(**overrides):
 
     runner_tools is patched so that get_tool_dispatch() returns a mock dispatch
     that doesn't touch the filesystem. The patch is applied at the module level
-    (runner_agent.runner_tools) since RunnerStateMachine imports runner_tools in
-    __init__ via the module-level import of runner_agent.
+    (runner.runner_tools) since RunnerStateMachine imports runner_tools in
+    __init__ via the module-level import of runner.
     """
-    from runner_agent import RunnerStateMachine
+    from runner import RunnerStateMachine
     return RunnerStateMachine(
         node_id=overrides.get("node_id", _NODE),
         prd_ref=overrides.get("prd_ref", _PRD),
@@ -65,19 +65,19 @@ class TestRunnerMode(unittest.TestCase):
     """Tests for RunnerMode constants."""
 
     def test_monitor_constant(self) -> None:
-        from runner_agent import RunnerMode
+        from runner import RunnerMode
         self.assertEqual(RunnerMode.MONITOR, "MONITOR")
 
     def test_complete_constant(self) -> None:
-        from runner_agent import RunnerMode
+        from runner import RunnerMode
         self.assertEqual(RunnerMode.COMPLETE, "COMPLETE")
 
     def test_failed_constant(self) -> None:
-        from runner_agent import RunnerMode
+        from runner import RunnerMode
         self.assertEqual(RunnerMode.FAILED, "FAILED")
 
     def test_constants_are_distinct(self) -> None:
-        from runner_agent import RunnerMode
+        from runner import RunnerMode
         values = {RunnerMode.MONITOR, RunnerMode.COMPLETE, RunnerMode.FAILED}
         self.assertEqual(len(values), 3)
 
@@ -91,7 +91,7 @@ class TestBuildMonitorPrompt(unittest.TestCase):
     """Tests for build_monitor_prompt()."""
 
     def _call(self, **kwargs) -> str:
-        from runner_agent import build_monitor_prompt
+        from runner import build_monitor_prompt
         return build_monitor_prompt(
             node_id=kwargs.get("node_id", _NODE),
             session_name=kwargs.get("session_name", _SESSION),
@@ -148,7 +148,7 @@ class TestRunnerStateMachineInit(unittest.TestCase):
         #   import signal_protocol as _sp  (cached, no filesystem)
         #   self._scripts_dir = resolve_scripts_dir()  (returns _THIS_DIR constant)
         # No mocking is required — instantiation has no side-effects.
-        from runner_agent import RunnerStateMachine
+        from runner import RunnerStateMachine
         return RunnerStateMachine(
             node_id=kwargs.get("node_id", _NODE),
             prd_ref=kwargs.get("prd_ref", _PRD),
@@ -162,7 +162,7 @@ class TestRunnerStateMachineInit(unittest.TestCase):
         )
 
     def test_mode_starts_as_monitor(self) -> None:
-        from runner_agent import RunnerMode
+        from runner import RunnerMode
         machine = self._make()
         self.assertEqual(machine.mode, RunnerMode.MONITOR)
 
@@ -213,7 +213,7 @@ class TestDoMonitorMode(unittest.TestCase):
 
     def _make_machine_with_mocks(self, asyncio_run_side_effect=None):
         """Return a machine and configure asyncio.run and build_options mocks."""
-        from runner_agent import RunnerStateMachine
+        from runner import RunnerStateMachine
         machine = RunnerStateMachine.__new__(RunnerStateMachine)
         machine.node_id = _NODE
         machine.prd_ref = _PRD
@@ -263,9 +263,9 @@ class TestDoMonitorMode(unittest.TestCase):
             except Exception:
                 pass
 
-        with patch("runner_agent.build_monitor_prompt", return_value="test prompt"), \
-             patch("runner_agent.build_options", return_value=MagicMock()), \
-             patch("runner_agent.asyncio.run") as mock_run:
+        with patch("runner.build_monitor_prompt", return_value="test prompt"), \
+             patch("runner.build_options", return_value=MagicMock()), \
+             patch("runner.asyncio.run") as mock_run:
 
             # Side effect: after asyncio.run is called, the text_blocks list
             # inside _do_monitor_mode is populated by the mock.
@@ -286,7 +286,7 @@ class TestDoMonitorMode(unittest.TestCase):
 
     def test_completed_when_status_completed_in_output(self) -> None:
         """Returns 'COMPLETED' when LLM output contains 'STATUS: COMPLETED'."""
-        from runner_agent import RunnerStateMachine
+        from runner import RunnerStateMachine
         machine = RunnerStateMachine.__new__(RunnerStateMachine)
         machine.node_id = _NODE
         machine.prd_ref = _PRD
@@ -304,9 +304,9 @@ class TestDoMonitorMode(unittest.TestCase):
         async def fake_run_with_capture():
             pass  # text_blocks is populated by asyncio.run mock
 
-        with patch("runner_agent.build_monitor_prompt", return_value="test prompt"), \
-             patch("runner_agent.build_options", return_value=mock_options), \
-             patch("runner_agent.asyncio") as mock_asyncio:
+        with patch("runner.build_monitor_prompt", return_value="test prompt"), \
+             patch("runner.build_options", return_value=mock_options), \
+             patch("runner.asyncio") as mock_asyncio:
 
             # After asyncio.run is called, text_blocks inside the closure is empty.
             # We need to inject text. Patch the whole _do_monitor_mode approach:
@@ -335,7 +335,7 @@ class TestDoMonitorMode(unittest.TestCase):
 
     def test_do_monitor_returns_completed_string(self) -> None:
         """_do_monitor_mode() returns the string 'COMPLETED' on STATUS: COMPLETED."""
-        from runner_agent import RunnerStateMachine, RunnerMode
+        from runner import RunnerStateMachine, RunnerMode
 
         machine = RunnerStateMachine.__new__(RunnerStateMachine)
         machine.node_id = _NODE
@@ -359,7 +359,7 @@ class TestDoMonitorMode(unittest.TestCase):
 
     def test_do_monitor_returns_failed_string(self) -> None:
         """_do_monitor_mode() returning 'FAILED' causes run() to return FAILED."""
-        from runner_agent import RunnerStateMachine, RunnerMode
+        from runner import RunnerStateMachine, RunnerMode
 
         machine = RunnerStateMachine.__new__(RunnerStateMachine)
         machine.node_id = _NODE
@@ -382,7 +382,7 @@ class TestDoMonitorMode(unittest.TestCase):
 
     def test_do_monitor_in_progress_continues_loop(self) -> None:
         """'IN_PROGRESS' keeps the state machine in MONITOR mode (until cycles exceed)."""
-        from runner_agent import RunnerStateMachine, RunnerMode
+        from runner import RunnerStateMachine, RunnerMode
 
         machine = RunnerStateMachine.__new__(RunnerStateMachine)
         machine.node_id = _NODE
@@ -414,7 +414,7 @@ class TestWriteSafetyNet(unittest.TestCase):
     """Tests for RunnerStateMachine._write_safety_net_if_needed()."""
 
     def _make_machine(self, mode: str, signals_dir: str | None = None):
-        from runner_agent import RunnerStateMachine, RunnerMode
+        from runner import RunnerStateMachine, RunnerMode
         machine = RunnerStateMachine.__new__(RunnerStateMachine)
         machine.node_id = _NODE
         machine.prd_ref = _PRD
@@ -434,28 +434,28 @@ class TestWriteSafetyNet(unittest.TestCase):
 
     def test_writes_signal_when_mode_is_failed(self) -> None:
         """Safety net writes RUNNER_EXITED signal when mode is FAILED."""
-        from runner_agent import RunnerMode
+        from runner import RunnerMode
         machine, mock_sp = self._make_machine(RunnerMode.FAILED)
         machine._write_safety_net_if_needed()
         mock_sp.write_runner_exited.assert_called_once()
 
     def test_writes_signal_when_mode_is_monitor(self) -> None:
         """Safety net writes RUNNER_EXITED signal when mode is still MONITOR."""
-        from runner_agent import RunnerMode
+        from runner import RunnerMode
         machine, mock_sp = self._make_machine(RunnerMode.MONITOR)
         machine._write_safety_net_if_needed()
         mock_sp.write_runner_exited.assert_called_once()
 
     def test_does_not_write_signal_when_mode_is_complete(self) -> None:
         """Safety net does NOT write signal when mode is COMPLETE."""
-        from runner_agent import RunnerMode
+        from runner import RunnerMode
         machine, mock_sp = self._make_machine(RunnerMode.COMPLETE)
         machine._write_safety_net_if_needed()
         mock_sp.write_runner_exited.assert_not_called()
 
     def test_payload_contains_node_id(self) -> None:
         """Safety net signal contains the node_id in the call."""
-        from runner_agent import RunnerMode
+        from runner import RunnerMode
         machine, mock_sp = self._make_machine(RunnerMode.FAILED)
         machine._write_safety_net_if_needed()
         call_kwargs = mock_sp.write_runner_exited.call_args
@@ -465,7 +465,7 @@ class TestWriteSafetyNet(unittest.TestCase):
 
     def test_payload_contains_prd_ref(self) -> None:
         """Safety net signal contains the prd_ref in the call."""
-        from runner_agent import RunnerMode
+        from runner import RunnerMode
         machine, mock_sp = self._make_machine(RunnerMode.FAILED)
         machine._write_safety_net_if_needed()
         call_kwargs = mock_sp.write_runner_exited.call_args
@@ -474,7 +474,7 @@ class TestWriteSafetyNet(unittest.TestCase):
 
     def test_signals_dir_passed_through(self, tmp_path=None) -> None:
         """Safety net passes signals_dir to write_runner_exited."""
-        from runner_agent import RunnerMode
+        from runner import RunnerMode
         machine, mock_sp = self._make_machine(RunnerMode.FAILED, signals_dir="/tmp/sigs")
         machine._write_safety_net_if_needed()
         call_kwargs = mock_sp.write_runner_exited.call_args
@@ -483,7 +483,7 @@ class TestWriteSafetyNet(unittest.TestCase):
 
     def test_swallows_signal_write_exception(self) -> None:
         """Safety net does not raise if write_runner_exited() raises."""
-        from runner_agent import RunnerMode
+        from runner import RunnerMode
         machine, mock_sp = self._make_machine(RunnerMode.FAILED)
         mock_sp.write_runner_exited.side_effect = OSError("disk full")
         # Should not raise
@@ -502,7 +502,7 @@ class TestRunnerStateMachineRun(unittest.TestCase):
     """Tests for RunnerStateMachine.run()."""
 
     def _make_machine(self, max_cycles: int = 3):
-        from runner_agent import RunnerStateMachine, RunnerMode
+        from runner import RunnerStateMachine, RunnerMode
         machine = RunnerStateMachine.__new__(RunnerStateMachine)
         machine.node_id = _NODE
         machine.prd_ref = _PRD
@@ -519,21 +519,21 @@ class TestRunnerStateMachineRun(unittest.TestCase):
         return machine
 
     def test_run_returns_complete_when_monitor_says_completed(self) -> None:
-        from runner_agent import RunnerMode
+        from runner import RunnerMode
         machine = self._make_machine()
         with patch.object(machine, "_do_monitor_mode", return_value="COMPLETED"):
             result = machine.run()
         self.assertEqual(result, RunnerMode.COMPLETE)
 
     def test_run_returns_failed_when_monitor_says_failed(self) -> None:
-        from runner_agent import RunnerMode
+        from runner import RunnerMode
         machine = self._make_machine()
         with patch.object(machine, "_do_monitor_mode", return_value="FAILED"):
             result = machine.run()
         self.assertEqual(result, RunnerMode.FAILED)
 
     def test_run_returns_failed_when_max_cycles_exceeded(self) -> None:
-        from runner_agent import RunnerMode
+        from runner import RunnerMode
         machine = self._make_machine(max_cycles=2)
         with patch.object(machine, "_do_monitor_mode", return_value="IN_PROGRESS"):
             result = machine.run()
@@ -541,7 +541,7 @@ class TestRunnerStateMachineRun(unittest.TestCase):
 
     def test_run_calls_do_monitor_mode_until_terminal(self) -> None:
         """run() calls _do_monitor_mode repeatedly until a terminal status."""
-        from runner_agent import RunnerMode
+        from runner import RunnerMode
         machine = self._make_machine()
         responses = ["IN_PROGRESS", "IN_PROGRESS", "COMPLETED"]
         with patch.object(machine, "_do_monitor_mode", side_effect=responses):
@@ -575,7 +575,7 @@ class TestRunnerStateMachineRun(unittest.TestCase):
 
     def test_run_mode_is_complete_before_safety_net_on_success(self) -> None:
         """After COMPLETED, mode is set to COMPLETE before _write_safety_net_if_needed."""
-        from runner_agent import RunnerMode
+        from runner import RunnerMode
         machine = self._make_machine()
         mode_at_safety_net_call = []
 
@@ -609,7 +609,7 @@ class TestDotFileInDryRunConfig(unittest.TestCase):
         import io
         import json
         from contextlib import redirect_stdout
-        import runner_agent
+        import runner
 
         base_args = [
             "--node", "n1", "--prd", "PRD-X-001",
@@ -619,7 +619,7 @@ class TestDotFileInDryRunConfig(unittest.TestCase):
         buf = io.StringIO()
         with self.assertRaises(SystemExit) as cm:
             with redirect_stdout(buf):
-                runner_agent.main(base_args)
+                runner.main(base_args)
         self.assertEqual(cm.exception.code, 0)
         return json.loads(buf.getvalue())
 

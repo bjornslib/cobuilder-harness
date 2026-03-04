@@ -1,4 +1,4 @@
-"""Unit tests for guardian_agent.py — Layer 1 Guardian Agent.
+"""Unit tests for guardian.py — Layer 1 Guardian Agent.
 
 Tests:
     TestParseArgs               - parse_args() with various CLI combinations
@@ -23,8 +23,8 @@ _ATTRACTOR_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ATTRACTOR_DIR not in sys.path:
     sys.path.insert(0, _ATTRACTOR_DIR)
 
-import guardian_agent  # noqa: E402
-from guardian_agent import (  # noqa: E402
+import guardian  # noqa: E402
+from guardian import (  # noqa: E402
     build_env_config,
     build_initial_prompt,
     build_options,
@@ -131,10 +131,10 @@ class TestParseArgs(unittest.TestCase):
         with self.assertRaises(SystemExit):
             parse_args(["--dot", "/p.dot", "--target-dir", "/tmp/target"])
 
-    def test_missing_target_dir_exits(self) -> None:
-        """AC-3: --target-dir is now required; missing it must raise SystemExit."""
-        with self.assertRaises(SystemExit):
-            parse_args(["--dot", "/p.dot", "--pipeline-id", "p1"])
+    def test_missing_target_dir_defaults_none(self) -> None:
+        """--target-dir is optional in merged guardian.py; omitting it yields None."""
+        args = parse_args(["--dot", "/p.dot", "--pipeline-id", "p1"])
+        self.assertIsNone(args.target_dir)
 
     def test_missing_all_required_exits(self) -> None:
         with self.assertRaises(SystemExit):
@@ -253,7 +253,7 @@ class TestBuildSystemPrompt(unittest.TestCase):
 
     def test_contains_spawn_runner(self) -> None:
         result = _make_system_prompt()
-        self.assertIn("spawn_runner.py", result)
+        self.assertIn("runner.py --spawn", result)
 
     def test_contains_wait_for_signal(self) -> None:
         result = _make_system_prompt()
@@ -430,7 +430,7 @@ class TestDryRunMode(unittest.TestCase):
         buf = io.StringIO()
         with self.assertRaises(SystemExit) as cm:
             with redirect_stdout(buf):
-                guardian_agent.main(base_args)
+                guardian.main(base_args)
 
         self.assertEqual(cm.exception.code, 0)
         return buf.getvalue()
@@ -512,11 +512,11 @@ class TestDryRunMode(unittest.TestCase):
         import io
         from contextlib import redirect_stdout
 
-        with patch("guardian_agent._run_agent") as mock_run:
+        with patch("guardian._run_agent") as mock_run:
             buf = io.StringIO()
             with self.assertRaises(SystemExit):
                 with redirect_stdout(buf):
-                    guardian_agent.main(
+                    guardian.main(
                         ["--dot", "/tmp/p.dot", "--pipeline-id", "p",
                          "--target-dir", "/tmp", "--dry-run"]
                     )
@@ -546,8 +546,8 @@ class TestResolveScriptsDir(unittest.TestCase):
     def test_contains_guardian_agent_itself(self) -> None:
         result = resolve_scripts_dir()
         self.assertTrue(
-            os.path.exists(os.path.join(result, "guardian_agent.py")),
-            f"guardian_agent.py not found in {result}",
+            os.path.exists(os.path.join(result, "guardian.py")),
+            f"guardian.py not found in {result}",
         )
 
     def test_contains_wait_for_signal(self) -> None:
@@ -566,8 +566,8 @@ class TestResolveScriptsDir(unittest.TestCase):
     def test_contains_runner_agent(self) -> None:
         result = resolve_scripts_dir()
         self.assertTrue(
-            os.path.exists(os.path.join(result, "runner_agent.py")),
-            f"runner_agent.py not found in {result}",
+            os.path.exists(os.path.join(result, "runner.py")),
+            f"runner.py not found in {result}",
         )
 
 
@@ -628,7 +628,7 @@ class TestLogfireInstrumentation(unittest.TestCase):
     """Tests that logfire instrumentation is present and doesn't break functionality."""
 
     def test_logfire_is_imported(self):
-        """guardian_agent should import logfire directly (required dependency)."""
+        """guardian should import logfire directly (required dependency)."""
         import logfire as _lf
         self.assertTrue(hasattr(_lf, 'span'))
 

@@ -18,8 +18,8 @@ if _THIS_DIR not in sys.path:
 
 from claude_code_sdk import ClaudeCodeOptions
 
-# Import the actual _run_agent from launch_guardian (the real entry point)
-from launch_guardian import _run_agent
+# Import the actual _run_agent from guardian (merged from launch_guardian)
+from guardian import _run_agent
 
 
 async def main():

@@ -1,4 +1,4 @@
-"""Unit tests for launch_guardian.py — Layer 0 Terminal-to-Guardian Bridge.
+"""Unit tests for guardian.py — Layer 0 Terminal-to-Guardian Bridge.
 
 Tests:
     TestParseArgs                    - parse_args() with various CLI combinations
@@ -6,7 +6,7 @@ Tests:
     TestBuildInitialPrompt           - build_initial_prompt() delegates to guardian_agent
     TestBuildEnvConfig               - build_env_config() returns {"CLAUDECODE": ""}
     TestResolveScriptsDir            - resolve_scripts_dir() returns valid path
-    TestLaunchGuardianDryRun         - launch_guardian() dry_run mode (no SDK call)
+    TestLaunchGuardianDryRun         - guardian() dry_run mode (no SDK call)
     TestLaunchMultipleGuardians      - launch_multiple_guardians() parallel launch (mocked)
     TestMonitorGuardian              - monitor_guardian() signal detection (mocked)
     TestHandleEscalation             - handle_escalation() payload formatting
@@ -31,8 +31,8 @@ _ATTRACTOR_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ATTRACTOR_DIR not in sys.path:
     sys.path.insert(0, _ATTRACTOR_DIR)
 
-import launch_guardian  # noqa: E402
-from launch_guardian import (  # noqa: E402
+import guardian  # noqa: E402
+from guardian import (  # noqa: E402
     build_env_config,
     build_initial_prompt,
     build_system_prompt,
@@ -278,10 +278,10 @@ class TestBuildSystemPrompt(unittest.TestCase):
         self.assertIn("Layer 1", result)
 
     def test_matches_guardian_agent_output(self) -> None:
-        """build_system_prompt must delegate to guardian_agent.build_system_prompt."""
-        import guardian_agent
+        """build_system_prompt is in merged guardian module."""
+        import guardian
 
-        expected = guardian_agent.build_system_prompt(
+        expected = guardian.build_system_prompt(
             dot_path=_DOT_PATH,
             pipeline_id=_PIPELINE_ID,
             scripts_dir=_SCRIPTS_DIR,
@@ -348,10 +348,10 @@ class TestBuildInitialPrompt(unittest.TestCase):
         self.assertLess(len(result), 5000)
 
     def test_matches_guardian_agent_output(self) -> None:
-        """build_initial_prompt must delegate to guardian_agent.build_initial_prompt."""
-        import guardian_agent
+        """build_initial_prompt is in merged guardian module."""
+        import guardian
 
-        expected = guardian_agent.build_initial_prompt(
+        expected = guardian.build_initial_prompt(
             dot_path=_DOT_PATH,
             pipeline_id=_PIPELINE_ID,
             scripts_dir=_SCRIPTS_DIR,
@@ -413,15 +413,15 @@ class TestResolveScriptsDir(unittest.TestCase):
     def test_contains_launch_guardian_itself(self) -> None:
         result = resolve_scripts_dir()
         self.assertTrue(
-            os.path.exists(os.path.join(result, "launch_guardian.py")),
-            f"launch_guardian.py not found in {result}",
+            os.path.exists(os.path.join(result, "guardian.py")),
+            f"guardian.py not found in {result}",
         )
 
     def test_contains_guardian_agent(self) -> None:
         result = resolve_scripts_dir()
         self.assertTrue(
-            os.path.exists(os.path.join(result, "guardian_agent.py")),
-            f"guardian_agent.py not found in {result}",
+            os.path.exists(os.path.join(result, "guardian.py")),
+            f"guardian.py not found in {result}",
         )
 
     def test_contains_signal_protocol(self) -> None:
@@ -443,10 +443,10 @@ class TestResolveScriptsDir(unittest.TestCase):
 
 
 class TestLaunchGuardianDryRun(unittest.TestCase):
-    """Tests for launch_guardian() in dry_run mode (no SDK invocation)."""
+    """Tests for guardian() in dry_run mode (no SDK invocation)."""
 
     def _call_dry(self, **kwargs) -> dict:
-        return launch_guardian.launch_guardian(
+        return guardian.launch_guardian(
             dot_path="/tmp/pipeline.dot",
             project_root="/tmp/project",
             pipeline_id="test-pipe-001",
@@ -520,7 +520,7 @@ class TestLaunchGuardianDryRun(unittest.TestCase):
 
     def test_does_not_call_run_agent(self) -> None:
         """dry_run must never invoke _run_agent()."""
-        with patch("launch_guardian._run_agent") as mock_run:
+        with patch("guardian._run_agent") as mock_run:
             self._call_dry()
             mock_run.assert_not_called()
 
@@ -551,11 +551,11 @@ class TestLaunchMultipleGuardians(unittest.TestCase):
         }
 
     def test_empty_configs_returns_empty_list(self) -> None:
-        result = launch_guardian.launch_multiple_guardians([])
+        result = guardian.launch_multiple_guardians([])
         self.assertEqual(result, [])
 
     def test_single_config_returns_single_result(self) -> None:
-        results = launch_guardian.launch_multiple_guardians([self._make_cfg()])
+        results = guardian.launch_multiple_guardians([self._make_cfg()])
         self.assertIsInstance(results, list)
         self.assertEqual(len(results), 1)
 
@@ -565,18 +565,18 @@ class TestLaunchMultipleGuardians(unittest.TestCase):
             self._make_cfg("pipe-2"),
             self._make_cfg("pipe-3"),
         ]
-        results = launch_guardian.launch_multiple_guardians(configs)
+        results = guardian.launch_multiple_guardians(configs)
         self.assertEqual(len(results), 3)
 
     def test_each_result_has_pipeline_id(self) -> None:
         configs = [self._make_cfg("pipe-A"), self._make_cfg("pipe-B")]
-        results = launch_guardian.launch_multiple_guardians(configs)
+        results = guardian.launch_multiple_guardians(configs)
         pipeline_ids = {r["pipeline_id"] for r in results}
         self.assertIn("pipe-A", pipeline_ids)
         self.assertIn("pipe-B", pipeline_ids)
 
     def test_dry_run_results_have_dry_run_true(self) -> None:
-        results = launch_guardian.launch_multiple_guardians([self._make_cfg()])
+        results = guardian.launch_multiple_guardians([self._make_cfg()])
         self.assertTrue(results[0]["dry_run"])
 
     def test_individual_failure_does_not_stop_others(self) -> None:
@@ -595,8 +595,8 @@ class TestLaunchMultipleGuardians(unittest.TestCase):
             {"dot_path": "/tmp/p.dot", "project_root": "/tmp", "pipeline_id": "another-good", "dry_run": False},
         ]
 
-        with patch("launch_guardian._launch_guardian_async", side_effect=fake_launch):
-            results = launch_guardian.launch_multiple_guardians(configs)
+        with patch("guardian._launch_guardian_async", side_effect=fake_launch):
+            results = guardian.launch_multiple_guardians(configs)
 
         self.assertEqual(len(results), 3)
 
@@ -610,15 +610,15 @@ class TestLaunchMultipleGuardians(unittest.TestCase):
             raise RuntimeError("always fails")
 
         configs = [{"dot_path": "/tmp/p.dot", "project_root": "/tmp", "pipeline_id": "fail-pipe"}]
-        with patch("launch_guardian._launch_guardian_async", side_effect=always_fail):
-            results = launch_guardian.launch_multiple_guardians(configs)
+        with patch("guardian._launch_guardian_async", side_effect=always_fail):
+            results = guardian.launch_multiple_guardians(configs)
 
         self.assertEqual(results[0]["status"], "error")
         self.assertIn("error", results[0])
 
     def test_results_are_list_of_dicts(self) -> None:
         configs = [self._make_cfg("p1"), self._make_cfg("p2")]
-        results = launch_guardian.launch_multiple_guardians(configs)
+        results = guardian.launch_multiple_guardians(configs)
         for r in results:
             self.assertIsInstance(r, dict)
 
@@ -637,7 +637,7 @@ class TestMonitorGuardian(unittest.TestCase):
                 raise TimeoutError("No signal within 1s")
             return signal_data
 
-        with patch("launch_guardian.wait_for_signal", mock_wait_for_signal):
+        with patch("guardian.wait_for_signal", mock_wait_for_signal):
             return monitor_guardian(
                 guardian_process=None,
                 dot_path="/tmp/pipeline.dot",
@@ -680,7 +680,7 @@ class TestMonitorGuardian(unittest.TestCase):
         def mock_wait(**kwargs):
             raise OSError("disk error")
 
-        with patch("launch_guardian.wait_for_signal", mock_wait):
+        with patch("guardian.wait_for_signal", mock_wait):
             result = monitor_guardian(None, "/tmp/pipeline.dot")
 
         self.assertEqual(result["status"], "error")
@@ -883,7 +883,7 @@ class TestCLIIntegrationDryRun(unittest.TestCase):
         buf = io.StringIO()
         with self.assertRaises(SystemExit) as cm:
             with redirect_stdout(buf):
-                launch_guardian.main(base_args)
+                guardian.main(base_args)
 
         self.assertEqual(cm.exception.code, 0)
         return buf.getvalue()
@@ -943,11 +943,11 @@ class TestCLIIntegrationDryRun(unittest.TestCase):
 
     def test_dry_run_does_not_call_run_agent(self) -> None:
         """Dry-run must never invoke the SDK _run_agent()."""
-        with patch("launch_guardian._run_agent") as mock_run:
+        with patch("guardian._run_agent") as mock_run:
             buf = io.StringIO()
             with self.assertRaises(SystemExit):
                 with redirect_stdout(buf):
-                    launch_guardian.main([
+                    guardian.main([
                         "--dot", "/tmp/p.dot",
                         "--pipeline-id", "p",
                         "--target-dir", "/tmp",
@@ -992,7 +992,7 @@ class TestCLIMultiMode(unittest.TestCase):
 
             buf = io.StringIO()
             with redirect_stdout(buf):
-                launch_guardian.main(args)
+                guardian.main(args)
             return buf.getvalue()
         finally:
             os.unlink(cfg_path)
@@ -1023,7 +1023,7 @@ class TestCLIMultiMode(unittest.TestCase):
         try:
             buf = io.StringIO()
             with redirect_stdout(buf):
-                launch_guardian.main(["--multi", cfg_path, "--dry-run"])
+                guardian.main(["--multi", cfg_path, "--dry-run"])
             data = json.loads(buf.getvalue())
             self.assertTrue(data[0]["dry_run"])
         finally:
@@ -1031,7 +1031,7 @@ class TestCLIMultiMode(unittest.TestCase):
 
     def test_multi_missing_file_exits_nonzero(self) -> None:
         with self.assertRaises(SystemExit) as cm:
-            launch_guardian.main(["--multi", "/nonexistent/path.json"])
+            guardian.main(["--multi", "/nonexistent/path.json"])
         self.assertNotEqual(cm.exception.code, 0)
 
     def test_multi_invalid_json_exits_nonzero(self) -> None:
@@ -1040,7 +1040,7 @@ class TestCLIMultiMode(unittest.TestCase):
             bad_path = fh.name
         try:
             with self.assertRaises(SystemExit) as cm:
-                launch_guardian.main(["--multi", bad_path])
+                guardian.main(["--multi", bad_path])
             self.assertNotEqual(cm.exception.code, 0)
         finally:
             os.unlink(bad_path)
@@ -1051,7 +1051,7 @@ class TestCLIMultiMode(unittest.TestCase):
             bad_path = fh.name
         try:
             with self.assertRaises(SystemExit) as cm:
-                launch_guardian.main(["--multi", bad_path])
+                guardian.main(["--multi", bad_path])
             self.assertNotEqual(cm.exception.code, 0)
         finally:
             os.unlink(bad_path)
@@ -1161,7 +1161,7 @@ class TestMonitorGuardianValidationComplete(unittest.TestCase):
         def mock_wait_for_signal(**wait_kwargs):
             return signal_data
 
-        with patch("launch_guardian.wait_for_signal", mock_wait_for_signal):
+        with patch("guardian.wait_for_signal", mock_wait_for_signal):
             return monitor_guardian(
                 guardian_process=None,
                 dot_path="/tmp/pipeline.dot",
@@ -1204,7 +1204,7 @@ class TestMonitorGuardianValidationComplete(unittest.TestCase):
 
 
 class TestIdentityRegistration(unittest.TestCase):
-    """Tests that launch_guardian.main() registers a Layer 0 identity before launching."""
+    """Tests that guardian.main() registers a Layer 0 identity before launching."""
 
     def _make_dot_file(self, tmp_dir: str) -> str:
         """Create a minimal DOT file for testing."""
@@ -1230,13 +1230,13 @@ class TestIdentityRegistration(unittest.TestCase):
                 "--pipeline-id", "test-pipeline",
                 "--target-dir", tmp_dir,
             ]
-            with patch("launch_guardian.launch_guardian") as mock_launch, \
-                 patch("launch_guardian.identity_registry") as mock_registry:
+            with patch("guardian.launch_guardian") as mock_launch, \
+                 patch("guardian.identity_registry") as mock_registry:
                 mock_launch.return_value = {"status": "ok", "pipeline_id": "test-pipeline", "dot_path": dot_path}
                 buf = io.StringIO()
                 try:
                     with redirect_stdout(buf):
-                        launch_guardian.main(argv)
+                        guardian.main(argv)
                 except SystemExit:
                     pass
             mock_registry.create_identity.assert_called_once()
@@ -1251,13 +1251,13 @@ class TestIdentityRegistration(unittest.TestCase):
                 "--pipeline-id", "test-pipeline",
                 "--target-dir", tmp_dir,
             ]
-            with patch("launch_guardian.launch_guardian") as mock_launch, \
-                 patch("launch_guardian.identity_registry") as mock_registry:
+            with patch("guardian.launch_guardian") as mock_launch, \
+                 patch("guardian.identity_registry") as mock_registry:
                 mock_launch.return_value = {"status": "ok", "pipeline_id": "test-pipeline", "dot_path": dot_path}
                 buf = io.StringIO()
                 try:
                     with redirect_stdout(buf):
-                        launch_guardian.main(argv)
+                        guardian.main(argv)
                 except SystemExit:
                     pass
             call_kwargs = mock_registry.create_identity.call_args
@@ -1277,13 +1277,13 @@ class TestIdentityRegistration(unittest.TestCase):
                 "--pipeline-id", "test-pipeline",
                 "--target-dir", tmp_dir,
             ]
-            with patch("launch_guardian.launch_guardian") as mock_launch, \
-                 patch("launch_guardian.identity_registry") as mock_registry:
+            with patch("guardian.launch_guardian") as mock_launch, \
+                 patch("guardian.identity_registry") as mock_registry:
                 mock_launch.return_value = {"status": "ok", "pipeline_id": "test-pipeline", "dot_path": dot_path}
                 buf = io.StringIO()
                 try:
                     with redirect_stdout(buf):
-                        launch_guardian.main(argv)
+                        guardian.main(argv)
                 except SystemExit:
                     pass
             call_kwargs = mock_registry.create_identity.call_args
@@ -1301,11 +1301,11 @@ class TestIdentityRegistration(unittest.TestCase):
                 "--target-dir", tmp_dir,
                 "--dry-run",
             ]
-            with patch("launch_guardian.identity_registry") as mock_registry:
+            with patch("guardian.identity_registry") as mock_registry:
                 buf = io.StringIO()
                 with self.assertRaises(SystemExit):
                     with redirect_stdout(buf):
-                        launch_guardian.main(argv)
+                        guardian.main(argv)
             # In dry-run, we exit before identity registration
             mock_registry.create_identity.assert_not_called()
 

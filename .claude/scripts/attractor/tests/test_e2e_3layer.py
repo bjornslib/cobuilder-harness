@@ -1,9 +1,9 @@
 """E2E integration tests for the 4-layer Guardian Architecture pipeline.
 
 Layers:
-    Layer 0: Interactive Terminal (launch_guardian.py)
-    Layer 1: Headless Guardian  (guardian_agent.py)
-    Layer 2: Runner             (runner_agent.py)
+    Layer 0: Interactive Terminal (guardian.py)
+    Layer 1: Headless Guardian  (guardian.py)
+    Layer 2: Runner             (runner.py)
     Layer 3: Orchestrator       (tmux session — existing infrastructure)
 
 This module contains TWO categories of tests:
@@ -52,9 +52,8 @@ from signal_protocol import (  # noqa: E402
     wait_for_signal,
     write_signal,
 )
-import launch_guardian  # noqa: E402
-import guardian_agent  # noqa: E402
-import runner_agent  # noqa: E402
+import guardian  # noqa: E402
+import runner  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -267,13 +266,13 @@ def assert_signal_flow(signals_dir: str, expected_types: list[str]) -> None:
 
 
 class TestDryRunSinglePipeline:
-    """Test 1: Create a minimal DOT file, call launch_guardian with dry_run,
+    """Test 1: Create a minimal DOT file, call guardian with dry_run,
     verify config dict has all expected fields."""
 
     def test_dry_run_single_pipeline(self, tmp_path):
         dot_path = create_minimal_dot(tmp_path)
 
-        result = launch_guardian.launch_guardian(
+        result = guardian.launch_guardian(
             dot_path=dot_path,
             project_root=str(tmp_path),
             pipeline_id="test-001",
@@ -284,10 +283,10 @@ class TestDryRunSinglePipeline:
         assert result["dry_run"] is True
         assert os.path.isabs(result["dot_path"])
         assert result["pipeline_id"] == "test-001"
-        assert result["model"] == launch_guardian.DEFAULT_MODEL
-        assert result["max_turns"] == launch_guardian.DEFAULT_MAX_TURNS
-        assert result["signal_timeout"] == launch_guardian.DEFAULT_SIGNAL_TIMEOUT
-        assert result["max_retries"] == launch_guardian.DEFAULT_MAX_RETRIES
+        assert result["model"] == guardian.DEFAULT_MODEL
+        assert result["max_turns"] == guardian.DEFAULT_MAX_TURNS
+        assert result["signal_timeout"] == guardian.DEFAULT_SIGNAL_TIMEOUT
+        assert result["max_retries"] == guardian.DEFAULT_MAX_RETRIES
         assert result["project_root"] == str(tmp_path)
         assert os.path.isabs(result["scripts_dir"])
         assert result["system_prompt_length"] > 0
@@ -378,7 +377,7 @@ class TestDryRunGuardianToRunnerResponseFlow:
 
 
 class TestDryRunEscalationToTerminal:
-    """Test 4: Guardian writes escalation, verify terminal (launch_guardian)
+    """Test 4: Guardian writes escalation, verify terminal (guardian)
     can parse it via handle_escalation()."""
 
     def test_escalation_parsed_by_terminal(self, tmp_path):
@@ -396,7 +395,7 @@ class TestDryRunEscalationToTerminal:
         )
 
         signal_data = read_signal(path)
-        result = launch_guardian.handle_escalation(signal_data)
+        result = guardian.handle_escalation(signal_data)
 
         assert result["status"] == "escalation"
         assert result["pipeline_id"] == "pipe-001"
@@ -428,7 +427,7 @@ class TestDryRunPipelineCompleteFlow:
         )
 
         signal_data = read_signal(path)
-        result = launch_guardian.handle_pipeline_complete(signal_data, dot_path)
+        result = guardian.handle_pipeline_complete(signal_data, dot_path)
 
         assert result["status"] == "complete"
         assert result["pipeline_id"] == "test-001"
@@ -469,7 +468,7 @@ class TestDryRunMultiPipeline:
             },
         ]
 
-        results = launch_guardian.launch_multiple_guardians(configs)
+        results = guardian.launch_multiple_guardians(configs)
 
         assert len(results) == 2
         pipeline_ids = {r["pipeline_id"] for r in results}
@@ -609,8 +608,8 @@ class TestResearchNodePipeline:
     def test_guardian_prompt_mentions_research_dispatch(self, tmp_path):
         """Guardian system prompt includes Phase 2a research dispatch instructions."""
         dot_path = create_minimal_dot(tmp_path)
-        scripts_dir = guardian_agent.resolve_scripts_dir()
-        prompt = guardian_agent.build_system_prompt(
+        scripts_dir = guardian.resolve_scripts_dir()
+        prompt = guardian.build_system_prompt(
             dot_path=dot_path,
             pipeline_id="research-test-001",
             scripts_dir=scripts_dir,
@@ -682,8 +681,8 @@ class TestRefineNodeDotGeneration:
     def test_guardian_prompt_research_before_codergen(self, tmp_path):
         """Phase 2a (research) appears before Phase 2b (codergen) in the prompt."""
         dot_path = create_minimal_dot(tmp_path)
-        scripts_dir = guardian_agent.resolve_scripts_dir()
-        prompt = guardian_agent.build_system_prompt(
+        scripts_dir = guardian.resolve_scripts_dir()
+        prompt = guardian.build_system_prompt(
             dot_path=dot_path,
             pipeline_id="order-test",
             scripts_dir=scripts_dir,
@@ -735,8 +734,8 @@ class TestRefineNodePipeline:
     def test_guardian_prompt_mentions_refine_dispatch(self, tmp_path):
         """Guardian system prompt includes Phase 2a.5 refine dispatch instructions."""
         dot_path = create_minimal_dot(tmp_path)
-        scripts_dir = guardian_agent.resolve_scripts_dir()
-        prompt = guardian_agent.build_system_prompt(
+        scripts_dir = guardian.resolve_scripts_dir()
+        prompt = guardian.build_system_prompt(
             dot_path=dot_path,
             pipeline_id="refine-test-001",
             scripts_dir=scripts_dir,
@@ -751,8 +750,8 @@ class TestRefineNodePipeline:
     def test_guardian_prompt_refine_between_research_and_codergen(self, tmp_path):
         """Phase 2a.5 (refine) appears between Phase 2a (research) and Phase 2b (codergen)."""
         dot_path = create_minimal_dot(tmp_path)
-        scripts_dir = guardian_agent.resolve_scripts_dir()
-        prompt = guardian_agent.build_system_prompt(
+        scripts_dir = guardian.resolve_scripts_dir()
+        prompt = guardian.build_system_prompt(
             dot_path=dot_path,
             pipeline_id="order-test",
             scripts_dir=scripts_dir,
@@ -949,8 +948,8 @@ class TestMonitorGuardianWithCompleteSignal:
                 poll_interval=0.1,
             )
 
-        with patch("launch_guardian.wait_for_signal", mock_wait):
-            result = launch_guardian.monitor_guardian(
+        with patch("guardian.wait_for_signal", mock_wait):
+            result = guardian.monitor_guardian(
                 guardian_process=None,
                 dot_path="/tmp/pipeline.dot",
                 signals_dir=signals_dir,
@@ -987,8 +986,8 @@ class TestMonitorGuardianWithEscalationSignal:
                 poll_interval=0.1,
             )
 
-        with patch("launch_guardian.wait_for_signal", mock_wait):
-            result = launch_guardian.monitor_guardian(
+        with patch("guardian.wait_for_signal", mock_wait):
+            result = guardian.monitor_guardian(
                 guardian_process=None,
                 dot_path="/tmp/pipeline.dot",
                 signals_dir=signals_dir,
@@ -1007,7 +1006,7 @@ class TestFullSignalChainDryRun:
     3. Guardian responds to Runner: VALIDATION_PASSED
     4. Runner signals Guardian: NODE_COMPLETE (committed)
     5. Guardian signals Terminal: PIPELINE_COMPLETE (all done)
-    6. Terminal (launch_guardian) receives and parses PIPELINE_COMPLETE
+    6. Terminal (guardian) receives and parses PIPELINE_COMPLETE
     """
 
     def test_full_chain(self, tmp_path):
@@ -1016,7 +1015,7 @@ class TestFullSignalChainDryRun:
         timestamps = []
 
         # Step 0: Launch guardian dry-run (verify config is buildable)
-        config = launch_guardian.launch_guardian(
+        config = guardian.launch_guardian(
             dot_path=dot_path,
             project_root=str(tmp_path),
             pipeline_id="chain-001",
@@ -1107,7 +1106,7 @@ class TestFullSignalChainDryRun:
         timestamps.append(("PIPELINE_COMPLETE consumed by terminal", time.monotonic()))
 
         # Step 6: Terminal processes via handle_pipeline_complete
-        result = launch_guardian.handle_pipeline_complete(s4, dot_path)
+        result = guardian.handle_pipeline_complete(s4, dot_path)
         assert result["status"] == "complete"
         assert result["pipeline_id"] == "chain-001"
         assert result["node_statuses"]["impl_test"] == "validated"
@@ -1132,11 +1131,11 @@ class TestFullSignalChainDryRun:
 
 
 class TestGuardianAgentDryRunIntegration:
-    """Additional integration tests for guardian_agent dry-run mode using
+    """Additional integration tests for guardian dry-run mode using
     real DOT files created by the helpers."""
 
     def test_guardian_dry_run_with_real_dot(self, tmp_path):
-        """guardian_agent.main() --dry-run with a real DOT file."""
+        """guardian.main() --dry-run with a real DOT file."""
         import io
         from contextlib import redirect_stdout
 
@@ -1145,7 +1144,7 @@ class TestGuardianAgentDryRunIntegration:
         buf = io.StringIO()
         with pytest.raises(SystemExit) as exc_info:
             with redirect_stdout(buf):
-                guardian_agent.main([
+                guardian.main([
                     "--dot", dot_path,
                     "--pipeline-id", "g-int-001",
                     "--target-dir", str(tmp_path),
@@ -1160,17 +1159,17 @@ class TestGuardianAgentDryRunIntegration:
 
 
 class TestRunnerAgentDryRunIntegration:
-    """Integration tests for runner_agent dry-run mode."""
+    """Integration tests for runner dry-run mode."""
 
     def test_runner_dry_run(self, tmp_path):
-        """runner_agent.main() --dry-run with standard args."""
+        """runner.main() --dry-run with standard args."""
         import io
         from contextlib import redirect_stdout
 
         buf = io.StringIO()
         with pytest.raises(SystemExit) as exc_info:
             with redirect_stdout(buf):
-                runner_agent.main([
+                runner.main([
                     "--node", "impl_test",
                     "--prd", "PRD-TEST-001",
                     "--session", "orch-test",
@@ -1190,21 +1189,21 @@ class TestRunnerAgentDryRunIntegration:
 
 
 class TestCrossLayerPromptConsistency:
-    """Verify that the prompts built by launch_guardian and guardian_agent
-    are identical (launch_guardian delegates to guardian_agent)."""
+    """Verify that the prompts built by guardian functions
+    are identical (guardian delegates consistently)."""
 
     def test_system_prompts_match(self, tmp_path):
         dot_path = create_minimal_dot(tmp_path)
-        scripts_dir = guardian_agent.resolve_scripts_dir()
+        scripts_dir = guardian.resolve_scripts_dir()
 
-        from_guardian = guardian_agent.build_system_prompt(
+        from_guardian = guardian.build_system_prompt(
             dot_path=dot_path,
             pipeline_id="consistency-001",
             scripts_dir=scripts_dir,
             signal_timeout=600.0,
             max_retries=3,
         )
-        from_launch = launch_guardian.build_system_prompt(
+        from_launch = guardian.build_system_prompt(
             dot_path=dot_path,
             pipeline_id="consistency-001",
             scripts_dir=scripts_dir,
@@ -1215,14 +1214,14 @@ class TestCrossLayerPromptConsistency:
 
     def test_initial_prompts_match(self, tmp_path):
         dot_path = create_minimal_dot(tmp_path)
-        scripts_dir = guardian_agent.resolve_scripts_dir()
+        scripts_dir = guardian.resolve_scripts_dir()
 
-        from_guardian = guardian_agent.build_initial_prompt(
+        from_guardian = guardian.build_initial_prompt(
             dot_path=dot_path,
             pipeline_id="consistency-001",
             scripts_dir=scripts_dir,
         )
-        from_launch = launch_guardian.build_initial_prompt(
+        from_launch = guardian.build_initial_prompt(
             dot_path=dot_path,
             pipeline_id="consistency-001",
             scripts_dir=scripts_dir,
@@ -1303,7 +1302,7 @@ class TestE2ESingleNodePipeline:
         )
 
         # When enabled, the flow would be:
-        # result = launch_guardian.launch_guardian(
+        # result = guardian.launch_guardian(
         #     dot_path=ws["dot_path"],
         #     project_root=ws["project_root"],
         #     pipeline_id=ws["pipeline_id"],
@@ -1313,7 +1312,7 @@ class TestE2ESingleNodePipeline:
         # )
         #
         # Then monitor:
-        # monitor_result = launch_guardian.monitor_guardian(
+        # monitor_result = guardian.monitor_guardian(
         #     guardian_process=None,
         #     dot_path=ws["dot_path"],
         #     signals_dir=ws["signals_dir"],

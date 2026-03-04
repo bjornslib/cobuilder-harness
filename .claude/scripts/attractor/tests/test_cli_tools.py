@@ -8,7 +8,7 @@ Tests:
     TestWaitForSignalCLI        - wait_for_signal.py (timeout path)
     TestCaptureOutputCLI        - capture_output.py (error path)
     TestCheckOrchestratorCLI    - check_orchestrator_alive.py
-    TestSpawnRunnerCLI          - spawn_runner.py
+    TestSpawnRunnerCLI          - runner.py
     TestRespondToRunnerCLI      - respond_to_runner.py
     TestEscalateToTerminalCLI   - escalate_to_terminal.py
 """
@@ -392,14 +392,14 @@ class TestCheckOrchestratorCLI:
 # ---------------------------------------------------------------------------
 
 class TestSpawnRunnerCLI:
-    """Tests for spawn_runner.py."""
+    """Tests for runner.py."""
 
     def test_basic_invocation_succeeds(self, tmp_path):
-        """spawn_runner.py --node ... --prd ... outputs valid JSON."""
+        """runner.py --node ... --prd ... outputs valid JSON."""
         # Use a custom git root to avoid writing to real repo
         rc, stdout, _ = _run_cli(
-            "spawn_runner.py",
-            ["--node", "impl_auth", "--prd", "PRD-TEST-001",
+            "runner.py",
+            ["--spawn", "--node", "impl_auth", "--prd", "PRD-TEST-001",
              "--target-dir", str(tmp_path)],
             env_overrides={
                 "ATTRACTOR_SIGNALS_DIR": str(tmp_path / "signals"),
@@ -413,10 +413,10 @@ class TestSpawnRunnerCLI:
         assert data["prd"] == "PRD-TEST-001"
 
     def test_runner_config_in_output(self, tmp_path):
-        """spawn_runner.py includes runner_config in output."""
+        """runner.py includes runner_config in output."""
         rc, stdout, _ = _run_cli(
-            "spawn_runner.py",
-            ["--node", "impl_auth", "--prd", "PRD-TEST-001",
+            "runner.py",
+            ["--spawn", "--node", "impl_auth", "--prd", "PRD-TEST-001",
              "--target-dir", str(tmp_path),
              "--solution-design", "/tmp/design.md",
              "--bead-id", "BEAD-42"],
@@ -435,10 +435,10 @@ class TestSpawnRunnerCLI:
         assert cfg["bead_id"] == "BEAD-42"
 
     def test_all_optional_fields(self, tmp_path):
-        """spawn_runner.py accepts all optional arguments."""
+        """runner.py accepts all optional arguments."""
         rc, stdout, _ = _run_cli(
-            "spawn_runner.py",
-            ["--node", "impl_auth", "--prd", "PRD-TEST-001",
+            "runner.py",
+            ["--spawn", "--node", "impl_auth", "--prd", "PRD-TEST-001",
              "--acceptance", "All tests pass",
              "--target-dir", str(tmp_path)],
             env_overrides={
@@ -452,14 +452,14 @@ class TestSpawnRunnerCLI:
         assert data["runner_config"]["target_dir"] == str(tmp_path)
 
     def test_missing_required_args_exits_nonzero(self, tmp_path):
-        """spawn_runner.py without required args exits with non-zero code."""
-        rc, stdout, stderr = _run_cli("spawn_runner.py", ["--node", "impl_auth"])
+        """runner.py without required args exits with non-zero code."""
+        rc, stdout, stderr = _run_cli("runner.py", ["--node", "impl_auth"])
         # Missing --prd
         assert rc != 0
 
     def test_help_flag_works(self):
-        """spawn_runner.py --help exits with code 0."""
-        rc, stdout, _ = _run_cli("spawn_runner.py", ["--help"])
+        """runner.py --help exits with code 0."""
+        rc, stdout, _ = _run_cli("runner.py", ["--help"])
         assert rc == 0
 
 
