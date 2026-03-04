@@ -1,0 +1,14 @@
+{
+    "node": "finalize",
+    "handler": "exit",
+    "status": "complete",
+    "timestamp": "2026-03-04T03:54:00Z",
+    "pipeline": "simple-pipeline",
+    "pipeline_id": "PRD-EXAMPLE-001",
+    "nodes_executed": [
+        "start",
+        "impl_task",
+        "finalize"
+    ],
+    "total_cost_usd": 0.273
+}
