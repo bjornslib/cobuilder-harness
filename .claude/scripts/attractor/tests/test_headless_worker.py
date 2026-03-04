@@ -83,6 +83,13 @@ class TestBuildHeadlessWorkerCmd(unittest.TestCase):
         idx = cmd.index("--model")
         self.assertEqual(cmd[idx + 1], "claude-opus-4-6")
 
+    def test_cmd_contains_mcp_bypass_flags(self) -> None:
+        """MCP bypass prevents 11+ server initialization delay in headless mode."""
+        cmd, _ = self._build()
+        self.assertIn("--strict-mcp-config", cmd)
+        idx = cmd.index("--mcp-config")
+        self.assertEqual(cmd[idx + 1], '{"mcpServers":{}}')
+
     def test_env_contains_worker_node_id(self) -> None:
         _, env = self._build(node_id="impl_auth")
         self.assertEqual(env["WORKER_NODE_ID"], "impl_auth")

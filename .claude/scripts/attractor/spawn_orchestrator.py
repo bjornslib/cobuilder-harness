@@ -93,6 +93,11 @@ def _build_headless_worker_cmd(
         "--permission-mode", "bypassPermissions",
         "--output-format", "json",
         "--model", model,
+        # Bypass all MCP server initialization for headless workers.
+        # Without this, 11+ MCP servers from .mcp.json cause extreme
+        # startup delays (30s+) or hangs in subprocess mode.
+        "--mcp-config", '{"mcpServers":{}}',
+        "--strict-mcp-config",
     ]
 
     # Layer 3: IDENTITY as env vars (zero context token cost)
