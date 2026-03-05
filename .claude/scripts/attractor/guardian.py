@@ -61,6 +61,7 @@ if _THIS_DIR not in sys.path:
     sys.path.insert(0, _THIS_DIR)
 
 import identity_registry
+from dispatch_worker import load_attractor_env
 
 # Import signal_protocol at module level so tests can patch
 # ``guardian.wait_for_signal`` directly via unittest.mock.patch.
@@ -1087,6 +1088,11 @@ def handle_pipeline_complete(
 
 def main(argv: list[str] | None = None) -> None:
     """Parse arguments and launch one or multiple Guardian agents."""
+    # Load attractor-specific API credentials before any SDK call.
+    # claude_code_sdk.query() reads ANTHROPIC_API_KEY / ANTHROPIC_BASE_URL from
+    # os.environ, so this must happen before argparse or SDK initialisation.
+    os.environ.update(load_attractor_env())
+
     args = parse_args(argv)
 
     # -----------------------------------------------------------------------

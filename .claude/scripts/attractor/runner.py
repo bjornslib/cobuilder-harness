@@ -91,6 +91,7 @@ if _THIS_DIR not in sys.path:
 
 import identity_registry
 import hook_manager
+from dispatch_worker import load_attractor_env
 
 # ---------------------------------------------------------------------------
 # Logfire instrumentation (required)
@@ -1044,6 +1045,11 @@ def spawn(args: argparse.Namespace) -> None:
 
 def main(argv: list[str] | None = None) -> None:
     """Parse arguments and route to spawn() or monitoring agent."""
+    # Load attractor-specific API credentials before any SDK call.
+    # claude_code_sdk.query() reads ANTHROPIC_API_KEY / ANTHROPIC_BASE_URL from
+    # os.environ, so this must happen before argparse or SDK initialisation.
+    os.environ.update(load_attractor_env())
+
     args = parse_args(argv)
 
     # --spawn mode: fire-and-forget subprocess launch

@@ -30,8 +30,6 @@ import subprocess
 import sys
 import os
 import time
-import threading
-from collections.abc import Callable
 from pathlib import Path
 
 # Ensure this file's directory is importable regardless of invocation CWD.
@@ -42,207 +40,11 @@ if _THIS_DIR not in sys.path:
 import identity_registry
 import hook_manager
 
+# Re-export headless worker functions from dispatch_worker.py.
+# Tests and callers that import from spawn_orchestrator continue to work.
+from dispatch_worker import _build_headless_worker_cmd, run_headless_worker  # noqa: F401
+
 logger = logging.getLogger(__name__)
-
-
-def _build_headless_worker_cmd(
-    task_prompt: str,
-    work_dir: str,
-    worker_type: str = "backend-solutions-engineer",
-    model: str = "claude-sonnet-4-6",
-    node_id: str = "",
-    pipeline_id: str = "",
-    runner_id: str = "",
-    prd_ref: str = "",
-) -> tuple[list[str], dict[str, str]]:
-    """Build a headless worker command using ``claude -p``.
-
-    Three-Layer Context:
-      Layer 1 (ROLE): ``--system-prompt`` from ``.claude/agents/{worker_type}.md``
-      Layer 2 (TASK): ``-p`` argument (*task_prompt*)
-      Layer 3 (IDENTITY): env vars (``WORKER_NODE_ID``, ``PIPELINE_ID``, etc.)
-
-    Args:
-        task_prompt: The task description sent as the ``-p`` argument.
-        work_dir: Working directory for the worker process.
-        worker_type: Agent type — filename stem under ``.claude/agents/``.
-        model: Claude model identifier.
-        node_id: Pipeline node identifier.
-        pipeline_id: Pipeline identifier string.
-        runner_id: Runner identifier (for traceability).
-        prd_ref: PRD reference (e.g., PRD-AUTH-001).
-
-    Returns:
-        Tuple of (command list, environment dict).
-    """
-    # Read Layer 1: ROLE from .claude/agents/{worker_type}.md
-    agents_dir = Path(work_dir) / ".claude" / "agents"
-    role_file = agents_dir / f"{worker_type}.md"
-    if role_file.exists():
-        role_content = role_file.read_text()
-        # Strip frontmatter if present
-        if role_content.startswith("---"):
-            _, _, rest = role_content.partition("---")
-            _, _, role_content = rest.partition("---")
-        role_content = role_content.strip()
-    else:
-        role_content = f"You are a specialist agent ({worker_type}). Implement features directly."
-
-    cmd = [
-        "claude",
-        "-p", task_prompt,
-        "--system-prompt", role_content,
-        "--permission-mode", "bypassPermissions",
-        "--output-format", "stream-json",
-        "--verbose",
-        "--model", model,
-        # Bypass all MCP server initialization for headless workers.
-        # Without this, 11+ MCP servers from .mcp.json cause extreme
-        # startup delays (30s+) or hangs in subprocess mode.
-        "--mcp-config", '{"mcpServers":{}}',
-        "--strict-mcp-config",
-    ]
-
-    # Layer 3: IDENTITY as env vars (zero context token cost)
-    env = dict(os.environ)
-    env.update({
-        "WORKER_NODE_ID": node_id,
-        "PIPELINE_ID": pipeline_id,
-        "RUNNER_ID": runner_id,
-        "PRD_REF": prd_ref,
-    })
-    # Remove CLAUDECODE to prevent nested session detection
-    env.pop("CLAUDECODE", None)
-
-    return cmd, env
-
-
-async def run_headless_worker(
-    cmd: list[str],
-    env: dict[str, str],
-    work_dir: str,
-    timeout_seconds: int = 1800,
-    on_event: Callable[[dict], None] | None = None,
-) -> dict:
-    """Run a headless worker via subprocess, streaming JSONL output line-by-line.
-
-    Uses ``subprocess.Popen`` with ``--output-format stream-json`` to read JSONL
-    events in real time.  Each line is a JSON object with a ``type`` field.  The
-    final ``{"type": "result", ...}`` line carries the same payload that the old
-    ``--output-format json`` returned, so the return value remains backward
-    compatible.
-
-    Args:
-        cmd: Command list (typically from :func:`_build_headless_worker_cmd`).
-        env: Environment dict for the subprocess.
-        work_dir: Working directory for the subprocess.
-        timeout_seconds: Maximum wall-clock time before killing the worker.
-        on_event: Optional callback invoked for every successfully parsed JSONL
-            event.  Receives the parsed ``dict``.  Exceptions raised inside the
-            callback are logged and suppressed.
-
-    Returns:
-        Dict with ``status`` (``"success"``, ``"error"``, or ``"timeout"``),
-        plus output or error details, plus ``events`` (list of all parsed events).
-
-        On success:
-            ``{"status": "success", "output": <result_event>, "exit_code": 0,
-               "events": [...]}``
-        On error:
-            ``{"status": "error", "exit_code": N, "stdout": "...",
-               "stderr": "...", "events": [...]}``
-        On timeout:
-            ``{"status": "timeout", "events": [...]}``
-    """
-    events: list[dict] = []
-    stderr_lines: list[str] = []
-
-    process = subprocess.Popen(
-        cmd,
-        cwd=work_dir,
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-
-    # Drain stderr in a background thread to prevent the pipe from blocking
-    # when the subprocess writes more than the OS pipe buffer allows.
-    def _drain_stderr() -> None:
-        assert process.stderr is not None
-        for line in process.stderr:
-            stderr_lines.append(line)
-
-    stderr_thread = threading.Thread(target=_drain_stderr, daemon=True)
-    stderr_thread.start()
-
-    timed_out = False
-    assert process.stdout is not None
-    try:
-        for raw_line in process.stdout:
-            line = raw_line.strip()
-            if not line:
-                continue
-            try:
-                event = json.loads(line)
-            except json.JSONDecodeError:
-                logger.debug("run_headless_worker: skipping non-JSON line: %.200s", line)
-                continue
-
-            events.append(event)
-
-            if on_event is not None:
-                try:
-                    on_event(event)
-                except Exception as exc:  # noqa: BLE001
-                    logger.warning("run_headless_worker: on_event callback raised: %s", exc)
-
-            # Check wall-clock timeout after each event to allow early detection.
-            # process.poll() is non-blocking; None means still running.
-    except Exception:  # noqa: BLE001
-        pass
-    finally:
-        # Enforce hard timeout: if the process is still running after
-        # ``timeout_seconds`` the caller's wall-clock limit has been exceeded.
-        # We use communicate(timeout=...) only if the process hasn't exited yet
-        # so that we don't re-read stdout (already consumed above).
-        try:
-            process.wait(timeout=timeout_seconds)
-        except subprocess.TimeoutExpired:
-            timed_out = True
-            process.kill()
-            process.wait()
-
-    stderr_thread.join(timeout=5)
-    stderr_combined = "".join(stderr_lines)
-
-    if timed_out:
-        return {"status": "timeout", "events": events}
-
-    exit_code = process.returncode
-
-    # Locate the final result event (last event with type=="result")
-    result_event: dict | None = None
-    for event in reversed(events):
-        if event.get("type") == "result":
-            result_event = event
-            break
-
-    if exit_code == 0:
-        # Use the result event when present; fall back to the whole events list.
-        output: object = result_event if result_event is not None else events
-        return {"status": "success", "output": output, "exit_code": 0, "events": events}
-    else:
-        stdout_tail = "".join(
-            json.dumps(e) for e in events[-10:]
-        )[-2000:]
-        return {
-            "status": "error",
-            "exit_code": exit_code,
-            "stdout": stdout_tail,
-            "stderr": stderr_combined[-2000:],
-            "events": events,
-        }
 
 
 def _build_claude_cmd(node_id: str, prd: str, mode: str) -> str:
@@ -375,7 +177,8 @@ def respawn_orchestrator(
 
     time.sleep(2)
     _tmux_send(session_name, _build_claude_cmd(node_id, prd, mode), pause=8.0)
-    _tmux_send(session_name, "/output-style orchestrator", pause=3.0, post_pause=5.0)
+    _tmux_send(session_name, "/output-style orchestrator", pause=3.0, post_pause=2.0)
+    time.sleep(1)  # Ensure /output-style command is processed before sending prompt
     if prompt:
         _tmux_send(session_name, prompt, pause=2.0)
 
@@ -671,7 +474,7 @@ def main() -> None:
 
     # Set output style via slash command (not CLI flag)
     try:
-        _tmux_send(session_name, "/output-style orchestrator", pause=3.0, post_pause=5.0)
+        _tmux_send(session_name, "/output-style orchestrator", pause=3.0, post_pause=2.0)
     except subprocess.CalledProcessError as exc:
         error_msg = exc.stderr.strip() if exc.stderr else str(exc)
         print(json.dumps({
@@ -679,6 +482,8 @@ def main() -> None:
             "message": f"Session created but failed to set output style: {error_msg}",
         }))
         sys.exit(1)
+
+    time.sleep(1)  # Ensure /output-style command is processed before sending prompt
 
     # Register agent identity after successful launch
     # In sdk mode, guardian already runs in a worktree so no separate worktree is created.
