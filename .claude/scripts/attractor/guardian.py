@@ -264,7 +264,9 @@ is validated.
    b. Save checkpoint:
       python3 {scripts_dir}/cli.py checkpoint save {dot_path}
    c. Spawn Runner:
-      python3 {scripts_dir}/runner.py --spawn --node <node_id> --prd <prd_ref> --acceptance "<ac>" --bead-id <bead_id> --mode sdk{target_dir_flag} --dot-file {dot_path}
+      python3 {scripts_dir}/runner.py --spawn --node <node_id> --prd <prd_ref> --acceptance "<ac>" --bead-id <bead_id> --solution-design <solution_design_attr> --mode sdk{target_dir_flag} --dot-file {dot_path}
+      Note: Extract solution_design_attr from the node's "solution_design" attribute in the parsed DOT JSON.
+      If the node has no solution_design attribute, omit --solution-design entirely.
 6. For each ready wait.human node:
    a. Determine if you can validate autonomously (technical gate) or need human (business/manual gate)
    b. If autonomous: transition directly to validated after reviewing acceptance criteria
@@ -298,7 +300,7 @@ is validated.
       * Check retry count (max {max_retries} retries per node).
       * If retries remain:
         - Transition back to active: python3 {scripts_dir}/cli.py transition {dot_path} transition <node_id> active
-        - Re-spawn runner: python3 {scripts_dir}/runner.py --spawn --node <node_id> --prd <prd_ref> --acceptance "<ac>" --bead-id <bead_id> --mode sdk{target_dir_flag} --dot-file {dot_path}
+        - Re-spawn runner: python3 {scripts_dir}/runner.py --spawn --node <node_id> --prd <prd_ref> --acceptance "<ac>" --bead-id <bead_id> --solution-design <solution_design_attr> --mode sdk{target_dir_flag} --dot-file {dot_path}
         - Return to step 7 (poll new PID)
       * If max retries exceeded: escalate
         python3 {scripts_dir}/escalate_to_terminal.py --pipeline {pipeline_id} --issue "Node <node_id> failed validation after {max_retries} retries"
@@ -310,7 +312,7 @@ is validated.
     - If retries remain:
       * Transition node to active (failed -> active is a valid transition):
         python3 {scripts_dir}/cli.py transition {dot_path} transition <node_id> active
-      * Re-spawn runner: python3 {scripts_dir}/runner.py --spawn --node <node_id> --prd <prd_ref> --acceptance "<ac>" --bead-id <bead_id> --mode sdk{target_dir_flag} --dot-file {dot_path}
+      * Re-spawn runner: python3 {scripts_dir}/runner.py --spawn --node <node_id> --prd <prd_ref> --acceptance "<ac>" --bead-id <bead_id> --solution-design <solution_design_attr> --mode sdk{target_dir_flag} --dot-file {dot_path}
       * Return to step 7 (poll new PID)
     - If max retries exceeded: escalate
       python3 {scripts_dir}/escalate_to_terminal.py --pipeline {pipeline_id} --issue "Runner failed for <node_id> after {max_retries} retries"

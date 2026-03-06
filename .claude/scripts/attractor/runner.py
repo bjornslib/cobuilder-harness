@@ -428,7 +428,18 @@ def build_worker_system_prompt(
             f"{acceptance or 'Implement the feature as described in the initial prompt.'}\n\n"
             f"Work directly in {target_dir}. Use available tools to read, write, and "
             f"edit files as needed.\n"
-            f"When finished, ensure all acceptance criteria are satisfied.\n"
+            f"When finished, ensure all acceptance criteria are satisfied.\n\n"
+            f"## Tool Usage Reference\n\n"
+            f"**Creating new files** — prefer Bash heredoc:\n"
+            f"  Bash: cat > path/to/file.py << 'EOF'\\ncontent\\nEOF\n\n"
+            f"  Or Write tool (parameter is `file_path`, not `path`):\n"
+            f"  Write(file_path=\"src/main.py\", content=\"...\")\n\n"
+            f"**Editing existing files**:\n"
+            f"  1. Read(file_path=\"...\") — get current content\n"
+            f"  2. Edit(file_path=\"...\", old_string=\"exact match\", new_string=\"replacement\")\n"
+            f"  Note: old_string must match the file exactly (including whitespace).\n"
+            f"  Note: replace_all is boolean true/false, not the string 'True'/'False'.\n\n"
+            f"**Do not attempt to use beads or other MCP tools** — they are not available in this context.\n"
         )
 
 
@@ -438,6 +449,7 @@ def build_worker_initial_prompt(
     acceptance: str,
     solution_design: str | None = None,
     bead_id: str = "",
+    target_dir: str = "",
 ) -> str:
     """Return the initial task prompt for a direct SDK worker agent.
 
@@ -447,6 +459,7 @@ def build_worker_initial_prompt(
         acceptance: Acceptance criteria text.
         solution_design: Optional path to a solution design document.
         bead_id: Optional bead/task identifier.
+        target_dir: Working directory for resolving relative solution_design paths.
 
     Returns:
         Formatted initial prompt string.
@@ -465,11 +478,24 @@ def build_worker_initial_prompt(
             f"{acceptance or 'Implement the feature. Ensure the code works correctly.'}",
         ]
         if solution_design:
-            parts += [
-                f"",
-                f"## Solution Design",
-                f"Refer to: {solution_design}",
-            ]
+            sd_path = Path(solution_design)
+            if sd_path.is_absolute():
+                sd_abs = sd_path
+            else:
+                sd_abs = Path(target_dir) / sd_path if target_dir else sd_path
+            try:
+                sd_content = sd_abs.read_text()
+                parts += [
+                    "",
+                    "## Solution Design",
+                    sd_content,
+                ]
+            except (OSError, FileNotFoundError):
+                parts += [
+                    "",
+                    "## Solution Design",
+                    f"(Could not read {solution_design} — implement from acceptance criteria only)",
+                ]
         parts += [
             f"",
             f"Please implement this task now, working in the project directory.",
@@ -501,7 +527,7 @@ def build_worker_options(
         from claude_code_sdk import ClaudeCodeOptions
 
         return ClaudeCodeOptions(
-            # No allowed_tools restriction — worker needs full toolset
+            allowed_tools=["Bash", "Read", "Write", "Edit", "Glob", "Grep", "MultiEdit"],
             system_prompt=system_prompt,
             cwd=cwd,
             model=model,
@@ -1283,6 +1309,7 @@ def main(argv: list[str] | None = None) -> None:
                 acceptance=args.acceptance or "",
                 solution_design=args.solution_design,
                 bead_id=args.bead_id or "",
+                target_dir=cwd,
             )
             worker_options = build_worker_options(
                 system_prompt=worker_system_prompt,

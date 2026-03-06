@@ -33,11 +33,12 @@ digraph "simple-example" {
         handler="codergen"
         bead_id="TASK-1"
         worker_type="backend-solutions-engineer"
-        acceptance="API endpoint returns 200"
+        acceptance="GET /api/health returns JSON with status='healthy' and HTTP 200"
         promise_ac="AC-1"
-        status="pending"
+        solution_design=".claude/attractor/schema.md"
+        status="validated"
         style=filled
-        fillcolor="lightblue"
+        fillcolor="lightgreen"
     ];
 
     // Stage 5: FINALIZE — Pipeline exit
@@ -45,7 +46,9 @@ digraph "simple-example" {
         shape=Msquare
         label="FINALIZE"
         handler="exit"
-        status="pending"
+        status="validated"
+        fillcolor="lightgreen"
+        style="filled"
     ];
 
     // Edges
