@@ -23,11 +23,13 @@ Validation Rules (from schema.md section 11):
     12. Refine evidence_path cross-references valid upstream research node
     13. Full cluster topology check: every codergen node must have downstream wait.system3 and wait.human nodes
     14. wait.human nodes must follow wait.system3 or research nodes
+    15. bead_id values on codergen nodes map to real beads (via `bd show`)
 """
 
 import argparse
 import json
 import re
+import subprocess
 import sys
 from typing import Any
 
@@ -127,7 +129,7 @@ class Issue:
         return f"  {prefix} (rule {self.rule:2d}){node_str}: {self.message}"
 
 
-def validate(data: dict[str, Any], strict: bool = False) -> list[Issue]:
+def validate(data: dict[str, Any], strict: bool = False, check_beads: bool = False) -> list[Issue]:
     """Validate a parsed DOT pipeline against schema rules.
 
     Args:
@@ -484,6 +486,10 @@ def validate(data: dict[str, Any], strict: bool = False) -> list[Issue]:
     # --- Rule 13: Cluster topology check (AC-5.2) ---
     _check_cluster_topology(nodes, edges, adj, reverse_adj, issues, node_map)
 
+    # --- Rule 15: bead_id existence check (opt-in via --check-beads flag) ---
+    if check_beads:
+        _check_bead_ids(nodes, issues)
+
     return issues
 
 
@@ -657,6 +663,57 @@ def _check_cycles(
             dfs(n["id"], [])
 
 
+def _check_bead_ids(nodes: list[dict], issues: list[Issue]) -> None:
+    """Rule 15: Verify bead_id values on codergen nodes map to real beads.
+
+    Shells out to `bd show <bead_id>` for each unique bead_id.
+    Errors if the bead does not exist. Skips check gracefully if `bd` CLI
+    is unavailable (emits a warning instead).
+    """
+    # Collect unique bead_ids from codergen nodes
+    bead_ids: dict[str, list[str]] = {}  # bead_id -> [node_ids]
+    for n in nodes:
+        if n["attrs"].get("handler") != "codergen":
+            continue
+        bid = n["attrs"].get("bead_id", "")
+        if not bid:
+            continue  # Missing bead_id is caught by Rule 8 (required attrs)
+        bead_ids.setdefault(bid, []).append(n["id"])
+
+    if not bead_ids:
+        return
+
+    # Check if bd CLI is available
+    try:
+        subprocess.run(["bd", "--version"], capture_output=True, timeout=5)
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        issues.append(Issue(
+            "warning", 15,
+            "Cannot verify bead_id existence: 'bd' CLI not available on PATH",
+        ))
+        return
+
+    # Verify each unique bead_id exists
+    for bid, node_ids in bead_ids.items():
+        try:
+            result = subprocess.run(
+                ["bd", "show", bid],
+                capture_output=True, text=True, timeout=10,
+            )
+            if result.returncode != 0:
+                for nid in node_ids:
+                    issues.append(Issue(
+                        "error", 15,
+                        f"bead_id '{bid}' does not exist (bd show returned exit code {result.returncode})",
+                        nid,
+                    ))
+        except subprocess.TimeoutExpired:
+            issues.append(Issue(
+                "warning", 15,
+                f"Timeout verifying bead_id '{bid}' — skipping check",
+            ))
+
+
 def _can_reach(start: str, target: str, adj: dict[str, list[str]]) -> bool:
     """Check if target is reachable from start using BFS."""
     if start == target:
@@ -680,10 +737,10 @@ def _can_reach(start: str, target: str, adj: dict[str, list[str]]) -> bool:
     return False
 
 
-def validate_file(filepath: str, strict: bool = False) -> list[Issue]:
+def validate_file(filepath: str, strict: bool = False, check_beads: bool = False) -> list[Issue]:
     """Parse and validate a DOT file."""
     data = parse_file(filepath)
-    return validate(data, strict=strict)
+    return validate(data, strict=strict, check_beads=check_beads)
 
 
 def main() -> None:
@@ -703,10 +760,16 @@ def main() -> None:
         action="store_true",
         help="Treat warnings as errors",
     )
+    ap.add_argument(
+        "--check-beads",
+        action="store_true",
+        dest="check_beads",
+        help="Verify bead_id values exist in .beads/ (requires bd CLI on PATH)",
+    )
     args = ap.parse_args()
 
     try:
-        issues = validate_file(args.file, strict=args.strict)
+        issues = validate_file(args.file, strict=args.strict, check_beads=args.check_beads)
     except FileNotFoundError:
         print(f"Error: File not found: {args.file}", file=sys.stderr)
         sys.exit(1)

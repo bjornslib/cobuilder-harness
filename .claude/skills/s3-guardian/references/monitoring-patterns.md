@@ -651,5 +651,137 @@ tmux send-keys -t "orch-{epic}" Enter
 
 ---
 
-**Reference Version**: 0.2.0
+## 8. Gate Monitor Pattern
+
+When the pipeline runner reaches a `wait.system3` or `wait.human` node, it writes a `.gate-wait` marker file to the signal directory and enters its poll loop. System 3 uses a Haiku monitor sub-agent to detect these gates and act on them.
+
+### Gate-Aware Monitor Prompt
+
+```python
+Task(
+    subagent_type="monitor",
+    model="haiku",
+    run_in_background=True,
+    prompt=f"""Monitor pipeline progress for {pipeline_id}.
+
+    Signal directory: {signal_dir}
+    DOT file: {dot_file}
+    Poll interval: 30 seconds
+    Stall threshold: 5 minutes
+
+    COMPLETE immediately with a status report when:
+    1. A .gate-wait file appears in the signal directory
+       - Read and report: node_id, gate_type, summary_ref from the JSON content
+       - Status: MONITOR_GATE_WAITING
+    2. A node fails (report which node and error)
+       - Status: MONITOR_ERROR
+    3. No state change for >5 minutes (report last known state)
+       - Status: MONITOR_STALL
+    4. All nodes reach terminal state (report completion)
+       - Status: MONITOR_COMPLETE
+
+    Priority: Check for .gate-wait files FIRST each cycle.
+    Do NOT attempt to fix issues or respond to gates. Just report.
+    """
+)
+```
+
+### Gate-Wait Marker Schema
+
+Both `wait.system3` and `wait.human` nodes write `.gate-wait` markers with this structure:
+
+```json
+{
+    "node_id": "e1_gate",
+    "gate_type": "wait.system3",
+    "summary_ref": ".claude/summaries/E1-gate-summary.md",
+    "epic_id": "E1",
+    "timestamp": "2026-03-07T10:15:00Z"
+}
+```
+
+For `wait.human` nodes, the marker also includes `"mode": "technical"`.
+
+### System 3 Response Handlers
+
+When the monitor completes with `MONITOR_GATE_WAITING`, System 3 reads `gate_type` and acts:
+
+**wait.system3 — Run Blind Gherkin E2E:**
+
+```python
+# 1. Read the gate-wait marker
+gate_info = json.loads(Read(f"{signal_dir}/{node_id}.gate-wait"))
+
+# 2. Run blind Gherkin E2E validation (acceptance tests live in config repo)
+Task(
+    subagent_type="validation-test-agent",
+    prompt=f"--mode=e2e --prd={prd_id} --epic={gate_info['epic_id']}"
+)
+
+# 3. Write signal file to unblock the runner
+Write(f"{signal_dir}/{node_id}.json", json.dumps({
+    "node_id": node_id,
+    "status": "success",  # or "error" if validation failed
+    "result": "pass",     # or "fail"
+    "score": 0.87,
+    "evidence": "Gherkin E2E: 5/6 scenarios passed",
+    "timestamp": datetime.now(timezone.utc).isoformat()
+}))
+# Runner polls, picks up signal, transitions gate to validated/failed
+```
+
+**wait.human — Present AskUserQuestion:**
+
+```python
+# 1. Read the gate-wait marker
+gate_info = json.loads(Read(f"{signal_dir}/{node_id}.gate-wait"))
+
+# 2. Read summary from preceding validation gate
+summary = Read(gate_info["summary_ref"])
+
+# 3. Present to user
+AskUserQuestion(questions=[{
+    "question": f"Pipeline gate {node_id} requests human review.\n\n{summary}\n\nApprove this work?",
+    "header": "Gate Review",
+    "options": [
+        {"label": "Approve", "description": "Work meets acceptance criteria. Continue pipeline."},
+        {"label": "Reject", "description": "Work does not meet criteria. Provide feedback for requeue."},
+        {"label": "Investigate", "description": "Need more information before deciding."}
+    ]
+}])
+
+# 4. Write signal file based on user response
+result = "pass" if user_chose_approve else "fail"
+Write(f"{signal_dir}/{node_id}.json", json.dumps({
+    "node_id": node_id,
+    "status": "success" if result == "pass" else "error",
+    "result": result,
+    "reviewer": "human",
+    "feedback": user_feedback_if_reject,
+    "timestamp": datetime.now(timezone.utc).isoformat()
+}))
+# Runner polls, picks up signal, transitions gate
+```
+
+### Gate-Wait Cleanup
+
+The pipeline runner automatically removes `.gate-wait` markers in `_apply_signal()` after processing the corresponding signal file. This prevents the monitor from re-triggering on stale markers.
+
+### Re-Launch Pattern
+
+After handling a gate response, re-launch the monitor to continue watching the pipeline:
+
+```python
+# Gate handled, signal written — re-launch monitor for remaining nodes
+Task(
+    subagent_type="monitor",
+    model="haiku",
+    run_in_background=True,
+    prompt=f"""Monitor pipeline progress for {pipeline_id}. [same prompt as above]"""
+)
+```
+
+---
+
+**Reference Version**: 0.3.0
 **Parent Skill**: s3-guardian

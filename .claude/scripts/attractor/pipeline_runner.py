@@ -706,12 +706,17 @@ class PipelineRunner:
         # Write a gate-wait marker file so System 3 knows to look at this node
         gate_marker = os.path.join(self.signal_dir, f"{nid}.gate-wait")
         with open(gate_marker, "w") as fh:
-            json.dump({"node_id": nid, "waiting_for": "system3",
-                       "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()}, fh)
+            json.dump({
+                "node_id": nid,
+                "gate_type": "wait.system3",
+                "summary_ref": node["attrs"].get("summary_ref", ""),
+                "epic_id": node["attrs"].get("epic_id", ""),
+                "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            }, fh)
         log.info("[gate] Gate marker written: %s", gate_marker)
 
     def _handle_human(self, node: dict, data: dict) -> None:
-        """Human review nodes (wait.human): emit a GChat review request."""
+        """Human review nodes (wait.human): emit gate-wait marker + GChat review request."""
         nid = node["id"]
         log.info("[human] %s — requesting human review", nid)
         self.active_workers[nid] = {
@@ -719,6 +724,18 @@ class PipelineRunner:
             "waiting_for": "human",
             "started_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         }
+        # Write a gate-wait marker file so System 3 / monitor can detect this gate
+        gate_marker = os.path.join(self.signal_dir, f"{nid}.gate-wait")
+        with open(gate_marker, "w") as fh:
+            json.dump({
+                "node_id": nid,
+                "gate_type": "wait.human",
+                "summary_ref": node["attrs"].get("summary_ref", ""),
+                "mode": node["attrs"].get("mode", "technical"),
+                "epic_id": node["attrs"].get("epic_id", ""),
+                "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            }, fh)
+        log.info("[human] Gate marker written: %s", gate_marker)
         # Attempt GChat notification; fall back gracefully
         try:
             from gchat_adapter import send_review_request  # type: ignore[import]
@@ -1009,6 +1026,14 @@ class PipelineRunner:
         """Mechanically apply a signal to the pipeline graph. No LLM involved."""
         sig_status = signal.get("status") or signal.get("result", "unknown")
         log.info("[signal] Processing signal for %s  status=%s", node_id, sig_status)
+        # Clean up gate-wait marker if present (prevents monitor re-triggering on stale markers)
+        gate_marker = os.path.join(self.signal_dir, f"{node_id}.gate-wait")
+        if os.path.exists(gate_marker):
+            try:
+                os.remove(gate_marker)
+                log.info("[signal] Cleaned up gate-wait marker: %s", gate_marker)
+            except OSError as exc:
+                log.warning("[signal] Failed to remove gate-wait marker: %s", exc)
         if _LOGFIRE_AVAILABLE:
             logfire.info("signal {node_id} → {signal_status}",
                          node_id=node_id, signal_status=sig_status,

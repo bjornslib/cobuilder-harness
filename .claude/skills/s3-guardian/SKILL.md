@@ -1,7 +1,7 @@
 ---
 name: s3-guardian
 description: This skill should be used when System 3 needs to act as an independent guardian angel — designing PRDs with CoBuilder RepoMap context injection, challenging designs via parallel solutioning, spawning orchestrators via headless CLI dispatch, creating blind Gherkin acceptance tests and executable browser test scripts from PRDs, monitoring orchestrator progress, independently validating claims against acceptance criteria using gradient confidence scoring (0.0-1.0), and setting session promises. Use when asked to "spawn and monitor an orchestrator", "create acceptance tests for a PRD", "validate orchestrator claims", "act as guardian angel", "independently verify implementation work", or "design and challenge a PRD".
-version: 0.5.1
+version: 0.6.1
 title: "S3 Guardian"
 status: active
 last_verified: 2026-03-02
@@ -350,6 +350,7 @@ Each level adds independent verification. The key constraint: each guardian stor
 | 2. Orchestrator Spawn | DOT dispatch, headless CLI / SDK / tmux patterns, wisdom inject | [guardian-workflow.md](references/guardian-workflow.md) |
 | 3. Monitoring | JSON output parsing (headless), DOT polling (SDK), signal-file monitoring, progress monitoring | [monitoring-patterns.md](references/monitoring-patterns.md) |
 | 3.5 Pipeline Progress | Haiku sub-agent monitoring with stall/failure detection | [monitoring-patterns.md](references/monitoring-patterns.md) |
+| 3.6 Gate Monitoring | Detect wait.system3/wait.human gates via .gate-wait markers, System 3 response handlers | [monitoring-patterns.md](references/monitoring-patterns.md) § Section 8 |
 | 4. Validation | Score scenarios, run executable tests, weighted total | [validation-scoring.md](references/validation-scoring.md) |
 | 4.5 Regression | ZeroRepo diff before journey tests | [references/validation-scoring.md](references/validation-scoring.md) |
 
@@ -388,6 +389,7 @@ Task(
 - `MONITOR_ERROR`: Node failed → Investigate root cause, requeue or escalate
 - `MONITOR_STALL`: No progress for >threshold → Check if worker hung, restart if needed
 - `MONITOR_ANOMALY`: Unexpected state → Investigate, may need manual DOT edit
+- `MONITOR_GATE_WAITING`: A `wait.system3` or `wait.human` gate is active (`.gate-wait` marker detected) → System 3 handles gate response
 
 **Monitoring Mechanism**:
 - **Signal directory polling**: Monitor `.claude/attractor/signals/` for new/modified `.json` files with status changes
