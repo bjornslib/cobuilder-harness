@@ -1,0 +1,76 @@
+digraph "PRD-HARNESS-UPGRADE-E7" {
+    graph [
+        label="E7: Worker Prompt Restructuring + Pure Python Pipeline Runner"
+        labelloc="t"
+        fontsize=16
+        rankdir="TB"
+        prd_ref="PRD-HARNESS-UPGRADE-001"
+        target_dir="/Users/theb/Documents/Windsurf/claude-harness-setup"
+    ];
+
+    node [fontname="Helvetica" fontsize=11];
+    edge [fontname="Helvetica" fontsize=9];
+
+    start [
+        shape=Mdiamond
+        label="START"
+        handler="start"
+        status="pending"
+    ];
+
+    // === E7.1: Worker Prompt Restructuring ===
+    // Slim system prompt from 21K to ~3K, restructure initial prompt
+    impl_e71 [
+        shape=box
+        label="E7.1: Worker Prompt Restructuring\nSlim system prompt, restructure initial prompt"
+        handler="codergen"
+        worker_type="backend-solutions-engineer"
+        sd_path="docs/sds/harness-upgrade/SD-HARNESS-UPGRADE-001-E7.1-worker-prompt.md"
+        acceptance="AC-7.1.1: Worker system prompt under 4K chars (down from 21K). AC-7.1.2: Worker initial prompt contains PRD path, SD path, and AC as primary content. AC-7.1.3: Initial prompt includes directive giving worker judgment on implementation. AC-7.1.4: Tool usage examples available as reference file, not embedded in system prompt. AC-7.1.5: Guardian system prompt similarly slimmed. AC-7.1.6: All existing tests pass."
+        prd_ref="PRD-HARNESS-UPGRADE-001"
+        epic_id="E7.1"
+        status="pending"
+    ];
+
+    // === E7.2: Pure Python Pipeline Runner ===
+    // Persistent Python runner with watchdog, AgentSDK dispatch, new status chain
+    impl_e72 [
+        shape=box
+        label="E7.2: Pure Python Pipeline Runner\npipeline_runner.py with watchdog + AgentSDK dispatch"
+        handler="codergen"
+        worker_type="backend-solutions-engineer"
+        sd_path="docs/sds/harness-upgrade/SD-HARNESS-UPGRADE-001-E7-python-runner.md"
+        acceptance="AC-7.2.1: pipeline_runner.py exists, imports cleanly, --help works. AC-7.2.2: _find_dispatchable_nodes() returns only nodes with all deps accepted. AC-7.2.3: Workers dispatched via AgentSDK with correct sub-agent type and skills. AC-7.2.4: _handle_tool() runs command and writes signal without any LLM call. AC-7.2.5: Validation agent dispatched at impl_complete gates via AgentSDK. AC-7.2.6: Full pipeline run on simple-pipeline.dot completes with 0 LLM graph tokens. AC-7.2.7: Watchdog-based file monitoring (not mtime polling). AC-7.2.8: Status chain: pending, active, impl_complete, validated, accepted."
+        prd_ref="PRD-HARNESS-UPGRADE-001"
+        epic_id="E7.2"
+        status="pending"
+    ];
+
+    // E7.1 and E7.2 run in parallel (different files, no overlap)
+    start -> impl_e71 [label="begin"];
+    start -> impl_e72 [label="begin"];
+
+    // === Validation gate ===
+    e7_gate [
+        shape=hexagon
+        label="E7 Validation Gate"
+        handler="wait.human"
+        gate="technical"
+        mode="technical"
+        summary_ref=".claude/summaries/E7-gate-summary.md"
+        epic_id="E7"
+        status="pending"
+    ];
+
+    impl_e71 -> e7_gate [label="impl_complete"];
+    impl_e72 -> e7_gate [label="impl_complete"];
+
+    finalize [
+        shape=Msquare
+        label="FINALIZE"
+        handler="exit"
+        status="pending"
+    ];
+
+    e7_gate -> finalize [label="validated"];
+}

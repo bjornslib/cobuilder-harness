@@ -182,11 +182,39 @@ class TestParseArgs:
         assert args.target_dir == "/path/to/target"
 
     def test_default_model(self):
-        args = parse_args([
-            "--node", "x", "--prd", "y",
-            "--solution-design", "z", "--target-dir", "w",
-        ])
-        assert args.model == "claude-haiku-4-5-20251001"
+        # Temporarily set environment variable to a known value for testing
+        original_model = os.environ.get("ANTHROPIC_MODEL")
+        os.environ["ANTHROPIC_MODEL"] = "claude-haiku-4-5-20251001"
+
+        try:
+            args = parse_args([
+                "--node", "x", "--prd", "y",
+                "--solution-design", "z", "--target-dir", "w",
+            ])
+            assert args.model == "claude-haiku-4-5-20251001"
+        finally:
+            # Restore original environment
+            if original_model is not None:
+                os.environ["ANTHROPIC_MODEL"] = original_model
+            else:
+                os.environ.pop("ANTHROPIC_MODEL", None)
+
+    def test_default_model_fallback(self):
+        # Temporarily remove the environment variable to test fallback
+        original_model = os.environ.get("ANTHROPIC_MODEL")
+        if "ANTHROPIC_MODEL" in os.environ:
+            del os.environ["ANTHROPIC_MODEL"]
+
+        try:
+            args = parse_args([
+                "--node", "x", "--prd", "y",
+                "--solution-design", "z", "--target-dir", "w",
+            ])
+            assert args.model == "claude-haiku-4-5-20251001"  # Default fallback
+        finally:
+            # Restore original environment
+            if original_model is not None:
+                os.environ["ANTHROPIC_MODEL"] = original_model
 
     def test_default_max_turns(self):
         args = parse_args([

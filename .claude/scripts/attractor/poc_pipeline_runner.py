@@ -59,8 +59,21 @@ from adapters import ChannelAdapter, create_adapter  # noqa: E402
 # Constants
 # ---------------------------------------------------------------------------
 
+# Load environment variables from .claude/attractor/.env
+try:
+    from dispatch_worker import load_attractor_env
+    os.environ.update(load_attractor_env())
+except ImportError:
+    # If dispatch_worker is not available in this context, that's OK
+    pass
+
+def _get_default_model():
+    """Get the default model from environment or fallback to hardcoded value."""
+    return os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
+
+
 CLI_PATH = os.path.join(_THIS_DIR, "cli.py")
-MODEL = "claude-sonnet-4-6"
+MODEL = _get_default_model()
 
 SYSTEM_PROMPT = """\
 You are a Pipeline Runner agent. Your job is to analyze an Attractor-style

@@ -1,4 +1,5 @@
 """Base enricher class for the LLM enrichment pipeline."""
+import os
 import re
 import logging
 import anthropic
@@ -53,8 +54,8 @@ class BaseEnricher:
     Each enricher makes LLM calls to append structured data to pipeline nodes.
     """
 
-    def __init__(self, model: str = "claude-sonnet-4-6"):
-        self.model = model
+    def __init__(self, model: str | None = None):
+        self.model = model or os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
         self.client = anthropic.Anthropic()
 
     def enrich_all(self, nodes: list[dict], repomap: dict, sd: str) -> list[dict]:

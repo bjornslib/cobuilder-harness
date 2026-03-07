@@ -26,8 +26,20 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+# Load environment variables from .claude/attractor/.env
+try:
+    from dispatch_worker import load_attractor_env
+    os.environ.update(load_attractor_env())
+except ImportError:
+    # If dispatch_worker is not available in this context, that's OK
+    pass
 
-DEFAULT_MODEL = "claude-sonnet-4-6"
+def _get_default_model():
+    """Get the default model from environment or fallback to hardcoded value."""
+    return os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
+
+
+DEFAULT_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
 DEFAULT_MAX_TURNS = 20
 
 
@@ -193,8 +205,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                         help="Path to upstream research evidence JSON")
     parser.add_argument("--prd-path", default="", dest="prd_path",
                         help="Path to PRD document for additional context")
-    parser.add_argument("--model", default=DEFAULT_MODEL,
-                        help=f"Claude model (default: {DEFAULT_MODEL})")
+    parser.add_argument("--model", default=_get_default_model(),
+                        help="Claude model (default: claude-sonnet-4-6 or ANTHROPIC_MODEL env var)")
     parser.add_argument("--max-turns", type=int, default=DEFAULT_MAX_TURNS,
                         dest="max_turns",
                         help=f"Max SDK turns (default: {DEFAULT_MAX_TURNS})")

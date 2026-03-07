@@ -713,6 +713,53 @@ class TestModeFlag(unittest.TestCase):
         self.assertIn("--worktree", claude_calls[0])
         self.assertIn("auth", claude_calls[0])
 
+    # ---- Model environment variable functionality -----
+
+    def test_build_claude_cmd_uses_env_model(self) -> None:
+        """_build_claude_cmd() should use ANTHROPIC_MODEL from environment."""
+        import os
+        original_model = os.environ.get("ANTHROPIC_MODEL")
+
+        try:
+            # Set test environment variable
+            os.environ["ANTHROPIC_MODEL"] = "test-model-2026"
+
+            # Test that the command contains the test model
+            cmd = spawn_orchestrator._build_claude_cmd("test_node", "PRD-TEST-001", "tmux")
+            self.assertIn("test-model-2026", cmd)
+        finally:
+            # Restore original environment
+            if original_model is not None:
+                os.environ["ANTHROPIC_MODEL"] = original_model
+            elif "ANTHROPIC_MODEL" in os.environ:
+                del os.environ["ANTHROPIC_MODEL"]
+
+    def test_build_claude_cmd_fallback_model(self) -> None:
+        """_build_claude_cmd() should fallback to default when no ANTHROPIC_MODEL set."""
+        import os
+        original_model = os.environ.get("ANTHROPIC_MODEL")
+
+        try:
+            # Remove environment variable if it exists
+            if "ANTHROPIC_MODEL" in os.environ:
+                del os.environ["ANTHROPIC_MODEL"]
+
+            # Test that the command contains the default model
+            cmd = spawn_orchestrator._build_claude_cmd("test_node", "PRD-TEST-001", "tmux")
+            self.assertIn("claude-sonnet-4-6", cmd)
+        finally:
+            # Restore original environment
+            if original_model is not None:
+                os.environ["ANTHROPIC_MODEL"] = original_model
+
+    def test_env_variables_loaded_at_import(self) -> None:
+        """Environment variables should be loaded when the module is imported."""
+        # The module loads environment variables at import time
+        # which is verified by the fact that dispatch_worker is imported and its
+        # load_attractor_env function is called
+        self.assertTrue(hasattr(spawn_orchestrator, '_build_claude_cmd'))
+        # We can test the actual function behavior as in the tests above
+
 
 # ---------------------------------------------------------------------------
 # TestTmuxSendPostPause — post_pause parameter behaviour

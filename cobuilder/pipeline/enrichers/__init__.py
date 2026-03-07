@@ -9,6 +9,7 @@ Usage:
     pipeline = EnrichmentPipeline()
     enriched_nodes = pipeline.enrich(nodes, repomap, sd)
 """
+import os
 from .base import BaseEnricher
 from .file_scoper import FileScoper
 from .acceptance_crafter import AcceptanceCrafter
@@ -54,7 +55,8 @@ class EnrichmentPipeline:
         Returns:
             Enriched node list with all enricher keys appended.
         """
+        model = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
         for enricher_cls in self.enrichers:
-            enricher = enricher_cls(model="claude-sonnet-4-6")
+            enricher = enricher_cls(model=model)
             nodes = enricher.enrich_all(nodes, repomap, sd)
         return nodes

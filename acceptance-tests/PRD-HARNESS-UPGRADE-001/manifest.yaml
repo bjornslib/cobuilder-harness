@@ -1,0 +1,226 @@
+prd_id: PRD-HARNESS-UPGRADE-001
+prd_title: "System 3 Self-Management Upgrade"
+prd_source: docs/prds/harness-upgrade/PRD-HARNESS-UPGRADE-001.md
+generated: 2026-03-07T10:00:00Z
+mode: guardian
+
+decision_thresholds:
+  accept: 0.60
+  investigate: 0.40
+
+epics:
+  - id: E0
+    title: "Pipeline Progress Monitor"
+    sd_source: docs/sds/harness-upgrade/SD-HARNESS-UPGRADE-001-E0-progress-monitor.md
+    scenario_file: E0-progress-monitor.feature
+    features:
+      - name: "F0.1: Haiku Monitor Sub-Agent Pattern"
+        weight: 0.03
+        validation_method: doc-review
+        scenarios: ["S0.1"]
+      - name: "F0.2: Signal Directory Polling"
+        weight: 0.03
+        validation_method: doc-review
+        scenarios: ["S0.2"]
+      - name: "F0.3: Cyclic Re-Launch Pattern"
+        weight: 0.02
+        validation_method: doc-review
+        scenarios: ["S0.3"]
+      - name: "F0.4: Output Status Enum"
+        weight: 0.02
+        validation_method: doc-review
+        scenarios: ["S0.4"]
+
+  - id: E1
+    title: "Node Semantics Clarification"
+    sd_source: docs/sds/harness-upgrade/SD-HARNESS-UPGRADE-001-E1-node-semantics.md
+    scenario_file: E1-node-semantics.feature
+    features:
+      - name: "F1.1: wait.system3 Handler Definition"
+        weight: 0.03
+        validation_method: doc-review
+        scenarios: ["S1.1"]
+      - name: "F1.2: wait.human Handler Definition"
+        weight: 0.02
+        validation_method: doc-review
+        scenarios: ["S1.2"]
+      - name: "F1.3: Full Codergen Cluster Topology"
+        weight: 0.04
+        validation_method: doc-review
+        scenarios: ["S1.3"]
+      - name: "F1.4: Pipeline Example Updated"
+        weight: 0.02
+        validation_method: doc-review
+        scenarios: ["S1.4"]
+      - name: "F1.5: Executor Clarification + Requeue"
+        weight: 0.03
+        validation_method: doc-review
+        scenarios: ["S1.5"]
+
+  - id: E2
+    title: "PRD Contract + E2E Gate Protocol"
+    sd_source: docs/sds/harness-upgrade/SD-HARNESS-UPGRADE-001-E2-prd-contract.md
+    scenario_file: E2-prd-contract.feature
+    features:
+      - name: "F2.1: PRD Contract Template"
+        weight: 0.04
+        validation_method: doc-review
+        scenarios: ["S2.1"]
+      - name: "F2.2: Phase 0 Contract Generation Step"
+        weight: 0.03
+        validation_method: doc-review
+        scenarios: ["S2.2"]
+      - name: "F2.3: Contract Validation in wait.system3"
+        weight: 0.04
+        validation_method: doc-review
+        scenarios: ["S2.3"]
+
+  - id: E3
+    title: "Workflow Protocol Enhancements"
+    sd_source: docs/sds/harness-upgrade/SD-HARNESS-UPGRADE-001-E3-workflow-protocols.md
+    scenario_file: E3-workflow-protocols.feature
+    features:
+      - name: "F3.1: SD Version Pinning"
+        weight: 0.04
+        validation_method: doc-review
+        scenarios: ["S3.1"]
+      - name: "F3.2: Concern Queue Schema"
+        weight: 0.03
+        validation_method: doc-review
+        scenarios: ["S3.2"]
+      - name: "F3.3: Guardian Reflection at wait.system3 Gates"
+        weight: 0.03
+        validation_method: doc-review
+        scenarios: ["S3.3"]
+      - name: "F3.4: Session Handoff Format"
+        weight: 0.02
+        validation_method: doc-review
+        scenarios: ["S3.4"]
+      - name: "F3.5: Living Narrative Protocol"
+        weight: 0.02
+        validation_method: doc-review
+        scenarios: ["S3.5"]
+
+  - id: E4
+    title: "Sub-Agent Registry + Skill Injection"
+    sd_source: docs/sds/harness-upgrade/SD-HARNESS-UPGRADE-001-E4-agent-registry.md
+    scenario_file: E4-agent-registry.feature
+    features:
+      - name: "F4.1: All 6 Agent Definition Files with skills_required"
+        weight: 0.04
+        validation_method: code-analysis
+        scenarios: ["S4.1"]
+      - name: "F4.2: worker_type Schema Enum (6 types)"
+        weight: 0.03
+        validation_method: code-analysis
+        scenarios: ["S4.2"]
+      - name: "F4.3: Dispatch Integration with Skill Injection"
+        weight: 0.05
+        validation_method: code-analysis
+        scenarios: ["S4.3"]
+
+  - id: E5
+    title: "Attractor Schema + Validate CLI Extension"
+    sd_source: docs/sds/harness-upgrade/SD-HARNESS-UPGRADE-001-E5-schema-validate-cli.md
+    scenario_file: E5-schema-validate-cli.feature
+    features:
+      - name: "F5.1: sd_path Mandatory on Codergen"
+        weight: 0.04
+        validation_method: code-analysis
+        scenarios: ["S5.1"]
+      - name: "F5.2: Epic E2E Gate Check"
+        weight: 0.04
+        validation_method: code-analysis
+        scenarios: ["S5.2"]
+      - name: "F5.3: worker_type Registry Check (6 types)"
+        weight: 0.03
+        validation_method: code-analysis
+        scenarios: ["S5.3"]
+      - name: "F5.4: wait.human Topology Enforcement"
+        weight: 0.03
+        validation_method: code-analysis
+        scenarios: ["S5.4"]
+      - name: "F5.5: Acceptance-Test-Writer Topology + Skills Validation"
+        weight: 0.02
+        validation_method: code-analysis
+        scenarios: ["S5.5"]
+
+  - id: E6
+    title: "Dispatch Worker Enhancements (SDK Mode)"
+    sd_source: docs/sds/harness-upgrade/SD-HARNESS-UPGRADE-001-E6-dispatch-worker.md
+    scenario_file: E6-dispatch-worker.feature
+    features:
+      - name: "F6.1: MCP Permission Bypass (bypassPermissions)"
+        weight: 0.05
+        validation_method: code-analysis
+        scenarios: ["S6.1"]
+      - name: "F6.2: SD Content Wiring"
+        weight: 0.05
+        validation_method: code-analysis
+        scenarios: ["S6.2"]
+      - name: "F6.3: Skill Injection from Agent Definition"
+        weight: 0.04
+        validation_method: code-analysis
+        scenarios: ["S6.3"]
+      - name: "F6.4: Signal Dir + Concerns File Env Vars"
+        weight: 0.03
+        validation_method: code-analysis
+        scenarios: ["S6.4"]
+      - name: "F6.5: SD Hash in Evidence"
+        weight: 0.02
+        validation_method: code-analysis
+        scenarios: ["S6.5"]
+
+  - id: E7.1
+    title: "Worker Prompt Restructuring"
+    sd_source: docs/sds/harness-upgrade/SD-HARNESS-UPGRADE-001-E7.1-worker-prompt.md
+    scenario_file: E7.1-worker-prompt.feature
+    features:
+      - name: "F7.1.1: Slimmed System Prompt (<4K)"
+        weight: 0.04
+        validation_method: code-analysis
+        scenarios: ["S7.1.1"]
+      - name: "F7.1.2: Restructured Initial Prompt"
+        weight: 0.04
+        validation_method: code-analysis
+        scenarios: ["S7.1.2"]
+      - name: "F7.1.3: Tool Reference File"
+        weight: 0.03
+        validation_method: code-analysis
+        scenarios: ["S7.1.3"]
+      - name: "F7.1.4: Guardian Prompt Slimming"
+        weight: 0.02
+        validation_method: code-analysis
+        scenarios: ["S7.1.4"]
+
+  - id: E7.2
+    title: "Pure Python DOT Runner"
+    sd_source: docs/sds/harness-upgrade/SD-HARNESS-UPGRADE-001-E7-python-runner.md
+    scenario_file: E7.2-python-runner.feature
+    features:
+      - name: "F7.2.1: Module Existence + CLI"
+        weight: 0.03
+        validation_method: code-analysis
+        scenarios: ["S7.2.1"]
+      - name: "F7.2.2: Dispatchable Node Discovery"
+        weight: 0.04
+        validation_method: code-analysis
+        scenarios: ["S7.2.2"]
+      - name: "F7.2.3: Codergen Handler Dispatch"
+        weight: 0.04
+        validation_method: code-analysis
+        scenarios: ["S7.2.3"]
+      - name: "F7.2.4: Tool Handler (No LLM)"
+        weight: 0.03
+        validation_method: code-analysis
+        scenarios: ["S7.2.4"]
+      - name: "F7.2.5: System3 Gate Handler with Guardian Reflection"
+        weight: 0.04
+        validation_method: code-analysis
+        scenarios: ["S7.2.5"]
+      - name: "F7.2.6: Full Pipeline Run (Zero LLM Graph Tokens)"
+        weight: 0.06
+        validation_method: e2e-test
+        scenarios: ["S7.2.6"]
+
+weight_sum_note: "Weights per-feature. E6+E7.1+E7.2 dominate as highest-impact code changes. Phase 3 (E8-E12) has no acceptance tests yet."

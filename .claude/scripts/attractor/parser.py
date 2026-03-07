@@ -244,8 +244,23 @@ def _parse_nodes_and_edges(content: str, result: dict) -> None:
         if node_id in reserved:
             continue
 
+        # Check if this match is inside a quoted string by counting
+        # unescaped quotes before the match position. Odd count = inside string.
+        preceding = body[: m.start()]
+        quote_count = 0
+        i = 0
+        while i < len(preceding):
+            if preceding[i] == "\\" and i + 1 < len(preceding) and preceding[i + 1] == '"':
+                i += 2  # skip escaped quote
+                continue
+            if preceding[i] == '"':
+                quote_count += 1
+            i += 1
+        if quote_count % 2 == 1:
+            continue  # inside a quoted string — skip this match
+
         # Check if this is part of an edge definition
-        before = body[: m.start()].rstrip()
+        before = preceding.rstrip()
         if before.endswith("->"):
             continue
 

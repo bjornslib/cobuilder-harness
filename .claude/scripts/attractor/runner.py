@@ -386,7 +386,7 @@ def build_options(
         from claude_code_sdk import ClaudeCodeOptions
 
         return ClaudeCodeOptions(
-            allowed_tools=["Bash"],
+            allowed_tools=["Bash", "Read", "Write", "Edit", "Glob"],
             system_prompt=system_prompt,
             cwd=cwd,
             model=model,
@@ -405,41 +405,27 @@ def build_worker_system_prompt(
 ) -> str:
     """Return the system prompt for a direct SDK worker agent (task execution).
 
-    Unlike build_system_prompt() which instructs a monitoring agent, this
-    prompt configures an agent that directly implements the task.
-
-    Args:
-        node_id: Pipeline node identifier.
-        prd_ref: PRD reference string.
-        acceptance: Acceptance criteria text.
-        target_dir: Working directory for the agent.
-
-    Returns:
-        Formatted system prompt string.
+    Slimmed to ~3K chars (E7.1). Tool reference extracted to worker-tool-reference.md.
     """
     with logfire.span("runner.build_worker_system_prompt", node_id=node_id, prd_ref=prd_ref):
         return (
-            f"You are a software engineer implementing a pipeline task directly.\n\n"
-            f"Your assignment:\n"
+            f"# Worker Role\n\n"
+            f"You are a focused implementation worker. Your task is defined in your initial prompt.\n\n"
+            f"## First Action (MANDATORY)\n"
+            f"Read the Solution Design file referenced in your initial prompt. It describes the\n"
+            f"intended approach. The acceptance criteria define success.\n\n"
+            f"## Assignment\n"
             f"- Node: {node_id}\n"
             f"- PRD: {prd_ref}\n"
             f"- Working directory: {target_dir}\n\n"
-            f"Acceptance criteria:\n"
-            f"{acceptance or 'Implement the feature as described in the initial prompt.'}\n\n"
-            f"Work directly in {target_dir}. Use available tools to read, write, and "
-            f"edit files as needed.\n"
-            f"When finished, ensure all acceptance criteria are satisfied.\n\n"
-            f"## Tool Usage Reference\n\n"
-            f"**Creating new files** — prefer Bash heredoc:\n"
-            f"  Bash: cat > path/to/file.py << 'EOF'\\ncontent\\nEOF\n\n"
-            f"  Or Write tool (parameter is `file_path`, not `path`):\n"
-            f"  Write(file_path=\"src/main.py\", content=\"...\")\n\n"
-            f"**Editing existing files**:\n"
-            f"  1. Read(file_path=\"...\") — get current content\n"
-            f"  2. Edit(file_path=\"...\", old_string=\"exact match\", new_string=\"replacement\")\n"
-            f"  Note: old_string must match the file exactly (including whitespace).\n"
-            f"  Note: replace_all is boolean true/false, not the string 'True'/'False'.\n\n"
-            f"**Do not attempt to use beads or other MCP tools** — they are not available in this context.\n"
+            f"## Tool Allowlist\n"
+            f"You have access to: Read, Write, Edit, Grep, Glob, Bash, MultiEdit\n\n"
+            f"For tool parameter reference, read: .claude/agents/worker-tool-reference.md\n\n"
+            f"## Constraints\n"
+            f"- Only modify files listed in the SD's 'Files Changed' section unless the AC explicitly widens scope\n"
+            f"- Write a signal file to $ATTRACTOR_SIGNAL_DIR/{node_id}.json on completion\n"
+            f"- Write concerns to $CONCERNS_FILE if you encounter ambiguity or blockers\n"
+            f"- Do not attempt to use beads or other MCP tools — they are not available in this context\n"
         )
 
 
@@ -450,56 +436,68 @@ def build_worker_initial_prompt(
     solution_design: str | None = None,
     bead_id: str = "",
     target_dir: str = "",
+    skills_required: list[str] | None = None,
 ) -> str:
     """Return the initial task prompt for a direct SDK worker agent.
 
-    Args:
-        node_id: Pipeline node identifier.
-        prd_ref: PRD reference string.
-        acceptance: Acceptance criteria text.
-        solution_design: Optional path to a solution design document.
-        bead_id: Optional bead/task identifier.
-        target_dir: Working directory for resolving relative solution_design paths.
-
-    Returns:
-        Formatted initial prompt string.
+    Restructured (E7.1): PRD path, SD path, and AC are the primary content.
+    Includes directive giving worker judgment on implementation details.
     """
     with logfire.span("runner.build_worker_initial_prompt", node_id=node_id, prd_ref=prd_ref):
         parts: list[str] = [
             f"## Task: {node_id}",
-            f"",
-            f"**PRD Reference**: {prd_ref}",
+            "",
+            f"## PRD Reference",
+            f"Read: {prd_ref}",
         ]
         if bead_id:
             parts.append(f"**Bead ID**: {bead_id}")
-        parts += [
-            f"",
-            f"## Acceptance Criteria",
-            f"{acceptance or 'Implement the feature. Ensure the code works correctly.'}",
-        ]
+
+        # Solution Design — primary briefing content
         if solution_design:
             sd_path = Path(solution_design)
             if sd_path.is_absolute():
                 sd_abs = sd_path
             else:
                 sd_abs = Path(target_dir) / sd_path if target_dir else sd_path
+            parts += [
+                "",
+                "## Solution Design",
+                f"Read: {solution_design}",
+                'Key section: "2. Design" describes the technical approach.',
+                'Key section: "3. Files Changed" lists the files you should modify.',
+            ]
             try:
                 sd_content = sd_abs.read_text()
-                parts += [
-                    "",
-                    "## Solution Design",
-                    sd_content,
-                ]
+                parts += ["", "### SD Content (inlined for convenience)", sd_content]
             except (OSError, FileNotFoundError):
-                parts += [
-                    "",
-                    "## Solution Design",
-                    f"(Could not read {solution_design} — implement from acceptance criteria only)",
-                ]
+                parts.append(f"(Could not inline {solution_design} — read it yourself as first action)")
+
+        # Acceptance Criteria — defines success
         parts += [
-            f"",
-            f"Please implement this task now, working in the project directory.",
+            "",
+            "## Acceptance Criteria",
+            acceptance or "Implement the feature as described in the Solution Design.",
         ]
+
+        # Directive — worker judgment
+        parts += [
+            "",
+            "## Directive",
+            "The SD describes the intended approach and the AC defines success criteria.",
+            "Use your judgment on implementation details. If you encounter ambiguity,",
+            "write a concern to $CONCERNS_FILE and proceed with your best interpretation.",
+        ]
+
+        # Skills injection from agent definition
+        if skills_required:
+            parts += [
+                "",
+                "## Skills (load before implementation)",
+            ]
+            for skill in skills_required:
+                parts.append(f'Skill("{skill}")')
+
         return "\n".join(parts)
 
 

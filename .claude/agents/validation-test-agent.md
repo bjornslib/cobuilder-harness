@@ -5,6 +5,7 @@ model: sonnet
 color: green
 title: "Validation Test Agent"
 status: active
+skills_required: [acceptance-test-runner]
 ---
 
 **BMAD equivalents:** Quinn (QA Engineer) + Product Owner (PO) — merged into one agent.
@@ -191,6 +192,14 @@ cs-store-validation --promise <promise-id> --ac-id BUSINESS \
 }'
 ```
 
+### Pipeline Gate Mode (--mode=pipeline-gate) [NEW - Runner-Dispatched]
+- **Purpose**: Technical validation dispatched by pipeline_runner.py at `impl_complete` gates
+- **Trigger**: Dispatched automatically by the runner via AgentSDK when a node reaches `impl_complete`
+- **Validation Focus**: Technical correctness — does it compile, do tests pass, are contract invariants met
+- **Sequence Position**: Runs AFTER worker completes (impl_complete), BEFORE System 3 review
+- **Output**: Signal file written to `{signal_dir}/{node_id}.json`
+- **Authority**: This agent CAN reject work. It is NOT a rubber stamp.
+
 ### Pipeline Mode (--mode=pipeline) [NEW - DOT Attractor Integration]
 - **Purpose**: Validate a single hexagon gate node in a `.dot` attractor pipeline
 - **Trigger**: `validation-test-agent --mode=pipeline --node-id=<node-id> --pipeline=<path-to.dot>`
@@ -207,11 +216,75 @@ cs-store-validation --promise <promise-id> --ac-id BUSINESS \
 
 ---
 
+## Signal File Protocol (Pipeline Gate Mode)
+
+When running in pipeline-gate mode, the validation agent communicates results via signal files. The pipeline runner has ZERO LLM intelligence — it can only read signal files and mechanically apply transitions.
+
+### Signal File Format
+
+Write to `{ATTRACTOR_SIGNAL_DIR}/{node_id}.json`:
+
+**Pass (technical validation succeeded):**
+```json
+{
+  "node": "<node_id>",
+  "result": "pass",
+  "evidence": {
+    "tests_passed": 42,
+    "tests_failed": 0,
+    "build_status": "success",
+    "contract_invariants": "all_met"
+  },
+  "timestamp": "<ISO-8601>"
+}
+```
+
+**Fail (terminal failure — do not retry):**
+```json
+{
+  "node": "<node_id>",
+  "result": "fail",
+  "reason": "Fundamental design flaw — acceptance criteria cannot be met with current approach",
+  "evidence": ["test_output.log", "contract_violation_details"],
+  "timestamp": "<ISO-8601>"
+}
+```
+
+**Requeue (fixable failure — send predecessor back for another attempt):**
+```json
+{
+  "node": "<node_id>",
+  "result": "requeue",
+  "reason": "Unit tests fail — missing import in agent-schema.md handler table",
+  "requeue_target": "<predecessor_node_id>",
+  "evidence": ["test_output.log", "missing_handler_wait_system3"],
+  "guidance": "The codergen worker should add the missing wait.system3 handler to the handler mapping table in agent-schema.md",
+  "timestamp": "<ISO-8601>"
+}
+```
+
+### Runner Transition Logic
+
+The runner applies these mechanically — no judgment:
+- `result: "pass"` → transition node to `validated`
+- `result: "fail"` → transition node to `failed`
+- `result: "requeue"` → transition `requeue_target` back to `pending` (worker re-dispatched with `guidance` injected into prompt)
+
+### Critical Behavioral Rules
+
+1. **You CAN reject work.** You are not a rubber stamp. If tests fail, if code doesn't compile, if contract invariants are violated — write a `requeue` or `fail` signal.
+2. **Be specific in `reason` and `guidance`.** The runner will inject your `guidance` into the re-dispatched worker's prompt. Vague guidance ("fix the tests") leads to the same failure. Specific guidance ("add wait.system3 handler to line 45 of agent-schema.md") leads to resolution.
+3. **Include evidence.** Every signal must reference concrete evidence (test output, file paths, specific failures). This creates an audit trail.
+4. **You validate technical correctness only.** Business acceptance (does it meet PRD goals?) is System 3's job. You check: does it compile? Do tests pass? Are contract invariants met? Is the acceptance criteria technically satisfied?
+5. **Use acceptance-test-runner skill.** Invoke `Skill("acceptance-test-runner")` to load Gherkin scenarios and score against them for technical criteria.
+
+---
+
 ### Parameters
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
-| `--mode` | Yes | `unit`, `e2e`, `monitor`, `technical`, `business`, or `pipeline` |
+| `--mode` | Yes | `unit`, `e2e`, `monitor`, `technical`, `business`, `pipeline`, or `pipeline-gate` |
 | `--task_id` | For unit/e2e | Beads task ID being validated |
 | `--prd` | For e2e | PRD identifier (e.g., `PRD-AUTH-001`) |
 | `--criterion` | No | Specific acceptance criterion to test |

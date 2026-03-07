@@ -184,7 +184,7 @@ def collect_repomap_nodes(repo_name: str, project_root: str | Path) -> list[dict
 def filter_nodes_by_sd_relevance(
     nodes: list[dict],
     sd_content: str,
-    model: str = "claude-haiku-4-5-20251001",
+    model: str | None = None,
     batch_size: int = 300,
 ) -> list[dict]:
     """Filter repomap nodes to those relevant to the Solution Design using LLM.
@@ -211,6 +211,10 @@ def filter_nodes_by_sd_relevance(
         logger.warning("filter_nodes_by_sd_relevance: no SD content provided, skipping filter")
         return nodes
 
+    # Use environment variable for model if not provided, with fallback to default
+    if model is None:
+        model = os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
+
     # ── Phase A: Fast keyword pre-filter ──────────────────────────────
     # Extract file paths mentioned in the SD (Section 6: File Scope)
     # and filter nodes to those whose file_path contains any SD-mentioned path segment.
@@ -230,15 +234,11 @@ def filter_nodes_by_sd_relevance(
         if len(parts) >= 3:
             path_fragments.add("/".join(parts[-3:]))  # e.g. "verify-check/[task_id]/page.tsx"
 
-    import sys
-    print(f"[DEBUG] path_fragments ({len(path_fragments)}): {sorted(path_fragments)[:10]}", file=sys.stderr)
-
     if path_fragments:
         pre_filtered = [
             n for n in nodes
             if any(frag in (n.get("file_path") or "") for frag in path_fragments)
         ]
-        print(f"[DEBUG] pre_filtered: {len(pre_filtered)} from {len(nodes)}", file=sys.stderr)
         if pre_filtered:
             logger.info(
                 "filter_nodes_by_sd_relevance: keyword pre-filter %d → %d nodes (fragments: %s)",

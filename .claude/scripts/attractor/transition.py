@@ -32,7 +32,8 @@ VALID_TRANSITIONS: dict[str, set[str]] = {
     "active": {"impl_complete", "validated", "failed"},  # hexagons go active→validated/failed directly
     "impl_complete": {"validated", "failed", "active"},  # active for retry after fail
     "failed": {"active"},
-    "validated": set(),  # terminal
+    "validated": {"accepted"},  # validated -> accepted (pipeline runner final step)
+    "accepted": set(),  # terminal
 }
 
 # Status -> fillcolor mapping from schema
@@ -42,6 +43,7 @@ STATUS_COLORS: dict[str, str] = {
     "impl_complete": "lightsalmon",
     "validated": "lightgreen",
     "failed": "lightcoral",
+    "accepted": "palegreen",
 }
 
 
@@ -537,7 +539,7 @@ def main() -> None:
         leg.add_argument("node_id")
         leg.add_argument(
             "new_status",
-            choices=["pending", "active", "impl_complete", "validated", "failed"],
+            choices=["pending", "active", "impl_complete", "validated", "failed", "accepted"],
         )
         leg.add_argument("--dry-run", action="store_true")
         leg.add_argument("--output", choices=["json", "text"], default="text")
@@ -572,7 +574,7 @@ def main() -> None:
     trans_p.add_argument("node_id", help="Node ID to transition")
     trans_p.add_argument(
         "new_status",
-        choices=["pending", "active", "impl_complete", "validated", "failed"],
+        choices=["pending", "active", "impl_complete", "validated", "failed", "accepted"],
         help="Target status",
     )
     trans_p.add_argument(

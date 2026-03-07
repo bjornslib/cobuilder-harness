@@ -326,6 +326,83 @@ Watch for:
 
 For longer monitoring intervals (120s+), consider using a blocking Task agent instead of bash sleep loops. This keeps S3's context clean and gives the user an interruptible status line. See [SKILL.md Phase 3: Pause-and-Check Pattern](../SKILL.md#pause-and-check-pattern-blocking-task-agent) for the full pattern.
 
+### Haiku Monitor Pattern (Pipeline Progress Monitoring)
+
+System 3 can spawn a lightweight Haiku 4.5 sub-agent to continuously monitor pipeline progress. This monitor completes (waking System 3) only when attention is needed.
+
+**Spawning Template**:
+```python
+Task(
+    subagent_type="monitor",
+    model="haiku",
+    run_in_background=True,
+    prompt=f"""Monitor pipeline progress for {pipeline_id}.
+
+    Signal directory: {signal_dir}
+    DOT file: {dot_file}
+    Poll interval: 30 seconds
+    Stall threshold: 5 minutes
+
+    Check signal files for new completions or failures.
+    Check DOT file mtime for state transitions.
+    COMPLETE immediately with a status report when:
+    - A node fails (report which node and error)
+    - No state change for >5 minutes (report last known state)
+    - All nodes reach terminal state (report completion)
+    - Any anomaly detected (unexpected state, missing signal files)
+
+    Do NOT attempt to fix issues. Just report what you observe.
+    """
+)
+```
+
+**Monitor Output Statuses**:
+| Status | Meaning | Guardian Action |
+|--------|---------|-----------------|
+| `MONITOR_COMPLETE` | All nodes validated | Run final E2E, close initiative |
+| `MONITOR_ERROR` | Node failed | Investigate root cause, requeue or escalate |
+| `MONITOR_STALL` | No progress for >threshold | Check if worker hung, restart if needed |
+| `MONITOR_ANOMALY` | Unexpected state | Investigate, may need manual DOT edit |
+
+**Monitoring Mechanism**:
+1. **Signal directory polling**: Monitor `.claude/attractor/signals/` for new/modified `.json` files
+   - Record `os.stat(signal_dir).st_mtime` at start
+   - Every 30s: check if mtime changed
+   - If changed: scan for new/modified `.json` files
+   - Parse each signal: check `status` field for `error` or `failed`
+   - Count nodes by status: pending, active, impl_complete, validated, failed
+
+2. **DOT file monitoring**: Track `.claude/attractor/pipelines/*.dot` mtime for state transitions
+   - Record DOT file mtime at start
+   - Every 30s: check if mtime changed
+   - If changed: re-read DOT file, extract node status attributes
+   - Compare with previous state to detect transitions
+
+3. **Stall detection**:
+   - Track `last_state_change_time`
+   - If `now - last_state_change_time > stall_threshold`: report stall
+   - Default stall threshold: 5 minutes (configurable)
+
+**Cyclic Re-Launch Pattern**:
+```
+System 3                    Monitor (Haiku 4.5)
+   |                            |
+   |  Launch monitor ---------->|
+   |                            |<-- Poll signals + DOT (30s cycle)
+   |                            |    Detect: node failed
+   |<----- COMPLETE ------------|  status: "MONITOR_ERROR"
+   |  Handle failure            |
+   |  (fix issue, requeue)      |
+   |  RE-LAUNCH monitor ------->|  (cycle repeats)
+   |                            |
+   |                            |<-- Poll signals + DOT (30s cycle)
+   |                            |    Detect: all nodes terminal
+   |<----- COMPLETE ------------|  status: "MONITOR_COMPLETE"
+   |  Run final validation      |
+```
+
+This pattern allows System 3 to focus on other work while the lightweight monitor watches the pipeline and only interrupts when attention is needed.
+
 ---
 
 ## Guardian Phase 3: Monitoring (Full Reference)

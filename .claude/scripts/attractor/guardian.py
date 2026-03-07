@@ -355,48 +355,6 @@ After successful merge of a node:
 python3 {scripts_dir}/hook_manager.py update-phase guardian {pipeline_id} merged
 ```
 
-## Merge Queue Integration
-When you receive a MERGE_READY signal from a runner, process the merge queue directly:
-```bash
-python3 -c "
-import sys; sys.path.insert(0, '{scripts_dir}')
-from merge_queue import process_next
-from signal_protocol import write_signal
-import json
-result = process_next()
-if result.get('success'):
-    entry = result.get('entry', {{}})
-    write_signal('guardian', 'runner', 'MERGE_COMPLETE', {{'node_id': entry.get('node_id', '')}})
-    print('MERGE_COMPLETE: ' + json.dumps(entry))
-else:
-    entry = result.get('entry', {{}})
-    error = result.get('error', 'unknown error')
-    write_signal('guardian', 'runner', 'MERGE_FAILED', {{'node_id': entry.get('node_id', ''), 'error': error}})
-    print('MERGE_FAILED: ' + error)
-"
-```
-
-## Identity Scanning
-Periodically scan for stale agents using:
-  python3 {scripts_dir}/identity_registry.py --find-stale --timeout 300
-
-Stale active agents may indicate crashed orchestrators or runners. Use this
-information alongside signal monitoring to decide when to escalate or respawn.
-
-## Headless Mode (--mode headless)
-When using --mode headless instead of --mode sdk, workers run via `claude -p` CLI instead of
-the Claude SDK. Key differences:
-- Workers use Three-Layer Context: ROLE (--system-prompt from .claude/agents/), TASK (-p prompt), IDENTITY (env vars)
-- Workers produce structured JSON output (--output-format json)
-- Workers run with --permission-mode bypassPermissions (no interactive prompts)
-- Use `--mode headless` in runner.py --spawn commands to activate this mode
-- Headless workers have a 30-minute timeout by default
-- JSON output is parsed automatically; non-JSON stdout is returned as raw text
-
-When to use headless vs sdk:
-- headless: Simple, focused implementation tasks (single node, clear acceptance criteria)
-- sdk: Complex tasks requiring multi-turn conversation, team coordination
-
 ## Important Rules
 - NEVER use Edit or Write tools — you are a coordinator, not an implementer
 - NEVER guess at node status — always read from the DOT file via CLI
@@ -465,7 +423,7 @@ def build_options(
         from claude_code_sdk import ClaudeCodeOptions
 
         return ClaudeCodeOptions(
-            allowed_tools=["Bash"],
+            allowed_tools=["Bash", "Read", "Write", "Edit", "Glob"],
             system_prompt=system_prompt,
             cwd=cwd,
             model=model,

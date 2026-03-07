@@ -203,12 +203,12 @@ cs-promise --create "Guardian: Validate PRD-{ID} implementation" \
 cs-promise --start <promise-id>
 ```
 
-### 3.2 Spawn Meta-Orchestrator (Headless — Default)
+### 3.2 Spawn Meta-Orchestrator (Headless Mode)
 
-Use `spawn_orchestrator.py --mode headless` for all new dispatches. The headless mode runs the orchestrator as a `claude -p` subprocess with structured JSON output.
+Use `spawn_orchestrator.py --mode headless` for automated pipelines with signal-file monitoring. The headless mode runs the orchestrator as a `claude -p` subprocess with structured JSON output.
 
 ```bash
-# Spawn via headless mode (DEFAULT — no tmux needed)
+# Spawn via headless mode (automated, API-billed)
 python3 "${IMPL_REPO}/.claude/scripts/attractor/spawn_orchestrator.py" \
     --node "s3-${INITIATIVE}" \
     --prd "${PRD_ID}" \
@@ -226,11 +226,43 @@ python3 "${IMPL_REPO}/.claude/scripts/attractor/spawn_orchestrator.py" \
 3. Streams JSONL events line-by-line from stdout (types: `system/init`, `assistant`, `result`, etc.)
 4. Writes signal files for guardian monitoring (includes full event stream)
 
+### 3.2.1 Spawn Meta-Orchestrator (tmux Mode — Interactive)
+
+Use `spawn_orchestrator.py --mode tmux` for interactive sessions where human observation and intervention matter. The tmux mode runs an orchestrator in a named tmux session on a Max plan (no per-token API billing).
+
+```bash
+# Spawn via tmux mode (interactive, Max-plan cost model)
+python3 "${IMPL_REPO}/.claude/scripts/attractor/spawn_orchestrator.py" \
+    --node "s3-${INITIATIVE}" \
+    --prd "${PRD_ID}" \
+    --repo-root "${IMPL_REPO}" \
+    --mode tmux \
+    --prompt "You are the System 3 meta-orchestrator. Invoke Skill('s3-guardian') first. Then read PRD-${PRD_ID} at .taskmaster/docs/PRD-${PRD_ID}.md. Parse tasks with Task Master. Spawn orchestrators as needed. Report when all epics are complete."
+
+# The orchestrator runs in a tmux session: tmux new-session -d -s "s3-${INITIATIVE}" ...
+# Monitor via: tmux capture-pane -t "s3-${INITIATIVE}" -p
+# Send messages via: tmux send-keys -t "s3-${INITIATIVE}" "<message>" Enter
+```
+
+**What tmux mode does internally**:
+1. Creates a tmux session named `s3-${INITIATIVE}`
+2. Launches Claude Code in the session with `/output-style orchestrator` loaded
+3. Sends initial prompt via tmux keystroke sequence (Three-Layer Context: ROLE → output-style, TASK → prompt)
+4. Guardian monitors via `tmux capture-pane` (screen scraping, no structured output)
+5. Guardian can intervene by sending messages via `tmux send-keys` (manual guidance injection)
+
+**When to use tmux mode**:
+- Long-running orchestrators where human observation is valuable
+- Cost-conscious work (Max plan sessions are cheaper than API-billed headless)
+- Need for manual intervention (guidance injection, pause-and-check loops)
+
 ### 3.3 Send Initial Instructions
 
-In headless mode, the initial instructions are passed via the `--prompt` flag at spawn time (see above). There is no separate "send instructions" step — the prompt IS the instructions.
+**Headless mode**: The initial instructions are passed via the `--prompt` flag at spawn time (see above). There is no separate "send instructions" step — the prompt IS the instructions.
 
-For SDK mode, instructions are part of the `launch_guardian.py` pipeline configuration (see SDK Mode Dispatch section below).
+**tmux mode**: The initial instructions are sent via tmux keystroke sequence after the session is created. The 3-step boot sequence is handled automatically by `spawn_orchestrator.py`.
+
+**SDK mode**: Instructions are part of the `launch_guardian.py` pipeline configuration (see SDK Mode Dispatch section below).
 
 ### 3.4 Meet Spawn Acceptance Criteria
 
@@ -1066,6 +1098,25 @@ python cobuilder/orchestration/spawn_orchestrator.py \
     --on-cleanup \
     --repo-name ${REPO_NAME}
 ```
+
+---
+
+## Pipeline Finalize
+
+When ALL codergen nodes reach `validated` or `failed`:
+
+```bash
+# Save final checkpoint
+cobuilder pipeline checkpoint-save \
+    .claude/attractor/pipelines/${INITIATIVE}.dot \
+    --output=.claude/attractor/checkpoints/${PRD_ID}-final.json
+
+# Verify the completion promise
+cs-verify --promise ${PROMISE_ID} --type e2e \
+    --proof "Pipeline complete. Checkpoint: .claude/attractor/checkpoints/${PRD_ID}-final.json"
+```
+
+Then retain the outcome to Hindsight and report to user.
 
 ---
 

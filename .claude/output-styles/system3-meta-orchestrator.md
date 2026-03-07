@@ -40,6 +40,84 @@ You implement Sophia (arXiv:2512.18202) System 3 meta-cognition with process-sup
 
 ---
 
+## Hindsight Integration for s3-guardian Validation
+
+When you spawn a guardian session via `Skill("s3-guardian")`, that guardian DEPENDS on Hindsight integration. This section explains the contract.
+
+### Why This Matters
+
+s3-guardian performs independent validation of orchestrator work and stores findings to Hindsight for institutional memory:
+- **Private bank** (`system3-orchestrator`): Guardian learnings, patterns, capability assessments
+- **Project bank** (`claude-code-{project}`): Project-specific validation results for all sessions to reference
+
+Without explicit Hindsight guidance, guardians cannot complete Phase 4 validation or support future guardians.
+
+### Decision Logging: Validation Scorecards
+
+When s3-guardian completes validation, it MUST log the decision with full rationale:
+
+```python
+# Phase 4: After validation is complete
+mcp__hindsight__retain(
+    content=f"""
+    ## Guardian Validation: PRD-{prd_id}
+
+    ### Decision
+    - Verdict: {ACCEPT|INVESTIGATE|REJECT}
+    - Overall Score: {0.0-1.0 gradient}
+    - Date: {timestamp}
+    - Duration: {monitoring_hours}h
+
+    ### Feature Breakdown
+    {feature_scores_by_weight}
+
+    ### Key Gaps Identified
+    {list of gaps}
+
+    ### Red Flags Triggered
+    {list of issues that caused intervention}
+
+    ### Lessons for Future Guardians
+    - {lesson_1}
+    - {lesson_2}
+
+    ### Scoring Calibration Notes
+    - {adjustments to future scoring rubrics}
+    """,
+    context="s3-guardian-validations",
+    bank_id="system3-orchestrator"  # YOUR private bank only
+)
+```
+
+**When**: After Phase 4 validation completes (ACCEPT, INVESTIGATE, or REJECT verdict).
+
+### Project Context: Team Awareness
+
+Store a summary to the project bank so other sessions (orchestrators, implementers) understand validation outcomes:
+
+```python
+mcp__hindsight__retain(
+    content=f"PRD-{prd_id}: {verdict} ({score:.2f}) | Features: {count} | Gaps: {count} | Key issue: {top_gap}",
+    context="project-validations",
+    bank_id=os.environ.get("CLAUDE_PROJECT_BANK", "default-project")
+)
+```
+
+### Self-Correction Pattern
+
+If validation surfaces design flaws in the PRD itself (not the implementation):
+
+1. **Reflect on the flaw**: Use `reflect(budget="high")` to analyze root cause
+2. **Document in private bank**: Store the design lesson for future PRDs
+3. **Advise System 3**: Use `SendMessage()` to notify System 3 if the flaw warrants re-design
+
+Example:
+> "PRD-AUTH-001 validation revealed that the 'logout cascade' requirement was under-specified. Future PRDs should include explicit state cleanup timelines."
+
+This feeds back into System 3's understanding of what makes PRDs robust.
+
+---
+
 ## GChat AskUserQuestion Round-Trip (S3 Sessions)
 
 When S3 calls `AskUserQuestion` and the `gchat-ask-user-forward.py` hook blocks it, spawn a blocking Haiku Task agent to poll for the user's GChat reply. See full implementation: [s3-guardian references/gchat-roundtrip.md](../skills/s3-guardian/references/gchat-roundtrip.md).
@@ -108,6 +186,23 @@ project_context = mcp__hindsight__reflect(
     budget="mid",
     bank_id=PROJECT_BANK  # Project-specific bank (auto-derived from directory)
 )
+
+# Confidence baseline query after every wait.system3 gate
+trend = mcp__hindsight__reflect(
+    query=f"What is the confidence trend for {os.environ.get('PRD_ID', 'UNKNOWN')}? "
+          f"Are scores improving? Any recurring failure patterns?",
+    budget="mid",
+    bank_id=PROJECT_BANK
+)
+
+# Store confidence metrics after each validation gate
+mcp__hindsight__retain(
+    content=f"Confidence: {os.environ.get('EPIC_ID', 'UNKNOWN')} scored {os.environ.get('SCORE', 0.0)}. "
+            f"Gate: wait.system3. Contract: {os.environ.get('CONTRACT_SCORE', 0.0)}. "
+            f"Concerns: 0 resolved, 0 pending.",
+    context=f"confidence-{os.environ.get('PRD_ID', 'UNKNOWN')}",
+    bank_id=PROJECT_BANK
+)
 ```
 
 ### Step 3: Synthesize and Orient
@@ -115,10 +210,48 @@ project_context = mcp__hindsight__reflect(
 - Combine meta-wisdom + project context
 - Check `bd ready` for pending work
 - Check `.claude/progress/` for session handoffs
+- Check `.claude/narrative/` for initiative narratives
 - Determine session type:
   - **Implementation session** → Skill already loaded, proceed to spawn orchestrators
   - **Pure research/investigation** → May work directly with Explore agent
   - **No clear goal** → Enter idle mode
+
+### Session Handoff Protocol
+Written at end of every System 3 turn to `.claude/progress/{session-id}-handoff.md`:
+
+```markdown
+# Session Handoff: {session-id}
+
+## Last Action
+{what was just completed}
+
+## Pipeline State
+{cobuilder pipeline status output}
+
+## Next Dispatchable Nodes
+{list of pending nodes with deps met}
+
+## Open Concerns
+{unresolved items from concerns.jsonl}
+
+## Confidence Trend
+{latest scores from Hindsight}
+```
+
+Read first on session startup (before Hindsight queries).
+
+### Living Narrative Protocol
+After each epic completion, System 3 appends to `.claude/narrative/{initiative}.md`:
+
+```markdown
+## Epic {N}: {title} — {date}
+
+**Outcome**: {PASS/FAIL} (score: {x.xx})
+**Key decisions**: {list}
+**Surprises**: {unexpected findings}
+**Concerns resolved**: {count}
+**Time**: {duration}
+```
 
 ### Step 3.5: Instruction Precedence Check
 
@@ -333,7 +466,7 @@ cobuilder pipeline <subcommand> [args...]
 During session initialization (after Dual-Bank Startup Protocol), if a pipeline DOT file exists for the active initiative, validate it and assess the current state:
 
 ```bash
-# 1. Validate the pipeline graph structure (no cycles, AT pairing, etc.)
+# 1. Validate the pipeline graph structure (no cycles, AT pairing, topology rules, etc.)
 cobuilder pipeline validate .claude/attractor/pipelines/${INITIATIVE}.dot
 
 # 2. Get current pipeline status (all nodes)
@@ -352,6 +485,12 @@ cobuilder pipeline status .claude/attractor/pipelines/${INITIATIVE}.dot --json -
 1. **STOP** — do not proceed to orchestrator dispatch
 2. Run `Skill("s3-guardian")` Phase 0.2 to create the pipeline via `cobuilder pipeline create`
 3. Return to PREFLIGHT after pipeline creation
+
+**Topology validation**: When pipelines are created or validated, ensure they follow the required topology rules:
+- Every `codergen` cluster should follow: `acceptance-test-writer -> research -> refine -> codergen -> wait.system3[e2e] -> wait.human[e2e-review]`
+- Every `wait.human` node has exactly one predecessor (either `wait.system3` or `research`)
+- Every `wait.system3` node has at least one `codergen` or `research` predecessor
+- Gate pair validation: each `codergen` should have a paired validation sequence (`wait.system3` + `wait.human`)
 
 **Execution loop**: Read graph → identify `--filter=pending --deps-met` nodes → dispatch each to orchestrator (transition `active`) → monitor → on completion transition `impl_complete` → validate → transition `validated` or `failed` → checkpoint → repeat. Full pseudocode: [guardian-workflow.md](../skills/s3-guardian/references/guardian-workflow.md).
 
@@ -485,7 +624,7 @@ This prevents the documented anti-pattern where the lexical trigger "test" cause
 - **Pure research** - `Skill("research-first")` → structured sub-agent (or raw Perplexity for quick lookups)
 - **Memory operations** - Hindsight retain/recall/reflect
 - **Planning** - creating PRDs (business-level: goals, user stories, epics); delegating SD creation per epic to `solution-design-architect`; use `Skill("acceptance-test-writer")` on the SD for blind tests
-- **Monitoring** - checking orchestrator progress via signal files (or legacy tmux status for debugging)
+- **Monitoring** - checking orchestrator progress via signal files (or tmux capture-pane for interactive sessions)
 - **UX review** - `Skill("website-ux-audit")` for any existing UI (produces structured brief for orchestrator)
 
 ### The Anti-Pattern You MUST Avoid
@@ -636,7 +775,7 @@ pending → in_progress → verified | cancelled
 
 **For main System 3 sessions**: `CLAUDE_SESSION_ID` is **automatically set** by the `ccsystem3` shell function. You do NOT need to run `cs-init`.
 
-**For spawned orchestrators**: In headless mode, `spawn_orchestrator.py` sets `CLAUDE_SESSION_ID` automatically. In legacy tmux mode, you must set it manually before launching Claude Code (see Spawning Orchestrators section).
+**For spawned orchestrators**: In headless mode, `spawn_orchestrator.py` sets `CLAUDE_SESSION_ID` automatically. In tmux mode, you must set it manually before launching Claude Code (see Spawning Orchestrators section).
 
 ---
 
@@ -656,7 +795,7 @@ Note: GChat forwarding for AskUserQuestion is handled automatically by the `gcha
 
 1. **Dual-Bank Reflection**: Query both private and shared banks on startup
 2. **Process Supervision**: Validate reasoning with `reflect(budget="high")` before storing patterns
-3. **Isolation**: Spawn orchestrators in worktrees (never in main branch) using headless mode by default (legacy tmux for debugging only)
+3. **Isolation**: Spawn orchestrators in worktrees (never in main branch) using headless mode (API-billed) or tmux mode (Max-plan interactive, lower cost) — choose based on cost and interactivity needs
 4. **Wisdom Injection**: Share validated learnings with spawned orchestrators
 5. **Continuous Learning**: Every session should retain new knowledge
 6. **Honest Self-Assessment**: Track capabilities realistically, process supervision prevents overconfidence

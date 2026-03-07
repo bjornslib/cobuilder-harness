@@ -1,7 +1,7 @@
 ---
 name: s3-guardian
 description: This skill should be used when System 3 needs to act as an independent guardian angel — designing PRDs with CoBuilder RepoMap context injection, challenging designs via parallel solutioning, spawning orchestrators via headless CLI dispatch, creating blind Gherkin acceptance tests and executable browser test scripts from PRDs, monitoring orchestrator progress, independently validating claims against acceptance criteria using gradient confidence scoring (0.0-1.0), and setting session promises. Use when asked to "spawn and monitor an orchestrator", "create acceptance tests for a PRD", "validate orchestrator claims", "act as guardian angel", "independently verify implementation work", or "design and challenge a PRD".
-version: 0.5.0
+version: 0.5.1
 title: "S3 Guardian"
 status: active
 last_verified: 2026-03-02
@@ -225,6 +225,110 @@ cs-verify --check --verbose
 
 ---
 
+## Hindsight Validation Checklist (MANDATORY)
+
+**This checklist is non-negotiable.** Every guardian validation session MUST complete these Hindsight integration steps before closing.
+
+### Phase 4 Completion: Storing Results
+
+After scoring validation and determining verdict (ACCEPT, INVESTIGATE, or REJECT), execute both steps:
+
+#### Step 1: Store to Private Bank (Guardian Learnings)
+
+```python
+mcp__hindsight__retain(
+    content=f"""## Guardian Validation: PRD-{prd_id}
+
+### Decision
+- Verdict: {verdict}  # ACCEPT|INVESTIGATE|REJECT
+- Overall Score: {score:.2f}
+- Date: {timestamp}
+- Duration: {duration}
+
+### Feature Breakdown
+{feature_table}
+
+### Gaps Identified
+{gaps_list}
+
+### Lessons Learned
+- {lesson_1}
+- {lesson_2}
+""",
+    context="s3-guardian-validations",
+    bank_id="system3-orchestrator"
+)
+```
+
+**When**: After Phase 4 validation scoring completes.
+**Why**: Captures patterns for future guardian sessions to reference.
+**Required fields**: `context="s3-guardian-validations"`, `bank_id="system3-orchestrator"` (always).
+
+#### Step 2: Store to Project Bank (Team Context)
+
+```python
+# Get project bank from environment (set by ccsystem3/ccorch)
+import os
+PROJECT_BANK = os.environ.get("CLAUDE_PROJECT_BANK", "default-project")
+
+mcp__hindsight__retain(
+    content=f"PRD-{prd_id}: {verdict} (score: {score:.2f}) | {gap_summary}",
+    context="project-validations",
+    bank_id=PROJECT_BANK
+)
+```
+
+**When**: Immediately after Step 1.
+**Why**: Other sessions in this project can quickly understand validation outcomes.
+**Required fields**: `context="project-validations"`, `bank_id=PROJECT_BANK` (auto-derived).
+
+### PRD Contract Generation and Validation (New in v0.6.0)
+
+With the addition of PRD Contract artifacts, Phase 0 now includes Step 0.2.5 for contract generation and validation gates now check contract compliance.
+
+#### Step 0.2.5: PRD Contract Generation
+During Phase 0, a `prd-contract.md` is automatically generated at `docs/prds/{initiative}/prd-contract.md`. This contract contains:
+- Domain invariants that must hold regardless of implementation approach
+- Scope freeze boundaries (what is in/out of scope)
+- Compliance flags that mandate specific requirements
+
+#### Contract Validation in Gates
+When a `wait.system3` node has `contract_ref` attribute, the validation includes:
+- Reading the PRD Contract specified by contract_ref
+- Verifying each domain invariant holds in the current codebase
+- Checking that no files outside the frozen scope were modified
+- Verifying each compliance flag's condition is met
+- Calculating contract compliance percentage (0.0-1.0) for the gate summary
+
+### Completion Verification
+
+Before marking promise AC as complete:
+
+```bash
+# Verify both Hindsight operations succeeded
+echo "✓ Private bank (system3-orchestrator) retains guardian validation"
+echo "✓ Project bank ($CLAUDE_PROJECT_BANK) retains project context"
+echo "✓ Both mcp__hindsight__retain() calls executed without error"
+echo "✓ PRD Contract generated and validated if required"
+
+# Then meet the promise AC
+cs-promise --meet <promise-id> --ac-id AC-5 \
+    --evidence "ACCEPT verdict + Hindsight stored to both banks + Contract validated" \
+    --type manual
+```
+
+### Common Mistakes to Avoid
+
+| Mistake | Fix |
+|---------|-----|
+| Storing only to private bank (forget project bank) | Execute BOTH steps above |
+| Using wrong `bank_id` value | Private = `"system3-orchestrator"`, Project = environment `$CLAUDE_PROJECT_BANK` |
+| Forgetting `context=` parameter | Must include: `context="s3-guardian-validations"` for private, `context="project-validations"` for project |
+| Storing BEFORE validation completes | Store ONLY after Phase 4 verdict determined |
+| Storing results but not meeting promise AC | Meeting the AC is how System 3 knows validation is complete |
+
+---
+
 ## Recursive Guardian Pattern
 
 The guardian pattern is recursive. A guardian can watch:
@@ -242,16 +346,187 @@ Each level adds independent verification. The key constraint: each guardian stor
 |-------|------------|-----------|
 | 0. PRD Design | Write PRD, ZeroRepo analysis, pipeline, design challenge | [references/phase0-prd-design.md](references/phase0-prd-design.md) |
 | 1. Acceptance Tests | Gherkin rubrics + executable browser tests (Step 3) | [gherkin-test-patterns.md](references/gherkin-test-patterns.md) |
-| 2. Orchestrator Spawn | DOT dispatch, headless CLI / SDK / legacy tmux patterns, wisdom inject | [guardian-workflow.md](references/guardian-workflow.md) |
-| 3. Monitoring | JSON output parsing (headless), DOT polling (SDK), signal-file monitoring | [monitoring-patterns.md](references/monitoring-patterns.md) |
+| 2. Orchestrator Spawn | DOT dispatch, headless CLI / SDK / tmux patterns, wisdom inject | [guardian-workflow.md](references/guardian-workflow.md) |
+| 3. Monitoring | JSON output parsing (headless), DOT polling (SDK), signal-file monitoring, progress monitoring | [monitoring-patterns.md](references/monitoring-patterns.md) |
+| 3.5 Pipeline Progress | Haiku sub-agent monitoring with stall/failure detection | [monitoring-patterns.md](references/monitoring-patterns.md) |
 | 4. Validation | Score scenarios, run executable tests, weighted total | [validation-scoring.md](references/validation-scoring.md) |
 | 4.5 Regression | ZeroRepo diff before journey tests | [references/validation-scoring.md](references/validation-scoring.md) |
 
+### Pipeline Progress Monitor Pattern
+
+System 3 spawns a lightweight Haiku 4.5 sub-agent to monitor pipeline progress after launching a pipeline. This monitor sub-agent completes (waking System 3) only when attention is needed.
+
+**Spawning Template**:
+```python
+Task(
+    subagent_type="monitor",
+    model="haiku",
+    run_in_background=True,
+    prompt=f"""Monitor pipeline progress for {pipeline_id}.
+
+    Signal directory: {signal_dir}
+    DOT file: {dot_file}
+    Poll interval: 30 seconds
+    Stall threshold: 5 minutes
+
+    Check signal files for new completions or failures.
+    Check DOT file mtime for state transitions.
+    COMPLETE immediately with a status report when:
+    - A node fails (report which node and error)
+    - No state change for >5 minutes (report last known state)
+    - All nodes reach terminal state (report completion)
+    - Any anomaly detected (unexpected state, missing signal files)
+
+    Do NOT attempt to fix issues. Just report what you observe.
+    """
+)
+```
+
+**Monitor Output Statuses**:
+- `MONITOR_COMPLETE`: All nodes validated → Run final E2E, close initiative
+- `MONITOR_ERROR`: Node failed → Investigate root cause, requeue or escalate
+- `MONITOR_STALL`: No progress for >threshold → Check if worker hung, restart if needed
+- `MONITOR_ANOMALY`: Unexpected state → Investigate, may need manual DOT edit
+
+**Monitoring Mechanism**:
+- **Signal directory polling**: Monitor `.claude/attractor/signals/` for new/modified `.json` files with status changes
+- **DOT file monitoring**: Track `.claude/attractor/pipelines/*.dot` mtime for state transitions
+- **Stall detection**: If no state change for >stall_threshold (default 5 minutes), report stall
+
+### Creating a New Pipeline (Quick Start)
+
+Use the cobuilder CLI to create a new DOT pipeline:
+
+**Minimal DOT Example** (full cluster topology):
+```dot
+digraph "PRD-EXAMPLE-001" {
+    graph [
+        label="Example Pipeline"
+        labelloc="t"
+        fontsize=16
+        rankdir="LR"
+        prd_ref="PRD-EXAMPLE-001"
+        target_dir="/path/to/repo"
+    ];
+
+    node [fontname="Helvetica" fontsize=11];
+    edge [fontname="Helvetica" fontsize=9];
+
+    start [shape=Mdiamond label="START" handler="start" status="validated" style="filled" fillcolor="lightgreen"];
+
+    impl_e1 [
+        shape=box
+        label="E1: Implement feature"
+        handler="codergen"
+        worker_type="backend-solutions-engineer"
+        sd_path="docs/sds/example/SD-EXAMPLE-001-E1.md"
+        acceptance="Feature X works per SD section 2. All tests pass."
+        prd_ref="PRD-EXAMPLE-001"
+        epic_id="E1"
+        bead_id="E1-IMPL"
+        status="pending"
+    ];
+
+    e1_gate [
+        shape=hexagon
+        label="E1 E2E Validation"
+        handler="wait.system3"
+        gate_type="e2e"
+        summary_ref=".claude/summaries/E1-gate-summary.md"
+        epic_id="E1"
+        bead_id="E1-GATE"
+        status="pending"
+    ];
+
+    e1_review [
+        shape=octagon
+        label="E1 Human Review"
+        handler="wait.human"
+        mode="technical"
+        summary_ref=".claude/summaries/E1-gate-summary.md"
+        epic_id="E1"
+        bead_id="E1-REVIEW"
+        status="pending"
+    ];
+
+    finalize [shape=Msquare label="FINALIZE" handler="exit" status="pending"];
+
+    start -> impl_e1 [label="begin"];
+    impl_e1 -> e1_gate [label="impl_complete"];
+    e1_gate -> e1_review [label="validated"];
+    e1_review -> finalize [label="validated"];
+}
+```
+
+Validate with: `python3 .claude/scripts/attractor/cli.py validate <file.dot>`
+
+**Handler Type Mapping**:
+
+| Handler | Purpose | Worker Type | LLM? |
+|---------|---------|-------------|------|
+| `start` | Pipeline entry point | N/A | No |
+| `codergen` | Code implementation | Agent from `worker_type` | Yes |
+| `research` | Framework/API investigation | Haiku (cheap) | Yes |
+| `refine` | Rewrite SD with research findings | Sonnet | Yes |
+| `tool` | Run shell command | N/A (subprocess) | No |
+| `wait.system3` | Automated E2E gate | Python runner | No |
+| `wait.human` | Human review gate | N/A (GChat) | No |
+| `exit` | Pipeline termination | N/A | No |
+
+**Required vs Optional Node Attributes**:
+- Required for all: `handler`, `label`, `status`
+- Required for `codergen`: `sd_path`, `bead_id`, `acceptance`, `prd_ref`
+- Required for `wait.human`: `mode`, `bead_id`
+- Optional: `worker_type`, `epic_id`, `contract_ref`, `summary_ref`, `gate_type`
+- Full reference: [references/dot-pipeline-creation.md](references/dot-pipeline-creation.md)
+
+For full reference, see [references/dot-pipeline-creation.md](references/dot-pipeline-creation.md).
+
 ### SDK Mode Entry Points
 
-For automated (headless) pipeline execution, use SDK mode.
+For automated (headless) pipeline execution, use SDK mode. For interactive sessions with human oversight, use tmux mode.
 
-**Primary entry point** — launches the full 4-layer chain:
+**Headless mode entry point** — single-shot `claude -p` with signal-file monitoring:
+```bash
+python3 .claude/scripts/attractor/spawn_orchestrator.py \
+    --node "epic-name" \
+    --prd "PRD-ID" \
+    --mode headless \
+    --repo-root /path/to/impl-repo \
+    --prompt "Read /tmp/wisdom.md, then Skill(\"orchestrator-multiagent\")"
+```
+
+**tmux mode entry point** — interactive Max-plan session with manual observation:
+```bash
+python3 .claude/scripts/attractor/spawn_orchestrator.py \
+    --node "epic-name" \
+    --prd "PRD-ID" \
+    --mode tmux \
+    --repo-root /path/to/impl-repo \
+    --prompt "Read /tmp/wisdom.md, then Skill(\"orchestrator-multiagent\")"
+```
+
+With wisdom file written first:
+```bash
+cat > /tmp/wisdom-epic-name.md << 'EOF'
+You are an orchestrator for: epic-name
+
+## FIRST ACTIONS (Mandatory — before any investigation or implementation)
+1. Skill("orchestrator-multiagent")   ← loads delegation patterns
+2. Teammate(operation="spawnTeam", team_name="epic-name-workers", …)
+
+## Mission
+[Epic description and goals]
+
+## Solution Design
+[Path to SD file]
+
+## On Completion
+bd update [BEAD_ID] --status=impl_complete
+EOF
+```
+
+**Primary entry point (SDK mode)** — launches the full 4-layer chain:
 ```bash
 python3 .claude/scripts/attractor/launch_guardian.py \
     --dot .claude/attractor/pipelines/PRD-{ID}.dot \
@@ -267,9 +542,9 @@ python3 .claude/scripts/attractor/launch_guardian.py \
 | `spawn_orchestrator.py` | 2 (Runner) | `--node`, `--prd`, `--mode {headless\|tmux}` | Tmux mode + backward-compat re-exports from dispatch_worker |
 
 > **When to use each mode**:
-> - **Headless** (`--mode headless`): Default for workers. Uses `claude -p` CLI with structured JSON output. Three-Layer Context: ROLE (--system-prompt), TASK (-p), IDENTITY (env vars). Best for focused implementation tasks.
-> - **SDK** (`launch_guardian.py`): For automated pipelines and CI/CD. Full `claude_code_sdk` integration with multi-turn conversation.
-> - **tmux** (`--mode tmux`): For interactive sessions where you can observe and intervene manually. Lower API cost than SDK mode since the orchestrator runs as a Max plan interactive session rather than billing API credits per token.
+> - **Headless** (`--mode headless`): Uses `claude -p` CLI with structured JSON output. Three-Layer Context: ROLE (--system-prompt), TASK (-p), IDENTITY (env vars). Best when: automated pipelines, CI/CD, signal-file monitoring, no tmux available.
+> - **SDK** (`launch_guardian.py`): Full `claude_code_sdk` integration with multi-turn conversation. Best when: long-running pipelines, complex multi-turn orchestration.
+> - **tmux** (`--mode tmux`): Spawns an interactive Claude Code session via tmux. Best when: Max plan sessions (no per-token API cost), human observation/intervention needed.
 
 ### Key Files
 
@@ -305,12 +580,13 @@ python3 .claude/scripts/attractor/launch_guardian.py \
 
 ---
 
-**Version**: 0.5.0
-**Dependencies**: cs-promise CLI (requires PATH setup — see Prerequisites section), claude CLI (headless mode, default), claude_code_sdk (SDK mode), tmux (tmux mode — interactive, lower API cost), Hindsight MCP, ccsystem3 shell function, Task Master MCP, ZeroRepo
+**Version**: 0.5.1
+**Dependencies**: cs-promise CLI (requires PATH setup — see Prerequisites section), claude CLI (headless mode), claude_code_sdk (SDK mode), tmux (tmux mode — interactive, lower API cost), Hindsight MCP, ccsystem3 shell function, Task Master MCP, ZeroRepo
 **Integration**: system3-orchestrator skill, completion-promise skill, acceptance-test-writer skill, parallel-solutioning skill, research-first skill
 **Theory**: Independent verification eliminates self-reporting bias in agentic systems
 
 **Changelog**:
+- v0.5.1: Rebalanced mode descriptions — tmux is equal peer to headless, not deprecated/legacy. Removed "Default for workers" label from headless. Added explicit tmux spawn command example in Quick Reference with wisdom file template. Updated system3-meta-orchestrator.md to remove "legacy tmux" and "for debugging only" language. Root cause: recent tmux-as-legacy language in docs caused orchestrator prompts to drop mandatory `Skill("orchestrator-multiagent")` invocation, resulting in direct implementation instead of delegation to workers.
 - v0.6.0: 3-layer attractor consolidation. Created `guardian.py` (composes launch_guardian + guardian_agent), `runner.py` (composes spawn_runner + runner_agent with `--spawn` mode), `dispatch_worker.py` (extracted headless functions from spawn_orchestrator.py). Guardian system prompt now references `runner.py --spawn` instead of `spawn_runner.py`. Old files untouched — backward-compatible re-exports from spawn_orchestrator.py. Zero test breakage (987 tests pass).
 - v0.5.0: Added headless CLI worker mode (Epic 6). Workers run via `claude -p` with Three-Layer Context: ROLE (--system-prompt from .claude/agents/), TASK (-p prompt), IDENTITY (env vars). New functions: `_build_headless_worker_cmd()` and `run_headless_worker()` in dispatch_worker.py (re-exported from spawn_orchestrator.py). `--mode headless` added to runner.py, spawn_orchestrator.py, and guardian_agent.py system prompt. tmux mode deprecated in favor of headless. JSON output parsing replaces tmux capture-pane monitoring.
 - v0.4.4: Broadened Step 0 promise creation with work-type-aware decision table (research, PRD design, implementation, maintenance, multi-initiative — not just guardian validation). Added SDK Mode Entry Points section to Quick Reference with 4-layer CLI table and SDK-vs-tmux guidance. Qualified Session Promise Integration heading to clarify it's the guardian validation template. Root cause: non-standard sessions (research, PRD writing) had no promise template guidance, and SDK CLI parameters were undiscoverable without running `--help`.
