@@ -105,14 +105,13 @@ for node in pipeline.nodes_with_attr("worker_type"):
 
 ### 2.3 Runner Mode Flag
 
-`runner.py` gains `--mode=python` flag:
+`runner.py` gains `--mode=python` flag to route to `pipeline_runner.py` (the pure Python runner from E7.2):
 ```bash
-python3 runner.py --dot-file pipeline.dot --mode=python  # Use pipeline_runner.py
-python3 runner.py --dot-file pipeline.dot --mode=sdk     # Use existing SDK runner
-python3 runner.py --dot-file pipeline.dot --mode=llm     # Use existing LLM guardian (default, for now)
+python3 runner.py --dot-file pipeline.dot --mode=python  # Use pipeline_runner.py (3-layer: System 3 → Runner → Workers)
+python3 runner.py --dot-file pipeline.dot --mode=sdk     # Use existing SDK runner (backward compat)
 ```
 
-After E7 validation period, `--mode=python` becomes the default.
+After E7.2 validation period, `--mode=python` becomes the default. All worker dispatch uses AgentSDK regardless of mode.
 
 ## 3. Files Changed
 

@@ -90,7 +90,7 @@ Workers write signal files to `$ATTRACTOR_SIGNAL_DIR/{node_id}.json`. The Python
 env["CONCERNS_FILE"] = str(Path(signal_dir) / "concerns.jsonl")
 ```
 
-Workers append concerns during execution. The `wait.system3` gate reads these during guardian reflection (E3).
+Workers append concerns during execution. The validation agent at `wait.system3` gates reads these during technical validation (dispatched by pipeline_runner.py).
 
 ### 2.6 SD Hash Verification
 
@@ -111,12 +111,11 @@ signal = {
 
 The `wait.system3` gate can verify the hash matches the expected frozen SD version.
 
-### 2.7 SDK Mode Focus
+### 2.7 AgentSDK Dispatch (All Modes)
 
-All dispatch paths in this epic use `claude_code_sdk` (`_run_agent()`). No tmux or headless CLI (`claude -p`) dispatch. The SDK provides:
-- Structured multi-turn conversation
-- Direct Python integration (no subprocess overhead)
-- Signal file output via SDK completion handlers
+All dispatch paths use `claude_code_sdk` (`_run_agent()`) with proper sub-agent types, skills, and instructions. No headless CLI (`claude -p`) or tmux dispatch. This aligns with the E7 architecture: `System 3 → pipeline_runner.py → Workers (AgentSDK)`.
+
+The `wait.system3` gate dispatches a `validation-test-agent` (with `--mode=pipeline-gate` and `acceptance-test-runner` skill) as an AgentSDK worker. The validation agent writes a signal file with `result: pass|fail|requeue` — the runner applies the transition mechanically.
 
 ## 3. Files Changed
 

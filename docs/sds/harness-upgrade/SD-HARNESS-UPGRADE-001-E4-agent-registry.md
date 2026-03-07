@@ -88,7 +88,7 @@ These provide current patterns and anti-patterns for your domain.
 | `backend-solutions-engineer` | (domain-specific, e.g., `dspy-development`) | Backend framework guidance |
 | `tdd-test-engineer` | `test-driven-development`, `acceptance-test-runner` | Testing methodology |
 | `solution-architect` | `research-first` | Architecture research patterns |
-| `validation-test-agent` | `acceptance-test-runner`, `acceptance-test-writer` | Validation methodology |
+| `validation-test-agent` | `acceptance-test-runner` | Technical validation at pipeline gates (--mode=pipeline-gate) and PRD E2E validation (--mode=e2e) |
 | `ux-designer` | `website-ux-audit`, `website-ux-design-concepts`, `frontend-design` | UX patterns |
 
 ### 2.5 Schema Extension
