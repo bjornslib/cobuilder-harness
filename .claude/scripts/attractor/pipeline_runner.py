@@ -790,9 +790,25 @@ class PipelineRunner:
         # Worker model: ANTHROPIC_MODEL (from attractor .env) > PIPELINE_WORKER_MODEL > default
         worker_model = os.environ.get("ANTHROPIC_MODEL") or os.environ.get("PIPELINE_WORKER_MODEL", "claude-haiku-4-5-20251001")
 
+        # Import function to load agent definitions for skill injection (GAP-6.2)
+        from dispatch_worker import load_agent_definition
+
+        # Add skill injection from agent definitions (GAP-6.2)
+        try:
+            agent_def = load_agent_definition(self.dot_dir, worker_type)
+            if agent_def and agent_def.get("skills_required"):
+                skills_block = "\n".join(
+                    f'Skill("{s}")' for s in agent_def["skills_required"]
+                )
+                prompt += f"\n\n## Required Skills\nInvoke these skills before starting:\n{skills_block}\n"
+        except Exception:
+            pass  # Don't fail dispatch on agent definition errors
+
         async def _run() -> dict:
             # Build clean env without CLAUDECODE
             clean_env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
+            # Add ATTRACTOR_SIGNAL_DIR as required by GAP-6.1
+            clean_env["ATTRACTOR_SIGNAL_DIR"] = str(self.signal_dir)
             options = claude_code_sdk.ClaudeCodeOptions(  # type: ignore[attr-defined]
                 system_prompt=self._build_system_prompt(worker_type),
                 allowed_tools=["Bash", "Read", "Write", "Edit", "Glob", "Grep", "MultiEdit"],
@@ -811,11 +827,25 @@ class PipelineRunner:
                     options=options,
                 ):
                     messages.append(msg)
+                    msg_type = type(msg).__name__
                     if not _first_msg_logged and _LOGFIRE_AVAILABLE:
                         logfire.info("worker_first_message {node_id}",
                                      node_id=node_id, worker_type=worker_type,
-                                     msg_type=type(msg).__name__)
+                                     msg_type=msg_type)
                         _first_msg_logged = True
+                    # Log tool use and assistant text for real-time visibility
+                    if _LOGFIRE_AVAILABLE and hasattr(msg, "content") and msg_type == "AssistantMessage":
+                        for block in (msg.content if isinstance(msg.content, list) else []):
+                            block_type = type(block).__name__
+                            if block_type == "ToolUseBlock":
+                                logfire.info("worker_tool {node_id} {tool}",
+                                             node_id=node_id, tool=getattr(block, "name", ""),
+                                             input_preview=str(getattr(block, "input", ""))[:300])
+                            elif block_type == "TextBlock":
+                                text = getattr(block, "text", "")
+                                if text and len(text.strip()) > 5:
+                                    logfire.info("worker_text {node_id}",
+                                                 node_id=node_id, text=text[:300])
                     # Capture result from ResultMessage
                     if hasattr(msg, "result") and msg.result:  # type: ignore[union-attr]
                         result_text = str(msg.result)[:500]
@@ -1144,8 +1174,46 @@ class PipelineRunner:
         """Write a signal file for node_id at {signal_dir}/{node_id}.json.
 
         Uses atomic write-then-rename to ensure watchdog sees a complete file.
+
+        Implements GAP-6.3: Add sd_hash to signal evidence when available.
         """
         os.makedirs(self.signal_dir, exist_ok=True)
+
+        # Implement GAP-6.3: Include sd_hash in signal evidence
+        # Look up node to check if it has an sd_path attribute
+        try:
+            # Reload current DOT content to get node attributes
+            with open(self.dot_path) as fh:
+                current_content = fh.read()
+            data = parse_dot(current_content)
+            node = next((n for n in data["nodes"] if n["id"] == node_id), None)
+
+            if node and node["attrs"].get("sd_path"):
+                sd_path = node["attrs"]["sd_path"]
+                sd_abs = os.path.join(self.dot_dir, sd_path) if not os.path.isabs(sd_path) else sd_path
+
+                if os.path.exists(sd_abs):
+                    try:
+                        # Import compute function from dispatch_worker for GAP-6.3
+                        from dispatch_worker import compute_sd_hash
+                        with open(sd_abs, 'r') as sd_fh:
+                            sd_content = sd_fh.read()
+                        payload["sd_hash"] = compute_sd_hash(sd_content)
+                        payload["sd_path"] = sd_path  # Also include the path for reference
+                    except ImportError:
+                        # If compute_sd_hash is not available, fall back to basic approach
+                        import hashlib
+                        with open(sd_abs, 'r') as sd_fh:
+                            sd_content = sd_fh.read()
+                        payload["sd_hash"] = hashlib.sha256(sd_content.encode()).hexdigest()[:16]
+                        payload["sd_path"] = sd_path
+                    except Exception:
+                        # If there's any error reading the SD file, continue without sd_hash
+                        pass
+        except Exception:
+            # If there's any error looking up node attributes, continue without sd_hash
+            pass
+
         final_path = os.path.join(self.signal_dir, f"{node_id}.json")
         tmp_path = final_path + ".tmp"
         with open(tmp_path, "w") as fh:
