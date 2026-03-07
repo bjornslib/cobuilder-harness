@@ -931,23 +931,6 @@ class PipelineRunner:
             self._executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix="worker")
         self._executor.submit(self._run_validation_subprocess, node_id, target_node_id)
 
-    def _build_validation_system_prompt(self) -> str:
-        """System prompt for validation agents."""
-        return (
-            "You are a validation agent. Your job is to independently verify that "
-            "a worker's implementation meets the acceptance criteria.\n\n"
-            "## Process\n"
-            "1. Read the acceptance criteria below carefully\n"
-            "2. Read the files listed in 'files changed' to verify the implementation\n"
-            "3. Check each criterion: does the code actually do what it claims?\n"
-            "4. If the SD is provided, verify the implementation matches the design\n\n"
-            "## Response Format\n"
-            "End your response with EXACTLY one of:\n"
-            "- PASS: All acceptance criteria are met\n"
-            "- FAIL: One or more criteria are not met (explain which and why)\n\n"
-            "Be thorough but fair. Check actual code, not just file existence."
-        )
-
     def _build_validation_prompt(self, target_node_id: str) -> str:
         """Build a rich validation prompt with acceptance criteria, files changed, and SD."""
         data = parse_dot(self.dot_content)
@@ -1058,12 +1041,12 @@ class PipelineRunner:
         async def _run() -> dict:
             clean_env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
             options = claude_code_sdk.ClaudeCodeOptions(  # type: ignore[attr-defined]
-                system_prompt=self._build_validation_system_prompt(),
+                system_prompt=self._build_system_prompt("validation-test-agent"),
                 allowed_tools=["Read", "Bash", "Grep", "Glob"],
                 permission_mode="bypassPermissions",
                 model=worker_model,
                 cwd=self._get_target_dir(),
-                max_turns=20,
+                max_turns=100,
                 env=clean_env,
             )
             messages = []
