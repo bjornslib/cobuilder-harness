@@ -681,3 +681,33 @@ The runner is a **state machine**, not a reasoning system.
 - AC-7.9: Multiple ready nodes dispatched concurrently
 - AC-7.10: Runner is sole DOT file writer; workers/validators communicate only via signal files
 - AC-7.11: Status chain follows `pending -> active -> impl_complete -> validated -> accepted`
+
+## 6. Implementation Status
+
+**Status**: Complete (2026-03-07, commits c5ddb4d, 9594e62, 3552db9)
+**Tests**: 23/23 pass (test_e72_pipeline_runner.py)
+**Branch**: feat/harness-upgrade-e4-e7
+
+### What was built
+- `pipeline_runner.py` — 600+ lines, full state machine with handler dispatch table
+- `_SignalFileHandler` + watchdog `Observer` for event-driven signal monitoring
+- `SIGNAL_TRANSITIONS` dict: `pass→validated`, `fail→failed`, `requeue→pending`, `success→impl_complete`
+- AgentSDK dispatch via `claude_code_sdk.query()` with `ClaudeCodeOptions`
+- Tool node auto-accept: `active → validated → accepted` (no validation agent needed)
+- Validation agent dispatch with `active_workers` tracking to prevent false stuck detection
+- Resume logic: re-dispatch validation for `impl_complete` nodes on `--resume`
+- `.env` loading: `ANTHROPIC_MODEL` from `.claude/attractor/.env` takes priority
+
+### Deviations from design
+- `_dispatch_via_subprocess` method was designed but removed — all dispatch is AgentSDK only
+- `rate_limit_event` SDK bug required graceful catch in async stream iteration
+- `CLAUDECODE` env var must be stripped from worker env to avoid nested session detection
+- Validation auto-pass when SDK unavailable (prevents pipeline blocking in non-SDK environments)
+- `target_dir` graph attribute used for worker cwd instead of `dot_dir`
+
+### E2E validation results (6 live pipeline runs)
+- Tool nodes: 0 LLM tokens, instant execution
+- Codergen nodes: AgentSDK dispatch works end-to-end
+- Signal transitions: mechanical, deterministic
+- Status chain: `pending → active → impl_complete → validated → accepted` confirmed
+- Model config: loads from `.claude/attractor/.env` (ANTHROPIC_MODEL=qwen3-coder-plus)

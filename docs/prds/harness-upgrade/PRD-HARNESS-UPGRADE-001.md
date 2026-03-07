@@ -426,9 +426,9 @@ See SD-HARNESS-UPGRADE-001-E7.2-python-runner.md for detailed class design. Key 
 | E3 — Workflow Protocols | 1 | Validated | Documentation only |
 | E4 — Agent Registry + Skills | 2 | Not started | Via pipeline runner + AgentSDK workers |
 | E5 — Schema + Validate | 2 | Not started | Via pipeline runner + AgentSDK workers |
-| E6 — Dispatch Worker | 2 | In progress | Issues 1-3 from E2E analysis being fixed |
-| E7.1 — Worker Prompt Restructuring | 2 | Not started | Prerequisite for E7.2 |
-| E7.2 — Python Runner | 2 | Not started | Most critical epic (US-5) |
+| E6 — Dispatch Worker | 2 | Partial | Issues 1-3 fixed in E7 commits (MCP bypass, SD wiring, tool examples). Skill injection + env vars remain. |
+| E7.1 — Worker Prompt Restructuring | 2 | **Complete** | 21/22 tests pass (1 skip). Slim system prompt (~3K), restructured initial prompt. Commit c5ddb4d. |
+| E7.2 — Python Runner | 2 | **Complete** | 23/23 tests pass. Watchdog + AgentSDK dispatch, SIGNAL_TRANSITIONS, tool auto-accept. Commits c5ddb4d, 9594e62, 3552db9. |
 | E8 — Initiative Graph | 3 | Future | ~6-12 months |
 | E9 — Persistent S3 | 3 | Future | ~6-12 months |
 | E10 — Epic-Scoped Runners | 3 | Future | ~6-12 months |

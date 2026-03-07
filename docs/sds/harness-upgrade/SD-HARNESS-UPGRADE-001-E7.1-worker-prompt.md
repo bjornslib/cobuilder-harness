@@ -136,3 +136,20 @@ Apply same principle to `guardian.py`'s `build_system_prompt()`:
 - AC-7.1.4: Tool usage examples available as `.claude/agents/worker-tool-reference.md`, not embedded in system prompt
 - AC-7.1.5: Guardian system prompt similarly slimmed (no worker-level guidance)
 - AC-7.1.6: All existing tests pass; existing pipelines produce equivalent results
+
+## 6. Implementation Status
+
+**Status**: Complete (2026-03-07, commit c5ddb4d)
+**Tests**: 21/22 pass, 1 skip (test_e71_worker_prompt.py)
+**Branch**: feat/harness-upgrade-e4-e7
+
+### What was built
+- `_build_system_prompt()` in `pipeline_runner.py` produces ~3K system prompt (role, tool allowlist with usage examples, "read your SD first" directive)
+- `_build_initial_prompt()` produces structured briefing: PRD path, SD content (inlined), acceptance criteria from DOT node
+- Tool reference file at `.claude/agents/worker-tool-reference.md` with Write/Edit/Bash parameter examples
+- Guardian system prompt in `guardian.py` similarly slimmed
+
+### Deviations from design
+- SD content is **inlined** into the initial prompt (not just a path reference) — eliminates a Read round-trip for the worker
+- Tool examples kept in system prompt as well as reference file — workers need them immediately, not after a Read
+- Boolean format note (`true`/`false` not `True`/`False`) added to prevent common Python-to-CLI errors

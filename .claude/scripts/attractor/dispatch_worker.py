@@ -21,6 +21,7 @@ Usage (programmatic):
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -30,6 +31,45 @@ from collections.abc import Callable
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+
+def compute_sd_hash(sd_content: str) -> str:
+    """Compute SHA256 hash of SD content, truncated to first 16 characters.
+
+    Args:
+        sd_content: The solution design content as a string
+
+    Returns:
+        First 16 characters of the SHA256 hash of the SD content
+    """
+    return hashlib.sha256(sd_content.encode()).hexdigest()[:16]
+
+
+def create_signal_evidence(node_id: str, status: str, sd_content: str = "", sd_path: str = "") -> dict:
+    """Create signal evidence dictionary with SD hash included.
+
+    Args:
+        node_id: The node identifier
+        status: The status of the operation
+        sd_content: The solution design content to hash
+        sd_path: The path to the solution design file
+
+    Returns:
+        Dictionary containing signal evidence with sd_hash field
+    """
+    signal = {
+        "node": node_id,
+        "status": status,
+    }
+
+    if sd_content:
+        signal["sd_hash"] = compute_sd_hash(sd_content)
+
+    if sd_path:
+        signal["sd_path"] = sd_path
+
+    return signal
+
 
 # Keys that load_attractor_env() is permitted to return.
 _ATTRACTOR_ENV_KEYS = frozenset({"ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "ANTHROPIC_MODEL"})
