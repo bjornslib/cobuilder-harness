@@ -24,10 +24,12 @@ Validation Rules (from schema.md section 11):
     13. Full cluster topology check: every codergen node must have downstream wait.system3 and wait.human nodes
     14. wait.human nodes must follow wait.system3 or research nodes
     15. bead_id values on codergen nodes map to real beads (via `bd show`)
+    16. Manifest validation_method enforcement: if prd_ref exists, manifest features must declare validation_method
 """
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -38,7 +40,7 @@ from parser import parse_file
 
 # --- Constants ---
 
-VALID_STATUSES = {"pending", "active", "impl_complete", "validated", "failed"}
+VALID_STATUSES = {"pending", "active", "impl_complete", "validated", "accepted", "failed"}
 
 VALID_HANDLERS = {
     "start",
@@ -107,6 +109,15 @@ VALID_GATE_TYPES = {"technical", "business", "e2e", "manual"}
 
 VALID_MODES = {"technical", "business"}
 
+VALID_VALIDATION_METHODS = {
+    "browser-required",  # Must use Claude-in-Chrome for UI validation
+    "api-required",      # Must make real HTTP requests
+    "code-analysis",     # Static code reading is sufficient
+    "doc-review",        # Documentation review (no runtime validation)
+    "e2e-test",          # End-to-end test execution required
+    "hybrid",            # Agent uses best judgment on tooling
+}
+
 
 class Issue:
     """A validation issue (error or warning)."""
@@ -129,12 +140,15 @@ class Issue:
         return f"  {prefix} (rule {self.rule:2d}){node_str}: {self.message}"
 
 
-def validate(data: dict[str, Any], strict: bool = False, check_beads: bool = False) -> list[Issue]:
+def validate(data: dict[str, Any], strict: bool = False, check_beads: bool = False,
+             dot_file_path: str = "") -> list[Issue]:
     """Validate a parsed DOT pipeline against schema rules.
 
     Args:
         data: Output from parser.parse_file() or parser.parse_dot().
         strict: If True, treat warnings as errors.
+        check_beads: If True, verify bead_id values exist via bd CLI.
+        dot_file_path: Path to the DOT file (used for resolving manifest paths).
 
     Returns:
         List of Issue objects.
@@ -490,6 +504,9 @@ def validate(data: dict[str, Any], strict: bool = False, check_beads: bool = Fal
     if check_beads:
         _check_bead_ids(nodes, issues)
 
+    # --- Rule 16: Manifest validation_method enforcement ---
+    _check_manifest_validation_methods(graph_attrs, dot_file_path, issues)
+
     return issues
 
 
@@ -714,6 +731,82 @@ def _check_bead_ids(nodes: list[dict], issues: list[Issue]) -> None:
             ))
 
 
+def _check_manifest_validation_methods(
+    graph_attrs: dict[str, str],
+    dot_file_path: str,
+    issues: list[Issue],
+) -> None:
+    """Rule 16: If graph has prd_ref, verify manifest features declare validation_method."""
+    prd_ref = graph_attrs.get("prd_ref", "")
+    if not prd_ref or not dot_file_path:
+        return
+
+    # Resolve acceptance-tests directory relative to the DOT file's repo root.
+    # Walk up from the DOT file to find acceptance-tests/ directory.
+    dot_dir = os.path.dirname(os.path.abspath(dot_file_path))
+    search_dir = dot_dir
+    manifest_path = ""
+    for _ in range(10):  # max 10 levels up
+        candidate = os.path.join(search_dir, "acceptance-tests", prd_ref, "manifest.yaml")
+        if os.path.exists(candidate):
+            manifest_path = candidate
+            break
+        parent = os.path.dirname(search_dir)
+        if parent == search_dir:
+            break
+        search_dir = parent
+
+    if not manifest_path:
+        # No manifest found — not an error (manifest may not exist yet)
+        return
+
+    try:
+        import yaml
+    except ImportError:
+        issues.append(Issue(
+            "warning", 16,
+            "Cannot check manifest validation_method: PyYAML not installed",
+        ))
+        return
+
+    try:
+        with open(manifest_path) as fh:
+            manifest = yaml.safe_load(fh)
+    except (OSError, yaml.YAMLError) as exc:
+        issues.append(Issue(
+            "warning", 16,
+            f"Cannot parse manifest at {manifest_path}: {exc}",
+        ))
+        return
+
+    if not isinstance(manifest, dict):
+        return
+
+    features = manifest.get("features", [])
+    if not isinstance(features, list):
+        return
+
+    for feature in features:
+        if not isinstance(feature, dict):
+            continue
+        fid = feature.get("id", "?")
+        vm = feature.get("validation_method")
+        if not vm:
+            issues.append(Issue(
+                "error", 16,
+                f"Feature '{fid}' in manifest missing required 'validation_method' "
+                f"(must be one of {sorted(VALID_VALIDATION_METHODS)})",
+                prd_ref,
+            ))
+        elif vm not in VALID_VALIDATION_METHODS:
+            issues.append(Issue(
+                "error", 16,
+                f"Feature '{fid}' has invalid validation_method '{vm}', "
+                f"must be one of {sorted(VALID_VALIDATION_METHODS)}",
+                prd_ref,
+            ))
+
+
 def _can_reach(start: str, target: str, adj: dict[str, list[str]]) -> bool:
     """Check if target is reachable from start using BFS."""
     if start == target:
@@ -740,7 +833,7 @@ def _can_reach(start: str, target: str, adj: dict[str, list[str]]) -> bool:
 def validate_file(filepath: str, strict: bool = False, check_beads: bool = False) -> list[Issue]:
     """Parse and validate a DOT file."""
     data = parse_file(filepath)
-    return validate(data, strict=strict, check_beads=check_beads)
+    return validate(data, strict=strict, check_beads=check_beads, dot_file_path=filepath)
 
 
 def main() -> None:

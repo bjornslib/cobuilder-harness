@@ -1,0 +1,34 @@
+prd_id: PRD-NEWCHECK-001
+title: New Check Page
+version: 1.0.0
+created: 2026-03-07
+threshold: 0.70
+verdict_labels:
+  accept: "ACCEPT"
+  investigate: "INVESTIGATE"
+  reject: "REJECT"
+
+features:
+  - id: F1
+    title: New Check form page renders
+    weight: 0.25
+    file: F1-form-renders.feature
+    validation_method: browser-required
+
+  - id: F2
+    title: Form submission and API integration
+    weight: 0.30
+    file: F2-form-submission.feature
+    validation_method: browser-required
+
+  - id: F3
+    title: Dashboard + New check button
+    weight: 0.25
+    file: F3-dashboard-integration.feature
+    validation_method: browser-required
+
+  - id: F4
+    title: Form validation
+    weight: 0.20
+    file: F4-form-validation.feature
+    validation_method: browser-required

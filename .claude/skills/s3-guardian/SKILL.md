@@ -581,10 +581,12 @@ python3 .claude/scripts/attractor/launch_guardian.py \
 | Research validates docs but not local install | SD may reference v1.63 API while local env has v1.58 | Pin versions in SD or add local version check to research prompt |
 | Calling `run_research.py` per-node for pipeline execution | Bypasses guardian state machine — no DOT transitions, no checkpoints, exit code 2 | Always use `pipeline_runner.py --dot-file` to drive ANY pipeline (research-only or mixed). See [guardian-workflow.md § Research-Only Pipeline Dispatch](references/guardian-workflow.md) |
 | Assuming `claude` processes in `ps` mean `claude -p` was used | AgentSDK internally shells out to the `claude` binary — seeing it in `ps` doesn't mean direct `claude -p` invocation | `pipeline_runner.py` uses AgentSDK; `spawn_orchestrator.py --mode headless` uses `claude -p` directly |
+| Manifest features without `validation_method` | Runner can't enforce browser/API testing; validation agent falls back to code-only analysis | Always set `validation_method` per feature (`browser-required`, `api-required`, `code-analysis`, `doc-review`, `e2e-test`, `hybrid`) |
+| Pipeline without `acceptance-test-writer` node | No TDD — implementation happens before test criteria are defined | Add `handler="acceptance-test-writer"` node before codergen for test-first development |
 
 ---
 
-**Version**: 0.5.2
+**Version**: 0.6.2
 **Dependencies**: cs-promise CLI (requires PATH setup — see Prerequisites section), pipeline_runner.py + claude_code_sdk (primary dispatch), tmux (tmux mode — interactive, lower API cost), claude CLI via spawn_orchestrator.py (legacy headless only), Hindsight MCP, ccsystem3 shell function, Task Master MCP, ZeroRepo
 **Integration**: system3-orchestrator skill, completion-promise skill, acceptance-test-writer skill, parallel-solutioning skill, research-first skill
 **Theory**: Independent verification eliminates self-reporting bias in agentic systems

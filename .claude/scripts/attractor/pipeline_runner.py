@@ -126,6 +126,7 @@ HANDLER_REGISTRY: dict[str, str] = {
     "gate":       "_handle_gate",
     "wait.human": "_handle_human",
     "wait.system3": "_handle_gate",
+    "acceptance-test-writer": "_handle_worker",
 }
 
 # Mechanical transitions applied to validation signal results
@@ -988,6 +989,53 @@ class PipelineRunner:
             else:
                 lines.append(f"\n## Solution Design Path\n{sd_path}")
 
+        # Read manifest validation_method and prepend method-specific instructions
+        prd_ref = attrs.get("prd_ref", data.get("graph_attrs", {}).get("prd_ref", ""))
+        self._validation_method_hint = None  # Store for allowed_tools decision
+        if prd_ref:
+            # Walk up from DOT file directory to find acceptance-tests/{prd_ref}/manifest.yaml
+            manifest_path = ""
+            search_dir = self.dot_dir
+            for _ in range(10):
+                candidate = os.path.join(search_dir, "acceptance-tests", prd_ref, "manifest.yaml")
+                if os.path.exists(candidate):
+                    manifest_path = candidate
+                    break
+                parent = os.path.dirname(search_dir)
+                if parent == search_dir:
+                    break
+                search_dir = parent
+
+            if manifest_path:
+                try:
+                    import yaml
+                    with open(manifest_path) as mfh:
+                        manifest = yaml.safe_load(mfh)
+                    methods = set()
+                    for feature in (manifest or {}).get("features", []):
+                        vm = feature.get("validation_method", "")
+                        if vm:
+                            methods.add(vm)
+                    if "browser-required" in methods:
+                        self._validation_method_hint = "browser-required"
+                        lines.insert(0,
+                            "MANDATORY: This PRD has browser-required features. "
+                            "You MUST use Claude in Chrome (mcp__claude-in-chrome__*) tools to validate UI. "
+                            "Static code analysis alone (Read/Grep) = automatic 0.0 score. "
+                            "Required tool sequence: tabs_context_mcp -> navigate -> read_page -> screenshot -> interact. "
+                            "If the frontend is not running, report 'BLOCKED: frontend not running' — do NOT fall back to code analysis.\n"
+                        )
+                    elif "api-required" in methods:
+                        self._validation_method_hint = "api-required"
+                        lines.insert(0,
+                            "MANDATORY: This PRD has api-required features. "
+                            "You MUST make actual HTTP requests (curl/httpx) to validate API endpoints. "
+                            "Reading router/endpoint code alone = automatic 0.0 score. "
+                            "If the API server is not running, report 'BLOCKED: API server not running'.\n"
+                        )
+                except Exception:  # noqa: BLE001
+                    pass  # Best-effort — don't block validation on manifest parse errors
+
         # Signal file path for result
         signal_file_path = os.path.join(self.signal_dir, f"{target_node_id}.json")
         lines.append(
@@ -1040,9 +1088,23 @@ class PipelineRunner:
 
         async def _run() -> dict:
             clean_env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
+            # Base tools for validation; extend for browser-required PRDs
+            validation_tools = ["Read", "Bash", "Grep", "Glob"]
+            if getattr(self, "_validation_method_hint", None) == "browser-required":
+                validation_tools.extend([
+                    "mcp__claude-in-chrome__navigate",
+                    "mcp__claude-in-chrome__read_page",
+                    "mcp__claude-in-chrome__find",
+                    "mcp__claude-in-chrome__get_page_text",
+                    "mcp__claude-in-chrome__computer",
+                    "mcp__claude-in-chrome__javascript_tool",
+                    "mcp__claude-in-chrome__form_input",
+                    "mcp__claude-in-chrome__tabs_context_mcp",
+                    "mcp__claude-in-chrome__tabs_create_mcp",
+                ])
             options = claude_code_sdk.ClaudeCodeOptions(  # type: ignore[attr-defined]
                 system_prompt=self._build_system_prompt("validation-test-agent"),
-                allowed_tools=["Read", "Bash", "Grep", "Glob"],
+                allowed_tools=validation_tools,
                 permission_mode="bypassPermissions",
                 model=worker_model,
                 cwd=self._get_target_dir(),
