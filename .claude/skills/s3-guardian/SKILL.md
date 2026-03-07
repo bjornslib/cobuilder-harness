@@ -282,6 +282,24 @@ mcp__hindsight__retain(
 **Why**: Other sessions in this project can quickly understand validation outcomes.
 **Required fields**: `context="project-validations"`, `bank_id=PROJECT_BANK` (auto-derived).
 
+### PRD Contract Generation and Validation (New in v0.6.0)
+
+With the addition of PRD Contract artifacts, Phase 0 now includes Step 0.2.5 for contract generation and validation gates now check contract compliance.
+
+#### Step 0.2.5: PRD Contract Generation
+During Phase 0, a `prd-contract.md` is automatically generated at `docs/prds/{initiative}/prd-contract.md`. This contract contains:
+- Domain invariants that must hold regardless of implementation approach
+- Scope freeze boundaries (what is in/out of scope)
+- Compliance flags that mandate specific requirements
+
+#### Contract Validation in Gates
+When a `wait.system3` node has `contract_ref` attribute, the validation includes:
+- Reading the PRD Contract specified by contract_ref
+- Verifying each domain invariant holds in the current codebase
+- Checking that no files outside the frozen scope were modified
+- Verifying each compliance flag's condition is met
+- Calculating contract compliance percentage (0.0-1.0) for the gate summary
+
 ### Completion Verification
 
 Before marking promise AC as complete:
@@ -291,10 +309,11 @@ Before marking promise AC as complete:
 echo "✓ Private bank (system3-orchestrator) retains guardian validation"
 echo "✓ Project bank ($CLAUDE_PROJECT_BANK) retains project context"
 echo "✓ Both mcp__hindsight__retain() calls executed without error"
+echo "✓ PRD Contract generated and validated if required"
 
 # Then meet the promise AC
 cs-promise --meet <promise-id> --ac-id AC-5 \
-    --evidence "ACCEPT verdict + Hindsight stored to both banks" \
+    --evidence "ACCEPT verdict + Hindsight stored to both banks + Contract validated" \
     --type manual
 ```
 
@@ -328,9 +347,140 @@ Each level adds independent verification. The key constraint: each guardian stor
 | 0. PRD Design | Write PRD, ZeroRepo analysis, pipeline, design challenge | [references/phase0-prd-design.md](references/phase0-prd-design.md) |
 | 1. Acceptance Tests | Gherkin rubrics + executable browser tests (Step 3) | [gherkin-test-patterns.md](references/gherkin-test-patterns.md) |
 | 2. Orchestrator Spawn | DOT dispatch, headless CLI / SDK / tmux patterns, wisdom inject | [guardian-workflow.md](references/guardian-workflow.md) |
-| 3. Monitoring | JSON output parsing (headless), DOT polling (SDK), signal-file monitoring | [monitoring-patterns.md](references/monitoring-patterns.md) |
+| 3. Monitoring | JSON output parsing (headless), DOT polling (SDK), signal-file monitoring, progress monitoring | [monitoring-patterns.md](references/monitoring-patterns.md) |
+| 3.5 Pipeline Progress | Haiku sub-agent monitoring with stall/failure detection | [monitoring-patterns.md](references/monitoring-patterns.md) |
 | 4. Validation | Score scenarios, run executable tests, weighted total | [validation-scoring.md](references/validation-scoring.md) |
 | 4.5 Regression | ZeroRepo diff before journey tests | [references/validation-scoring.md](references/validation-scoring.md) |
+
+### Pipeline Progress Monitor Pattern
+
+System 3 spawns a lightweight Haiku 4.5 sub-agent to monitor pipeline progress after launching a pipeline. This monitor sub-agent completes (waking System 3) only when attention is needed.
+
+**Spawning Template**:
+```python
+Task(
+    subagent_type="monitor",
+    model="haiku",
+    run_in_background=True,
+    prompt=f"""Monitor pipeline progress for {pipeline_id}.
+
+    Signal directory: {signal_dir}
+    DOT file: {dot_file}
+    Poll interval: 30 seconds
+    Stall threshold: 5 minutes
+
+    Check signal files for new completions or failures.
+    Check DOT file mtime for state transitions.
+    COMPLETE immediately with a status report when:
+    - A node fails (report which node and error)
+    - No state change for >5 minutes (report last known state)
+    - All nodes reach terminal state (report completion)
+    - Any anomaly detected (unexpected state, missing signal files)
+
+    Do NOT attempt to fix issues. Just report what you observe.
+    """
+)
+```
+
+**Monitor Output Statuses**:
+- `MONITOR_COMPLETE`: All nodes validated → Run final E2E, close initiative
+- `MONITOR_ERROR`: Node failed → Investigate root cause, requeue or escalate
+- `MONITOR_STALL`: No progress for >threshold → Check if worker hung, restart if needed
+- `MONITOR_ANOMALY`: Unexpected state → Investigate, may need manual DOT edit
+
+**Monitoring Mechanism**:
+- **Signal directory polling**: Monitor `.claude/attractor/signals/` for new/modified `.json` files with status changes
+- **DOT file monitoring**: Track `.claude/attractor/pipelines/*.dot` mtime for state transitions
+- **Stall detection**: If no state change for >stall_threshold (default 5 minutes), report stall
+
+### Creating a New Pipeline (Quick Start)
+
+Use the cobuilder CLI to create a new DOT pipeline:
+
+**Minimal DOT Example** (full cluster topology):
+```dot
+digraph "PRD-EXAMPLE-001" {
+    graph [
+        label="Example Pipeline"
+        labelloc="t"
+        fontsize=16
+        rankdir="LR"
+        prd_ref="PRD-EXAMPLE-001"
+        target_dir="/path/to/repo"
+    ];
+
+    node [fontname="Helvetica" fontsize=11];
+    edge [fontname="Helvetica" fontsize=9];
+
+    start [shape=Mdiamond label="START" handler="start" status="validated" style="filled" fillcolor="lightgreen"];
+
+    impl_e1 [
+        shape=box
+        label="E1: Implement feature"
+        handler="codergen"
+        worker_type="backend-solutions-engineer"
+        sd_path="docs/sds/example/SD-EXAMPLE-001-E1.md"
+        acceptance="Feature X works per SD section 2. All tests pass."
+        prd_ref="PRD-EXAMPLE-001"
+        epic_id="E1"
+        bead_id="E1-IMPL"
+        status="pending"
+    ];
+
+    e1_gate [
+        shape=hexagon
+        label="E1 E2E Validation"
+        handler="wait.system3"
+        gate_type="e2e"
+        summary_ref=".claude/summaries/E1-gate-summary.md"
+        epic_id="E1"
+        bead_id="E1-GATE"
+        status="pending"
+    ];
+
+    e1_review [
+        shape=octagon
+        label="E1 Human Review"
+        handler="wait.human"
+        mode="technical"
+        summary_ref=".claude/summaries/E1-gate-summary.md"
+        epic_id="E1"
+        bead_id="E1-REVIEW"
+        status="pending"
+    ];
+
+    finalize [shape=Msquare label="FINALIZE" handler="exit" status="pending"];
+
+    start -> impl_e1 [label="begin"];
+    impl_e1 -> e1_gate [label="impl_complete"];
+    e1_gate -> e1_review [label="validated"];
+    e1_review -> finalize [label="validated"];
+}
+```
+
+Validate with: `python3 .claude/scripts/attractor/cli.py validate <file.dot>`
+
+**Handler Type Mapping**:
+
+| Handler | Purpose | Worker Type | LLM? |
+|---------|---------|-------------|------|
+| `start` | Pipeline entry point | N/A | No |
+| `codergen` | Code implementation | Agent from `worker_type` | Yes |
+| `research` | Framework/API investigation | Haiku (cheap) | Yes |
+| `refine` | Rewrite SD with research findings | Sonnet | Yes |
+| `tool` | Run shell command | N/A (subprocess) | No |
+| `wait.system3` | Automated E2E gate | Python runner | No |
+| `wait.human` | Human review gate | N/A (GChat) | No |
+| `exit` | Pipeline termination | N/A | No |
+
+**Required vs Optional Node Attributes**:
+- Required for all: `handler`, `label`, `status`
+- Required for `codergen`: `sd_path`, `bead_id`, `acceptance`, `prd_ref`
+- Required for `wait.human`: `mode`, `bead_id`
+- Optional: `worker_type`, `epic_id`, `contract_ref`, `summary_ref`, `gate_type`
+- Full reference: [references/dot-pipeline-creation.md](references/dot-pipeline-creation.md)
+
+For full reference, see [references/dot-pipeline-creation.md](references/dot-pipeline-creation.md).
 
 ### SDK Mode Entry Points
 

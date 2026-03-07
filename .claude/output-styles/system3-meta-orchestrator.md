@@ -186,6 +186,23 @@ project_context = mcp__hindsight__reflect(
     budget="mid",
     bank_id=PROJECT_BANK  # Project-specific bank (auto-derived from directory)
 )
+
+# Confidence baseline query after every wait.system3 gate
+trend = mcp__hindsight__reflect(
+    query=f"What is the confidence trend for {os.environ.get('PRD_ID', 'UNKNOWN')}? "
+          f"Are scores improving? Any recurring failure patterns?",
+    budget="mid",
+    bank_id=PROJECT_BANK
+)
+
+# Store confidence metrics after each validation gate
+mcp__hindsight__retain(
+    content=f"Confidence: {os.environ.get('EPIC_ID', 'UNKNOWN')} scored {os.environ.get('SCORE', 0.0)}. "
+            f"Gate: wait.system3. Contract: {os.environ.get('CONTRACT_SCORE', 0.0)}. "
+            f"Concerns: 0 resolved, 0 pending.",
+    context=f"confidence-{os.environ.get('PRD_ID', 'UNKNOWN')}",
+    bank_id=PROJECT_BANK
+)
 ```
 
 ### Step 3: Synthesize and Orient
@@ -193,10 +210,48 @@ project_context = mcp__hindsight__reflect(
 - Combine meta-wisdom + project context
 - Check `bd ready` for pending work
 - Check `.claude/progress/` for session handoffs
+- Check `.claude/narrative/` for initiative narratives
 - Determine session type:
   - **Implementation session** → Skill already loaded, proceed to spawn orchestrators
   - **Pure research/investigation** → May work directly with Explore agent
   - **No clear goal** → Enter idle mode
+
+### Session Handoff Protocol
+Written at end of every System 3 turn to `.claude/progress/{session-id}-handoff.md`:
+
+```markdown
+# Session Handoff: {session-id}
+
+## Last Action
+{what was just completed}
+
+## Pipeline State
+{cobuilder pipeline status output}
+
+## Next Dispatchable Nodes
+{list of pending nodes with deps met}
+
+## Open Concerns
+{unresolved items from concerns.jsonl}
+
+## Confidence Trend
+{latest scores from Hindsight}
+```
+
+Read first on session startup (before Hindsight queries).
+
+### Living Narrative Protocol
+After each epic completion, System 3 appends to `.claude/narrative/{initiative}.md`:
+
+```markdown
+## Epic {N}: {title} — {date}
+
+**Outcome**: {PASS/FAIL} (score: {x.xx})
+**Key decisions**: {list}
+**Surprises**: {unexpected findings}
+**Concerns resolved**: {count}
+**Time**: {duration}
+```
 
 ### Step 3.5: Instruction Precedence Check
 
@@ -411,7 +466,7 @@ cobuilder pipeline <subcommand> [args...]
 During session initialization (after Dual-Bank Startup Protocol), if a pipeline DOT file exists for the active initiative, validate it and assess the current state:
 
 ```bash
-# 1. Validate the pipeline graph structure (no cycles, AT pairing, etc.)
+# 1. Validate the pipeline graph structure (no cycles, AT pairing, topology rules, etc.)
 cobuilder pipeline validate .claude/attractor/pipelines/${INITIATIVE}.dot
 
 # 2. Get current pipeline status (all nodes)
@@ -430,6 +485,12 @@ cobuilder pipeline status .claude/attractor/pipelines/${INITIATIVE}.dot --json -
 1. **STOP** — do not proceed to orchestrator dispatch
 2. Run `Skill("s3-guardian")` Phase 0.2 to create the pipeline via `cobuilder pipeline create`
 3. Return to PREFLIGHT after pipeline creation
+
+**Topology validation**: When pipelines are created or validated, ensure they follow the required topology rules:
+- Every `codergen` cluster should follow: `acceptance-test-writer -> research -> refine -> codergen -> wait.system3[e2e] -> wait.human[e2e-review]`
+- Every `wait.human` node has exactly one predecessor (either `wait.system3` or `research`)
+- Every `wait.system3` node has at least one `codergen` or `research` predecessor
+- Gate pair validation: each `codergen` should have a paired validation sequence (`wait.system3` + `wait.human`)
 
 **Execution loop**: Read graph → identify `--filter=pending --deps-met` nodes → dispatch each to orchestrator (transition `active`) → monitor → on completion transition `impl_complete` → validate → transition `validated` or `failed` → checkpoint → repeat. Full pseudocode: [guardian-workflow.md](../skills/s3-guardian/references/guardian-workflow.md).
 

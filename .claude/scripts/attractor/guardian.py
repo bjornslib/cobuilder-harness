@@ -465,7 +465,7 @@ def build_options(
         from claude_code_sdk import ClaudeCodeOptions
 
         return ClaudeCodeOptions(
-            allowed_tools=["Bash"],
+            allowed_tools=["Bash", "Read", "Write", "Edit", "Glob"],
             system_prompt=system_prompt,
             cwd=cwd,
             model=model,

@@ -57,7 +57,8 @@ category in the execution engine.
 | Msquare | `shape=Msquare` | `exit` | Pipeline exit point (FINALIZE stage) |
 | box | `shape=box` | `codergen` | Implementation task assigned to a worker |
 | box | `shape=box` | `tool` | Tool execution step (CLI command, script) |
-| hexagon | `shape=hexagon` | `wait.human` | Validation gate (technical or business) |
+| hexagon | `shape=hexagon` | `wait.system3` | Automated validation gate (technical or business) |
+| hexagon | `shape=hexagon` | `wait.human` | Human review gate (technical or business) |
 | diamond | `shape=diamond` | `conditional` | Routing decision based on upstream result |
 | parallelogram | `shape=parallelogram` | `parallel` | Parallel execution group entry |
 
@@ -81,7 +82,7 @@ All custom attributes are placed inside the node's attribute list.
 | Attribute | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `label` | string | Yes | Human-readable node name |
-| `handler` | enum | Yes | Handler type: `start`, `exit`, `codergen`, `tool`, `wait.human`, `conditional`, `parallel` |
+| `handler` | enum | Yes | Handler type: `start`, `exit`, `codergen`, `tool`, `wait.system3`, `wait.human`, `conditional`, `parallel` |
 | `status` | enum | No | Current state: `pending`, `active`, `impl_complete`, `validated`, `failed` (default: `pending`) |
 
 ### Codergen Attributes (handler=codergen)
@@ -102,13 +103,23 @@ All custom attributes are placed inside the node's attribute list.
 | `command` | string | Yes | CLI command to execute |
 | `timeout` | int | No | Timeout in seconds (default: 120) |
 
-### Validation Gate Attributes (handler=wait.human)
+### Automated Validation Gate Attributes (handler=wait.system3)
 
 | Attribute | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `gate` | enum | Yes | Validation type: `technical`, `business`, `e2e`, `manual` |
-| `mode` | enum | Yes | Maps to validation-agent mode: `technical`, `business` |
-| `bead_id` | string | No | AT (Acceptance Test) beads task ID |
+| `gate_type` | enum | Yes | Validation type: `unit`, `e2e`, `contract` |
+| `contract_ref` | path | No | Path to PRD Contract for validation |
+| `summary_ref` | path | Yes | Path where gate summary is written |
+| `bead_id` | string | Yes | AT (Acceptance Test) beads task ID |
+| `promise_ac` | string | No | Completion promise AC this gate validates |
+
+### Human Review Gate Attributes (handler=wait.human)
+
+| Attribute | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `mode` | enum | Yes | Validation type: `technical`, `business`, `e2e-review` |
+| `summary_ref` | path | Yes | Path where summary is read from (written by preceding gate) |
+| `bead_id` | string | Yes | AT (Acceptance Test) beads task ID |
 | `promise_ac` | string | No | Completion promise AC this gate validates |
 
 ### Conditional Attributes (handler=conditional)
@@ -425,12 +436,67 @@ The `attractor validate` command enforces these rules:
 
 ---
 
-## 12. File Conventions
+## 13. Mandatory Topology Rules
 
-| Path | Description |
-|------|-------------|
-| `.claude/attractor/schema.md` | This document |
-| `.claude/attractor/examples/*.dot` | Example pipeline DOT files |
-| `.claude/attractor/pipelines/*.dot` | Active pipeline DOT files (per initiative) |
-| `.claude/attractor/state/*.json` | Runtime state checkpoints |
-| `.claude/scripts/attractor/` | CLI tools (parse, validate, status, transition, checkpoint) |
+The pipeline schema enforces specific topology rules to ensure proper validation flow and prevent orphaned nodes without validation.
+
+### Rule 1: Full Codergen Cluster Topology
+
+Every `codergen` cluster must follow the complete topology:
+```
+acceptance-test-writer -> research -> refine -> codergen -> wait.system3[e2e] -> wait.human[e2e-review]
+```
+
+Where:
+- `acceptance-test-writer` node generates blind Gherkin tests from the PRD before implementation begins
+- `research` node validates framework patterns via Context7/Perplexity and updates Solution Design documents (optional but recommended)
+- `refine` node rewrites SD with research findings as first-class content (optional but recommended, if research exists)
+- `codergen` node performs the actual implementation
+- `wait.system3` node performs automated E2E validation (required)
+- `wait.human` node performs human review gate (required)
+
+Intermediate nodes (`research`, `refine`) are optional but the start (`acceptance-test-writer`) and end (`wait.system3 -> wait.human`) are mandatory.
+
+### Rule 2: wait.human Predecessor Constraint
+
+Every `wait.human` node must have exactly one predecessor, which must be either:
+- A `wait.system3` node (standard gate pair)
+- A `research` node (research review)
+
+### Rule 3: wait.system3 Predecessor Requirement
+
+Every `wait.system3` node must have at least one `codergen` or `research` predecessor (it validates work, so there must be work to validate).
+
+### Rule 4: Gate Pair Requirement
+
+Every `codergen` node SHOULD have a paired validation gate sequence consisting of:
+- A `wait.system3` node with `gate_type="e2e"` (automated validation)
+- A `wait.human` node with `mode="e2e-review"` (human review)
+
+This ensures comprehensive validation of all implementation work.
+
+---
+
+## 14. Executor Clarification
+
+| Handler | Executor | Execution Type | Description |
+|---------|----------|----------------|-------------|
+| `wait.system3` | Python runner | Automated | Executed by the Python `PipelineRunner` (from E7.2), not by an LLM. The runner reads signal files from completed predecessor workers, processes concerns from `concerns.jsonl`, runs Gherkin E2E tests, checks PRD Contract if `contract_ref` is set, writes gate summary to `summary_ref`, and transitions the node to `validated` or `failed`. For browser-based tests, it uses Chrome MCP tools. |
+| `wait.human` | Human/GChat | Interactive | Requires human input. Reads summary from `summary_ref`, emits review request to GChat with summary content, blocks until human responds, and transitions to `validated` (approved) or `failed` (rejected). |
+| `codergen` | Worker specialist | LLM-based | Executed by a specialized worker agent based on `worker_type` (e.g., `frontend-dev-expert`, `backend-solutions-engineer`) |
+| `research` | Haiku worker | LLM-based | Executed by a Haiku worker to investigate frameworks/APIs and update Solution Design documents |
+| `refine` | Sonnet worker | LLM-based | Executed by a Sonnet worker to rewrite Solution Design with research findings |
+| `tool` | Shell subprocess | Automated | Executes shell commands directly |
+| `start`, `exit`, `conditional`, `parallel` | System | Flow control | Various system-level execution depending on context |
+
+---
+
+## 15. Node Attribute Schema Reference
+
+| Attribute | Type | Required On | Description |
+|-----------|------|-------------|-------------|
+| `handler` | string | all | Handler type identifier |
+| `gate_type` | enum | `wait.system3` | "unit", "e2e", or "contract" |
+| `contract_ref` | path | `wait.system3` (optional) | Path to PRD Contract for validation |
+| `summary_ref` | path | `wait.system3`, `wait.human` | Path where summary is written/read |
+| `epic_id` | string | all (recommended) | Epic identifier for clustering |
