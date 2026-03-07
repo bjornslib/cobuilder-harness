@@ -1285,7 +1285,7 @@ class PipelineRunner:
         label = attrs.get("label", nid).replace("\\n", " ")
         acceptance = attrs.get("acceptance", "")
         prd_ref = attrs.get("prd_ref", data.get("graph_attrs", {}).get("prd_ref", ""))
-        solution_design_path = attrs.get("solution_design", "")
+        solution_design_path = attrs.get("sd_path", "") or attrs.get("solution_design", "")
         bead_id = attrs.get("bead_id", "")
 
         # Inline solution design content if file exists
