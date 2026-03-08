@@ -4,8 +4,8 @@ Feature: F4 - Silent Mode Switch
   Scenario: Mode switch message filtered before LLM
     Given the chat_text_handler in agent.py
     When a mode_switch JSON message is received
-    Then it should be detected by _is_mode_switch() or _parse_mode_switch()
-    And the handler should return without calling the LLM
+    Then the inline JSON parser in chat_text_handler should detect it
+    And the handler should return before calling session.generate_reply()
     # Scoring: 1.0 if filtered, 0.0 if passed to LLM
 
   Scenario: No visible response to mode switch
