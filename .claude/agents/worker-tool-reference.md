@@ -292,6 +292,10 @@ mcp__serena__replace_symbol_body(name_path="ClassName/method_name", relative_pat
 
 ## Signal File Protocol
 
+**Important**: Implementation workers should NOT git commit their changes.
+The validation-test-agent commits on your behalf after successful validation.
+This ensures commits are only made for validated, scoped work.
+
 On task completion, write a signal file to `$ATTRACTOR_SIGNAL_DIR/{node_id}.json`:
 
 ```bash

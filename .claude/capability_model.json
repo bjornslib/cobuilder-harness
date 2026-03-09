@@ -1,185 +1,185 @@
 {
   "_schema_version": "1.0.0",
   "_description": "System 3 Capability Self-Model \u2014 tracks confidence, success rates, and pitfalls per domain. Updated by hindsight-capability-update.py Stop hook after each session.",
-  "_last_updated": "2026-03-09T00:57:50.160871+00:00",
+  "_last_updated": "2026-03-09T10:45:48.502647+00:00",
   "domains": {
     "backend_orchestration": {
       "description": "Python backend work: FastAPI, PydanticAI, database ops, MCP tools",
-      "confidence": 0.9,
-      "sessions_total": 1700,
-      "sessions_successful": 1230,
-      "success_rate": 0.724,
+      "confidence": 0.95,
+      "sessions_total": 1819,
+      "sessions_successful": 1291,
+      "success_rate": 0.71,
       "common_pitfalls": [],
       "recent_outcomes": [
         {
-          "timestamp": "2026-03-08T22:45:30.934347+00:00",
+          "timestamp": "2026-03-09T08:52:59.487300+00:00",
           "success": true,
-          "reason": "70 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "28 uncommitted changes; 1 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-08T22:45:59.979326+00:00",
+          "timestamp": "2026-03-09T08:53:12.895769+00:00",
           "success": true,
-          "reason": "71 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "27 uncommitted changes; 2 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-08T22:46:49.559630+00:00",
+          "timestamp": "2026-03-09T08:53:26.372042+00:00",
           "success": true,
-          "reason": "72 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "28 uncommitted changes; 2 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-08T22:47:43.405986+00:00",
+          "timestamp": "2026-03-09T08:53:58.365807+00:00",
           "success": true,
-          "reason": "74 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "28 uncommitted changes; 2 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-08T22:47:53.178885+00:00",
+          "timestamp": "2026-03-09T08:59:05.547032+00:00",
           "success": true,
-          "reason": "74 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "29 uncommitted changes; 2 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-08T22:48:41.246106+00:00",
+          "timestamp": "2026-03-09T10:08:33.594865+00:00",
           "success": true,
-          "reason": "74 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "30 uncommitted changes; 1 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-08T22:53:39.106088+00:00",
+          "timestamp": "2026-03-09T10:09:01.051137+00:00",
           "success": true,
-          "reason": "75 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "29 uncommitted changes; 2 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-08T22:56:23.663512+00:00",
+          "timestamp": "2026-03-09T10:09:10.971581+00:00",
           "success": true,
-          "reason": "74 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "29 uncommitted changes; 2 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-08T23:05:38.813514+00:00",
+          "timestamp": "2026-03-09T10:45:13.797474+00:00",
           "success": true,
-          "reason": "75 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "29 uncommitted changes; 2 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-09T00:57:50.160871+00:00",
-          "success": false,
-          "reason": "75 uncommitted changes; beads closed"
+          "timestamp": "2026-03-09T10:45:48.502647+00:00",
+          "success": true,
+          "reason": "29 uncommitted changes; 2 recent commits; beads closed"
         }
       ]
     },
     "frontend_orchestration": {
       "description": "React/Next.js frontend work: components, state, CSS, browser automation",
       "confidence": 0.95,
-      "sessions_total": 183,
-      "sessions_successful": 147,
-      "success_rate": 0.803,
+      "sessions_total": 302,
+      "sessions_successful": 208,
+      "success_rate": 0.689,
       "common_pitfalls": [],
       "recent_outcomes": [
         {
-          "timestamp": "2026-03-07T05:21:33.065455+00:00",
+          "timestamp": "2026-03-09T08:52:59.487300+00:00",
           "success": true,
-          "reason": "53 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "28 uncommitted changes; 1 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-07T05:21:43.827416+00:00",
+          "timestamp": "2026-03-09T08:53:12.895769+00:00",
           "success": true,
-          "reason": "54 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "27 uncommitted changes; 2 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-07T05:29:32.097740+00:00",
+          "timestamp": "2026-03-09T08:53:26.372042+00:00",
           "success": true,
-          "reason": "56 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "28 uncommitted changes; 2 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-07T05:30:59.248051+00:00",
+          "timestamp": "2026-03-09T08:53:58.365807+00:00",
           "success": true,
-          "reason": "53 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "28 uncommitted changes; 2 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-07T05:39:52.428759+00:00",
+          "timestamp": "2026-03-09T08:59:05.547032+00:00",
           "success": true,
-          "reason": "42 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "29 uncommitted changes; 2 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-07T05:40:07.265759+00:00",
+          "timestamp": "2026-03-09T10:08:33.594865+00:00",
           "success": true,
-          "reason": "42 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "30 uncommitted changes; 1 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-07T05:46:58.599846+00:00",
+          "timestamp": "2026-03-09T10:09:01.051137+00:00",
           "success": true,
-          "reason": "42 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "29 uncommitted changes; 2 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-07T05:48:51.779782+00:00",
+          "timestamp": "2026-03-09T10:09:10.971581+00:00",
           "success": true,
-          "reason": "42 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "29 uncommitted changes; 2 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-07T05:49:59.436336+00:00",
+          "timestamp": "2026-03-09T10:45:13.797474+00:00",
           "success": true,
-          "reason": "42 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "29 uncommitted changes; 2 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-07T05:50:37.687110+00:00",
+          "timestamp": "2026-03-09T10:45:48.502647+00:00",
           "success": true,
-          "reason": "42 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "29 uncommitted changes; 2 recent commits; beads closed"
         }
       ]
     },
     "prd_writing": {
       "description": "PRD authoring, epic breakdown, acceptance criteria, task decomposition",
-      "confidence": 0.9,
-      "sessions_total": 1489,
-      "sessions_successful": 1042,
-      "success_rate": 0.7,
+      "confidence": 0.95,
+      "sessions_total": 1608,
+      "sessions_successful": 1103,
+      "success_rate": 0.686,
       "common_pitfalls": [],
       "recent_outcomes": [
         {
-          "timestamp": "2026-03-08T22:45:30.934347+00:00",
+          "timestamp": "2026-03-09T08:52:59.487300+00:00",
           "success": true,
-          "reason": "70 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "28 uncommitted changes; 1 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-08T22:45:59.979326+00:00",
+          "timestamp": "2026-03-09T08:53:12.895769+00:00",
           "success": true,
-          "reason": "71 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "27 uncommitted changes; 2 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-08T22:46:49.559630+00:00",
+          "timestamp": "2026-03-09T08:53:26.372042+00:00",
           "success": true,
-          "reason": "72 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "28 uncommitted changes; 2 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-08T22:47:43.405986+00:00",
+          "timestamp": "2026-03-09T08:53:58.365807+00:00",
           "success": true,
-          "reason": "74 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "28 uncommitted changes; 2 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-08T22:47:53.178885+00:00",
+          "timestamp": "2026-03-09T08:59:05.547032+00:00",
           "success": true,
-          "reason": "74 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "29 uncommitted changes; 2 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-08T22:48:41.246106+00:00",
+          "timestamp": "2026-03-09T10:08:33.594865+00:00",
           "success": true,
-          "reason": "74 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "30 uncommitted changes; 1 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-08T22:53:39.106088+00:00",
+          "timestamp": "2026-03-09T10:09:01.051137+00:00",
           "success": true,
-          "reason": "75 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "29 uncommitted changes; 2 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-08T22:56:23.663512+00:00",
+          "timestamp": "2026-03-09T10:09:10.971581+00:00",
           "success": true,
-          "reason": "74 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "29 uncommitted changes; 2 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-08T23:05:38.813514+00:00",
+          "timestamp": "2026-03-09T10:45:13.797474+00:00",
           "success": true,
-          "reason": "75 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "29 uncommitted changes; 2 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-09T00:57:50.160871+00:00",
-          "success": false,
-          "reason": "75 uncommitted changes; beads closed"
+          "timestamp": "2026-03-09T10:45:48.502647+00:00",
+          "success": true,
+          "reason": "29 uncommitted changes; 2 recent commits; beads closed"
         }
       ]
     },
@@ -251,130 +251,130 @@
     },
     "devops": {
       "description": "Deployment, CI/CD, Railway, Docker, git worktree management",
-      "confidence": 0.9,
-      "sessions_total": 604,
-      "sessions_successful": 416,
-      "success_rate": 0.689,
+      "confidence": 0.95,
+      "sessions_total": 723,
+      "sessions_successful": 477,
+      "success_rate": 0.66,
       "common_pitfalls": [],
       "recent_outcomes": [
         {
-          "timestamp": "2026-03-04T01:24:45.309097+00:00",
+          "timestamp": "2026-03-09T08:52:59.487300+00:00",
           "success": true,
-          "reason": "8 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "28 uncommitted changes; 1 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-04T01:24:47.336468+00:00",
+          "timestamp": "2026-03-09T08:53:12.895769+00:00",
           "success": true,
-          "reason": "8 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "27 uncommitted changes; 2 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-04T01:26:25.998469+00:00",
+          "timestamp": "2026-03-09T08:53:26.372042+00:00",
           "success": true,
-          "reason": "8 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "28 uncommitted changes; 2 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-04T01:26:28.743508+00:00",
+          "timestamp": "2026-03-09T08:53:58.365807+00:00",
           "success": true,
-          "reason": "8 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "28 uncommitted changes; 2 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-04T01:26:31.960212+00:00",
+          "timestamp": "2026-03-09T08:59:05.547032+00:00",
           "success": true,
-          "reason": "8 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "29 uncommitted changes; 2 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-04T01:44:18.890673+00:00",
+          "timestamp": "2026-03-09T10:08:33.594865+00:00",
           "success": true,
-          "reason": "8 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "30 uncommitted changes; 1 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-04T01:44:49.688321+00:00",
+          "timestamp": "2026-03-09T10:09:01.051137+00:00",
           "success": true,
-          "reason": "8 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "29 uncommitted changes; 2 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-04T01:44:52.084858+00:00",
+          "timestamp": "2026-03-09T10:09:10.971581+00:00",
           "success": true,
-          "reason": "8 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "29 uncommitted changes; 2 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-04T02:04:32.743219+00:00",
+          "timestamp": "2026-03-09T10:45:13.797474+00:00",
           "success": true,
-          "reason": "8 uncommitted changes; 1 recent commits; beads closed"
+          "reason": "29 uncommitted changes; 2 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-09T00:57:50.160871+00:00",
-          "success": false,
-          "reason": "75 uncommitted changes; beads closed"
+          "timestamp": "2026-03-09T10:45:48.502647+00:00",
+          "success": true,
+          "reason": "29 uncommitted changes; 2 recent commits; beads closed"
         }
       ]
     },
     "testing": {
       "description": "TDD, unit tests, E2E tests, acceptance testing, validation",
-      "confidence": 0.9,
-      "sessions_total": 1536,
-      "sessions_successful": 1086,
-      "success_rate": 0.707,
+      "confidence": 0.95,
+      "sessions_total": 1655,
+      "sessions_successful": 1147,
+      "success_rate": 0.693,
       "common_pitfalls": [],
       "recent_outcomes": [
         {
-          "timestamp": "2026-03-08T22:45:30.934347+00:00",
+          "timestamp": "2026-03-09T08:52:59.487300+00:00",
           "success": true,
-          "reason": "70 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "28 uncommitted changes; 1 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-08T22:45:59.979326+00:00",
+          "timestamp": "2026-03-09T08:53:12.895769+00:00",
           "success": true,
-          "reason": "71 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "27 uncommitted changes; 2 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-08T22:46:49.559630+00:00",
+          "timestamp": "2026-03-09T08:53:26.372042+00:00",
           "success": true,
-          "reason": "72 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "28 uncommitted changes; 2 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-08T22:47:43.405986+00:00",
+          "timestamp": "2026-03-09T08:53:58.365807+00:00",
           "success": true,
-          "reason": "74 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "28 uncommitted changes; 2 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-08T22:47:53.178885+00:00",
+          "timestamp": "2026-03-09T08:59:05.547032+00:00",
           "success": true,
-          "reason": "74 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "29 uncommitted changes; 2 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-08T22:48:41.246106+00:00",
+          "timestamp": "2026-03-09T10:08:33.594865+00:00",
           "success": true,
-          "reason": "74 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "30 uncommitted changes; 1 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-08T22:53:39.106088+00:00",
+          "timestamp": "2026-03-09T10:09:01.051137+00:00",
           "success": true,
-          "reason": "75 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "29 uncommitted changes; 2 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-08T22:56:23.663512+00:00",
+          "timestamp": "2026-03-09T10:09:10.971581+00:00",
           "success": true,
-          "reason": "74 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "29 uncommitted changes; 2 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-08T23:05:38.813514+00:00",
+          "timestamp": "2026-03-09T10:45:13.797474+00:00",
           "success": true,
-          "reason": "75 uncommitted changes; 3 recent commits; beads closed"
+          "reason": "29 uncommitted changes; 2 recent commits; beads closed"
         },
         {
-          "timestamp": "2026-03-09T00:57:50.160871+00:00",
-          "success": false,
-          "reason": "75 uncommitted changes; beads closed"
+          "timestamp": "2026-03-09T10:45:48.502647+00:00",
+          "success": true,
+          "reason": "29 uncommitted changes; 2 recent commits; beads closed"
         }
       ]
     }
   },
   "aggregate": {
-    "total_sessions": 5523,
-    "total_successful": 3932,
-    "overall_success_rate": 0.712,
-    "strongest_domain": "frontend_orchestration",
+    "total_sessions": 6118,
+    "total_successful": 4237,
+    "overall_success_rate": 0.693,
+    "strongest_domain": "backend_orchestration",
     "weakest_domain": "backend_orchestration"
   }
 }

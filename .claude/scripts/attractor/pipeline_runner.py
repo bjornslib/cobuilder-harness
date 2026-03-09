@@ -1062,6 +1062,33 @@ class PipelineRunner:
             f'```\nWrite(file_path="{signal_file_path}", content=\'{{"result": "fail", "reason": "Criterion X not met because..."}}\')\n```'
         )
 
+        # Git Commit Requirement section — only when files were changed and not opted out
+        skip_commit = attrs.get("skip_commit", "false") == "true"
+        if files_changed and not skip_commit:
+            effective_prd_ref = prd_ref if prd_ref else "pipeline"
+            epic_id = attrs.get("epic_id", target_node_id)
+            files_list = "\n".join(f"  - {f}" for f in files_changed)
+            commit_msg = f"feat({effective_prd_ref}): {label} [{target_node_id}]"
+            lines.append(
+                f"\n## Git Commit Requirement\n"
+                f"The implementation worker left these files modified in the working tree:\n"
+                f"{files_list}\n\n"
+                f"**If validation PASSES** (you are about to write `{{\"result\": \"pass\"}}`), you MUST commit these changes BEFORE writing the signal file:\n\n"
+                f"```\n"
+                f"# 1. Stage only the files listed above\n"
+                f"Bash(command='git add {' '.join(files_changed)}', description='Stage implementation files')\n\n"
+                f"# 2. Verify something is staged\n"
+                f"Bash(command='git diff --cached --name-only', description='Confirm staged files')\n\n"
+                f"# 3. Commit with the required message format\n"
+                f"Bash(command='git commit -m \"{commit_msg}\" -m \"epic_id: {epic_id}\\nprd_ref: {effective_prd_ref}\\nvalidated_by: validation-test-agent\"', description='Commit validated implementation')\n"
+                f"```\n\n"
+                f"If `git commit` fails for any reason, write a fail signal instead of a pass:\n"
+                f'```\nWrite(file_path="{signal_file_path}", content=\'{{"result": "fail", "reason": "git commit failed: <error>"}}\')\n```\n\n'
+                f"**If validation FAILS or you are writing `{{\"result\": \"fail\"}}` or `{{\"result\": \"requeue\"}}`**:\n"
+                f"- Do NOT stage or commit any files\n"
+                f"- Leave the working tree dirty so the implementation can be inspected and reworked"
+            )
+
         return "\n".join(lines)
 
     def _run_validation_subprocess(self, node_id: str, target_node_id: str) -> None:

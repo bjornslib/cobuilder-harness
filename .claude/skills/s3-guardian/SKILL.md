@@ -1,10 +1,10 @@
 ---
 name: s3-guardian
-description: This skill should be used when System 3 needs to act as an independent guardian angel — designing PRDs with CoBuilder RepoMap context injection, challenging designs via parallel solutioning, dispatching workers via AgentSDK pipelines, creating blind Gherkin acceptance tests and executable browser test scripts from PRDs, monitoring orchestrator progress, independently validating claims against acceptance criteria using gradient confidence scoring (0.0-1.0), autonomously closing validation gaps via Phase 4.5 gap closure protocol (creating fix-it codergen nodes), and setting session promises. Use when asked to "spawn and monitor an orchestrator", "create acceptance tests for a PRD", "validate orchestrator claims", "act as guardian angel", "independently verify implementation work", "autonomously close validation gaps", "create fix-it nodes", or "design and challenge a PRD".
-version: 0.7.0
+description: This skill should be used when System 3 needs to act as an independent guardian angel — designing PRDs with CoBuilder RepoMap context injection, challenging designs via parallel solutioning, dispatching workers via AgentSDK pipelines, creating blind Gherkin acceptance tests and executable browser test scripts from PRDs, monitoring orchestrator progress, independently validating claims against acceptance criteria using gradient confidence scoring (0.0-1.0), autonomously accepting or rejecting implementations based on gradient confidence scoring thresholds (0.70+ for ACCEPT), autonomously closing validation gaps via Phase 4.5 gap closure protocol (creating fix-it codergen nodes), and setting session promises. Use when asked to "spawn and monitor an orchestrator", "create acceptance tests for a PRD", "validate orchestrator claims", "act as guardian angel", "independently verify implementation work", "autonomously close validation gaps", "create fix-it nodes", "design and challenge a PRD", "validation thresholds", "gradient scoring decision", or "bead creation for gaps".
+version: 0.8.0
 title: "S3 Guardian"
 status: active
-last_verified: 2026-03-02
+last_verified: 2026-03-09
 ---
 
 # S3 Guardian — Independent Validation Pattern
@@ -140,7 +140,7 @@ See **[references/session-promise-template.md](references/session-promise-templa
 | **Phase 1** | Generate per-epic Gherkin tests, journey tests, and executable browser test scripts | [references/gherkin-test-patterns.md](references/gherkin-test-patterns.md) |
 | **Phase 2** | Orchestrator spawning via `spawn_orchestrator.py`, headless/SDK/tmux dispatch, DOT-driven dispatch | [references/guardian-workflow.md](references/guardian-workflow.md) |
 | **Phase 3** | Monitoring cadence, pause-and-check pattern, intervention triggers, AskUserQuestion handling | [references/monitoring-patterns.md](references/monitoring-patterns.md) |
-| **Phase 4** | Independent validation, evidence gathering, DOT pipeline integration, regression detection | [references/validation-scoring.md](references/validation-scoring.md) |
+| **Phase 4** | Independent validation, evidence gathering, DOT pipeline integration, regression detection. **Acceptance thresholds**: ACCEPT ≥ 0.70 (auto-create fix-it beads for minor gaps), INVESTIGATE 0.50-0.69, REJECT < 0.50. **Bead closure**: 6-step workflow for creating and tracking fix-it work. | [references/validation-scoring.md](references/validation-scoring.md), [references/guardian-workflow.md § 5.X](references/guardian-workflow.md), [references/guardian-workflow.md § 6.5](references/guardian-workflow.md) |
 
 **Load the relevant reference when entering each phase. Do not load all references at once.**
 
@@ -198,8 +198,9 @@ Each level adds independent verification. The key constraint: each guardian stor
 | 3. Monitoring | DOT polling (SDK), signal-file monitoring, progress monitoring | [monitoring-patterns.md](references/monitoring-patterns.md) |
 | 3.5 Pipeline Progress | Haiku sub-agent monitoring with stall/failure detection | [monitoring-patterns.md](references/monitoring-patterns.md) |
 | 3.6 Gate Monitoring | Detect wait.system3/wait.human gates via .gate-wait markers, System 3 response handlers | [monitoring-patterns.md](references/monitoring-patterns.md) § Section 8 |
-| 4. Validation | Score scenarios, run executable tests, weighted total | [validation-scoring.md](references/validation-scoring.md) |
+| 4. Validation | Score scenarios, run executable tests, weighted total. **ACCEPT ≥ 0.70** (solid quality; auto-create fix-it beads for minor gaps); **INVESTIGATE 0.50-0.69**; **REJECT < 0.50** | [validation-scoring.md](references/validation-scoring.md) |
 | 4.5 Regression | ZeroRepo diff before journey tests | [references/validation-scoring.md](references/validation-scoring.md) |
+| 4.6 Bead Closure | 6-step workflow: create fix-it bead → link to gap → assign → dispatch codergen node → validate → close | [guardian-workflow.md § 6.5](references/guardian-workflow.md) |
 
 ### Pipeline Progress Monitor Pattern
 
@@ -302,12 +303,13 @@ Load these reference files when entering each phase or when you need detailed gu
 
 ---
 
-**Version**: 0.7.0
+**Version**: 0.8.0
 **Dependencies**: cs-promise CLI (requires PATH setup — see Prerequisites section), pipeline_runner.py + claude_code_sdk (primary dispatch), tmux (tmux mode — interactive, lower API cost), Hindsight MCP, ccsystem3 shell function, Task Master MCP, ZeroRepo
 **Integration**: system3-orchestrator skill, completion-promise skill, acceptance-test-writer skill, parallel-solutioning skill, research-first skill
 **Theory**: Independent verification eliminates self-reporting bias in agentic systems
 
 **Changelog**:
+- v0.8.0: Added validation acceptance thresholds (ACCEPT ≥ 0.70, INVESTIGATE 0.50-0.69, REJECT < 0.50) and bead closure process references throughout. Updated `description` field with autonomous threshold-based accept/reject capability and new trigger keywords ("validation thresholds", "gradient scoring decision", "bead creation for gaps"). Expanded Phase 4 row in Guardian Workflow Phases table with threshold summary and references to guardian-workflow.md §§ 5.X and 6.5. Added Phase 4.6 Bead Closure row to Quick Reference table. Bumped `last_verified` to 2026-03-09.
 - v0.7.0: Removed headless mode (`--mode headless`, `spawn_orchestrator.py --mode headless`, `_build_headless_worker_cmd`, `run_headless_worker`). Headless mode is dead code — all dispatch now uses AgentSDK via `pipeline_runner.py`. Updated architecture diagram, mode table, SDK Mode Entry Points section, dependencies line. Deleted test_headless_dispatch.py and test_headless_worker.py. Two dispatch modes remain: Pipeline (PRIMARY) and tmux (interactive). Root cause: no API credits, headless = `claude -p` = API-billed, made it dead code.
 - v0.5.2: Corrected dispatch model throughout. `pipeline_runner.py --dot-file` is the PRIMARY dispatch path and uses **AgentSDK** (`claude_code_sdk`) — NOT `claude -p`. Seeing `claude` in `ps` when pipeline_runner runs is normal SDK behavior (SDK internally shells to the claude binary). `claude -p` is ONLY used by `spawn_orchestrator.py --mode headless` (legacy). Updated architecture diagram, mode table, anti-patterns, and dependencies line. Root cause: System 3 misread `ps` output and incorrectly concluded pipeline_runner uses `claude -p` — the process signature looks identical but the dispatch layer is entirely different.
 - v0.5.1: Rebalanced mode descriptions — tmux is equal peer to headless, not deprecated/legacy. Removed "Default for workers" label from headless. Added explicit tmux spawn command example in Quick Reference with wisdom file template. Updated system3-meta-orchestrator.md to remove "legacy tmux" and "for debugging only" language. Root cause: recent tmux-as-legacy language in docs caused orchestrator prompts to drop mandatory `Skill("orchestrator-multiagent")` invocation, resulting in direct implementation instead of delegation to workers.

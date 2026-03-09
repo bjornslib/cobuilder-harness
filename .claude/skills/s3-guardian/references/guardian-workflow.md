@@ -554,15 +554,32 @@ Phase 4.5 (Autonomous Gap Closure) is complete when:
 
 **Detailed protocol**: See [gap-closure-protocol.md](gap-closure-protocol.md) for complete patterns, common fix-it types, and escalation criteria.
 
+### 5.3.1 Validation Acceptance Thresholds
+
+Before applying the Make Decision step, consult this table to interpret the weighted score:
+
+| Verdict | Score Range | Quality Level | Auto-Action |
+|---------|-------------|---------------|-------------|
+| ACCEPT | >= 0.70 | Solid with minor gaps | Auto-dispatch fix-it nodes, close epic bead |
+| INVESTIGATE | 0.50-0.69 | Basic to incomplete | Create fix-it nodes, may need user guidance |
+| REJECT | < 0.50 | Partial/broken | Full replan required |
+
+**Rationale**: The 0.60 threshold (pre-2026) accepted "basic but incomplete" work that required manual rework post-launch. With Phase 4.5 auto-fix-it dispatch now operational (workers can autonomously fix identified gaps), the ACCEPT threshold is raised to 0.70 to ensure initial work quality is solid before auto-dispatch. Minor gaps in the 0.70-0.99 range are expected and are handled by the fix-it pipeline automatically.
+
+**Quality level descriptions**:
+- **Solid with minor gaps (0.70-0.99)**: Core functionality is correct and complete. Remaining gaps are cosmetic, non-blocking, or edge cases that auto-fix-it nodes can resolve without user input.
+- **Basic to incomplete (0.50-0.69)**: Core functionality partially works but has notable omissions. Fix-it nodes can address some issues; others may require architectural decisions or user guidance before proceeding.
+- **Partial/broken (< 0.50)**: Core functionality is missing or broken. Fix-it nodes are insufficient. A full replan — revisiting requirements, design, or implementation approach — is required before re-dispatch.
+
 ### 5.4 Make Decision
 
 Compare the total weighted score against manifest thresholds:
 
 ```
 Score: 0.XXX
-ACCEPT threshold: 0.60
-INVESTIGATE range: 0.40-0.59
-REJECT threshold: < 0.40
+ACCEPT threshold: 0.70
+INVESTIGATE range: 0.50-0.69
+REJECT threshold: < 0.50
 
 DECISION: {ACCEPT | INVESTIGATE | REJECT}
 ```
@@ -1510,6 +1527,131 @@ python cobuilder/orchestration/spawn_orchestrator.py \
     --on-cleanup \
     --repo-name ${REPO_NAME}
 ```
+
+### 6.5 Bead Closure and Fix-It Bead Creation
+
+After validation evidence is collected (Phase 5), create beads for identified gaps before closing the epic. This ensures every gap is tracked, dispatched, and auditable.
+
+**When to run this section**: After generating the validation report (Section 5.5), before invoking Pipeline Finalize.
+
+#### Step 1: Identify Gaps from Validation Evidence
+
+Review the validation report's "Gaps Identified" list. Classify each gap:
+- **Auto-fixable**: No architectural decision required; a codergen worker can resolve it. Add a fix-it node.
+- **Needs guidance**: Requires user input or architectural decision. Escalate via `MONITOR_STUCK` signal.
+- **Out of scope**: Documented but excluded from this pipeline run. Record in Hindsight only.
+
+#### Step 2: Create Fix-It Beads
+
+For each auto-fixable gap, create a bead with full metadata:
+
+```bash
+bd create \
+  --title "fix-it: <short description of gap>" \
+  --type task \
+  --priority high \
+  --parent <epic-bead-id> \
+  --body "## Gap Description
+<description from validation report>
+
+## Acceptance Criteria
+- [ ] <specific, testable criterion 1>
+- [ ] <specific, testable criterion 2>
+
+## Evidence
+Identified during validation of PRD-{ID} at score {score}.
+Validation report: .claude/attractor/validation/{PRD_ID}-report.md
+
+## Context
+Fix-it node will be dispatched via pipeline_runner.py.
+Node ID: fixup_{gap_slug}
+"
+```
+
+Capture the returned `bead_id` for use in the DOT node attribute.
+
+#### Step 3: Add Fix-It Codergen Nodes to the DOT Pipeline
+
+For each fix-it bead, append a codergen node to the pipeline DOT file. The `bead_id` attribute links the node to the bead for traceability:
+
+```dot
+# Append to .claude/attractor/pipelines/${INITIATIVE}.dot
+
+fixup_<gap_slug> [
+    label="fixup_<gap_slug>",
+    handler="codergen",
+    shape=box,
+    bead_id="<bead-id-from-step-2>",
+    subagent_type="backend-solutions-engineer",
+    instructions="Fix gap identified during validation: <gap description>. Acceptance criteria: <criteria from bead>.",
+    depends_on="<original-node-that-produced-the-gap>"
+];
+```
+
+**bead_id attribute format**: Use the full bead ID as returned by `bd create` (e.g., `PROJ-42`). The pipeline_runner.py uses this to update the bead status when the node transitions state.
+
+#### Step 4: Re-Dispatch to pipeline_runner.py
+
+After adding fix-it nodes, re-invoke the runner to process only the new nodes:
+
+```bash
+python pipeline_runner.py \
+    --dot-file .claude/attractor/pipelines/${INITIATIVE}.dot \
+    --prd ${PRD_REF} \
+    --filter-status pending \
+    --solution-design ${SD_PATH}
+```
+
+The runner will pick up the newly added `pending` nodes and skip already-completed nodes.
+
+#### Step 5: Log to Hindsight for Audit Trail
+
+After dispatching fix-it nodes, retain the gap closure record to Hindsight:
+
+```python
+mcp__hindsight__retain(
+    bank_id="claude-code-agencheck",
+    content="""
+## Gap Closure Audit: PRD-{ID}
+Date: {date}
+Validation Score: {score}
+Decision: {ACCEPT | INVESTIGATE}
+
+### Gaps Dispatched as Fix-It Nodes
+{for each gap:}
+- Gap: <description>
+  Bead: <bead-id>
+  Node: fixup_<slug>
+  Criteria: <acceptance criteria>
+
+### Gaps Escalated for User Guidance
+{if any:}
+- Gap: <description>
+  Reason: <why it needs user input>
+
+### Gaps Deferred / Out of Scope
+{if any:}
+- Gap: <description>
+  Rationale: <why deferred>
+""",
+    context="validation-gap-closure",
+    budget="low"
+)
+```
+
+#### Step 6: Close the Epic Bead with Evidence
+
+Once all fix-it nodes reach `validated` state (or are explicitly deferred), close the epic bead:
+
+```bash
+bd close <epic-bead-id> \
+  --comment "Epic complete. Validation score: {score} ({ACCEPT|INVESTIGATE}).
+Fix-it nodes dispatched: {count}. All fix-its validated.
+Evidence: .claude/attractor/validation/{PRD_ID}-report.md
+Completion promise: ${PROMISE_ID}"
+```
+
+If fix-it nodes are still running, do NOT close the epic yet. The pipeline_runner.py watchdog will signal when all fix-its are done; re-run this step at that point.
 
 ---
 

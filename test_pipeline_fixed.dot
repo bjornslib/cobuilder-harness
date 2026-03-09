@@ -1,0 +1,27 @@
+digraph test_pipeline {
+    graph [promise_id="PRD-TEST-001"];
+
+    start [shape=Mdiamond, label="Start", handler="start", status="pending"];
+
+    acceptance_test [shape=component, label="Write Acceptance Tests", handler="acceptance-test-writer", status="pending", prd_ref="PRD-TEST-001"];
+
+    research [shape=tab, label="Research", handler="research", status="pending", solution_design="docs/sd/example.md", prd_ref="PRD-TEST-001", research_queries="['query1']", downstream_node="refine"];
+
+    refine [shape=note, label="Refine", handler="refine", status="pending", solution_design="docs/sd/example.md", evidence_path="evidence/research/research-findings.json", prd_ref="PRD-TEST-001"];
+
+    codergen1 [shape=box, label="Implement Feature", handler="codergen", status="pending", bead_id="bd-test1", worker_type="frontend-dev-expert", sd_path="docs/sd/example.md", prd_ref="PRD-TEST-001", acceptance="Acceptance criteria"];
+
+    system3_gate [shape=hexagon, label="System3 Validation", handler="wait.system3", status="pending", gate_type="e2e"];
+
+    human_gate [shape=hexagon, label="Human Review", handler="wait.human", status="pending", gate="technical", mode="technical"];
+
+    exit [shape=Msquare, label="Exit", handler="exit", status="pending"];
+
+    start -> acceptance_test;
+    acceptance_test -> research;
+    research -> refine;
+    refine -> codergen1;
+    codergen1 -> system3_gate;
+    system3_gate -> human_gate;
+    human_gate -> exit;
+}
