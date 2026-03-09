@@ -40,10 +40,6 @@ if _THIS_DIR not in sys.path:
 import identity_registry
 import hook_manager
 
-# Re-export headless worker functions from dispatch_worker.py.
-# Tests and callers that import from spawn_orchestrator continue to work.
-from dispatch_worker import _build_headless_worker_cmd, run_headless_worker  # noqa: F401
-
 logger = logging.getLogger(__name__)
 
 
@@ -291,10 +287,9 @@ def main() -> None:
                         help="Repo name in .repomap/config.yaml (required for --on-cleanup)")
     parser.add_argument("--promise-id", default="", dest="promise_id",
                         help="Completion promise ID to inject baseline freshness AC into")
-    parser.add_argument("--mode", choices=["sdk", "tmux", "headless"], default="tmux", dest="mode",
+    parser.add_argument("--mode", choices=["sdk", "tmux"], default="tmux", dest="mode",
                         help="Launch mode: sdk (no --worktree, guardian already in worktree), "
-                             "tmux (default, ccorch creates --worktree <node_id>), "
-                             "or headless (claude -p CLI, structured JSON output)")
+                             "or tmux (default, ccorch creates --worktree <node_id>)")
 
     args = parser.parse_args()
 
@@ -346,46 +341,6 @@ def main() -> None:
             ),
         }))
         sys.exit(1)
-
-    # --- Headless mode: run claude -p inline, no tmux ---
-    if args.mode == "headless":
-        import asyncio
-
-        # Build the prompt from --prompt arg (required for headless)
-        full_prompt = args.prompt or f"Implement node {args.node} for {args.prd}"
-
-        cmd, env = _build_headless_worker_cmd(
-            task_prompt=full_prompt,
-            work_dir=work_dir,
-            node_id=args.node,
-            pipeline_id=args.prd,
-            runner_id=f"runner-{args.node}",
-            prd_ref=args.prd,
-        )
-
-        timeout = 900
-        result = asyncio.run(run_headless_worker(
-            cmd=cmd,
-            env=env,
-            work_dir=work_dir,
-            timeout_seconds=timeout,
-        ))
-
-        # Write result signal for runner_agent.py to detect
-        signal_dir = Path(work_dir) / ".claude" / "signals"
-        signal_dir.mkdir(parents=True, exist_ok=True)
-        signal_file = signal_dir / f"{args.node}.json"
-        signal_file.write_text(json.dumps(result, default=str))
-
-        exit_code = result.get("exit_code", 1)
-        print(json.dumps({
-            "status": "ok" if exit_code == 0 else "error",
-            "session": session_name,
-            "mode": "headless",
-            "exit_code": exit_code,
-            "worker_result": result,
-        }))
-        sys.exit(0 if exit_code == 0 else 1)
 
     # tmux new-session — start a clean shell IN the target directory via -c.
     # We use "exec zsh" (not "claude" directly) because:

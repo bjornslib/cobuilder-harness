@@ -1,11 +1,10 @@
 ---
 title: "SD-HARNESS-UPGRADE-001 Epic 4: Sub-Agent Registry + Skill Injection"
-status: active
+status: complete
 type: solution-design
-last_verified: 2026-03-07
+last_verified: 2026-03-07T00:00:00.000Z
 grade: authoritative
 ---
-
 # SD-HARNESS-UPGRADE-001 Epic 4: Sub-Agent Registry + Skill Injection
 
 ## 1. Problem Statement
@@ -23,7 +22,7 @@ The DOT pipeline schema supports a `worker_type` attribute on codergen nodes, bu
 All agent types must have a definition file at `.claude/agents/{agent-type}.md`:
 
 | Agent Type | File | Status |
-|-----------|------|--------|
+| --- | --- | --- |
 | `frontend-dev-expert` | `.claude/agents/frontend-dev-expert.md` | Exists |
 | `backend-solutions-engineer` | `.claude/agents/backend-solutions-engineer.md` | Exists |
 | `tdd-test-engineer` | `.claude/agents/tdd-test-engineer.md` | Exists |
@@ -72,18 +71,18 @@ These provide current patterns and anti-patterns for your domain.
 2. Resolve to `.claude/agents/{worker_type}.md`
 3. Parse frontmatter to extract `skills_required`
 4. Inject skill invocations into the worker's initial prompt:
-   ```
+```
    ## Skills (load before implementation)
    Skill("react-best-practices")
    Skill("frontend-design")
-   ```
+```
 5. Inject agent definition content as system prompt
 6. If agent file not found: raise `AgentDefinitionNotFoundError` (hard error)
 
 ### 2.4 Skill-to-Agent Mapping
 
 | Agent Type | Skills Required | Rationale |
-|-----------|----------------|-----------|
+| --- | --- | --- |
 | `frontend-dev-expert` | `react-best-practices`, `frontend-design` | Current React/Next.js patterns |
 | `backend-solutions-engineer` | (domain-specific, e.g., `dspy-development`) | Backend framework guidance |
 | `tdd-test-engineer` | `test-driven-development`, `acceptance-test-runner` | Testing methodology |
@@ -108,7 +107,7 @@ worker_type: enum [
 ## 3. Files Changed
 
 | File | Change |
-|------|--------|
+| --- | --- |
 | `.claude/agents/solution-architect.md` | Verify exists, update to standard format with `skills_required` |
 | `.claude/agents/validation-test-agent.md` | Verify exists, update to standard format with `skills_required` |
 | `.claude/agents/ux-designer.md` | Verify exists, update to standard format with `skills_required` |

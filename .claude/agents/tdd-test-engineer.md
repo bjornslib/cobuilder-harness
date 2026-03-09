@@ -5,6 +5,7 @@ model: inherit
 color: red
 title: "Tdd Test Engineer"
 status: active
+skills_required: [mcp-skills]
 ---
 
 ## TDD Test Engineer Agent - Enhanced Instructions v2.0

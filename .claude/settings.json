@@ -46,10 +46,12 @@
     ],
     "Notification": [
       {
-        "hooks": [{
-          "type": "command",
-          "command": "python3 $CLAUDE_PROJECT_DIR/.claude/hooks/gchat-notification-dispatch.py"
-        }]
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 $CLAUDE_PROJECT_DIR/.claude/hooks/gchat-notification-dispatch.py"
+          }
+        ]
       }
     ],
     "Stop": [
@@ -141,9 +143,7 @@
   "enabledPlugins": {
     "beads@beads-marketplace": true,
     "frontend-design@claude-plugins-official": true,
-    "security-guidance@claude-plugins-official": false,
-    "code-review@claude-plugins-official": true,
-    "pyright-lsp@claude-plugins-official": false,
-    "typescript-lsp@claude-plugins-official": false
+    "security-guidance@claude-plugins-official": true,
+    "code-review@claude-plugins-official": true
   }
 }

@@ -1,11 +1,10 @@
 ---
 title: "SD-HARNESS-UPGRADE-001 Epic 5: Attractor Schema + Validate CLI Extension"
-status: active
+status: complete
 type: solution-design
-last_verified: 2026-03-07
+last_verified: 2026-03-07T00:00:00.000Z
 grade: authoritative
 ---
-
 # SD-HARNESS-UPGRADE-001 Epic 5: Attractor Schema + Validate CLI Extension
 
 ## 1. Problem Statement
@@ -23,7 +22,7 @@ The E2E analysis (Issue 3) showed workers receiving `solution_design: null` beca
 ### 2.1 New Schema Attributes
 
 | Attribute | Type | Required On | Default | Description |
-|-----------|------|-------------|---------|-------------|
+| --- | --- | --- | --- | --- |
 | `sd_path` | path | codergen | (none — mandatory) | Path to Solution Design file |
 | `solution_design_hash` | string | codergen (auto-set) | (computed) | SHA256 of frozen SD content at dispatch time |
 | `epic_id` | string | all (recommended) | (none) | Epic identifier for cluster validation |
@@ -36,7 +35,7 @@ The E2E analysis (Issue 3) showed workers receiving `solution_design: null` beca
 
 Added to `cobuilder pipeline validate`:
 
-**Rule V-10: sd_path required on codergen nodes**
+**Rule V-10: sd\_path required on codergen nodes**
 ```python
 for node in pipeline.nodes_by_handler("codergen"):
     if not node.attrs.get("sd_path"):
@@ -55,7 +54,7 @@ for epic_id in pipeline.unique_epic_ids():
         errors.append(f"Epic {epic_id}: has wait.system3 gate but no wait.human review")
 ```
 
-**Rule V-12: worker_type registry check**
+**Rule V-12: worker\_type registry check**
 ```python
 KNOWN_WORKER_TYPES = {
     "frontend-dev-expert", "backend-solutions-engineer", "tdd-test-engineer",
@@ -75,7 +74,7 @@ for node in pipeline.nodes_by_handler("wait.human"):
         errors.append(f"{node.id}: wait.human must follow wait.system3 or research")
 ```
 
-**Rule V-14: summary_ref required on gate nodes**
+**Rule V-14: summary\_ref required on gate nodes**
 ```python
 for node in pipeline.nodes_by_handler("wait.system3", "wait.human"):
     if not node.attrs.get("summary_ref"):
@@ -91,7 +90,7 @@ for epic_id in pipeline.unique_epic_ids():
         warnings.append(f"Epic {epic_id}: has codergen but no acceptance-test-writer node")
 ```
 
-**Rule V-16: skills_required references valid skill directories**
+**Rule V-16: skills\_required references valid skill directories**
 ```python
 for node in pipeline.nodes_with_attr("worker_type"):
     agent_path = Path(f".claude/agents/{node.attrs['worker_type']}.md")
@@ -116,7 +115,7 @@ After E7.2 validation period, `--mode=python` becomes the default. All worker di
 ## 3. Files Changed
 
 | File | Change |
-|------|--------|
+| --- | --- |
 | `agent-schema.md` | New attributes table, handler definitions |
 | `validator.py` (or `cobuilder/pipeline/validation/`) | Rules V-10 through V-14 |
 | `runner.py` | `--mode` flag with python/sdk/llm options |

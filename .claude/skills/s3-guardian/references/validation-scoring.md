@@ -478,6 +478,325 @@ The evidence gate is the last line of defense: even if the prompt instruction is
 
 ---
 
+## 11. Phase 4.5: Autonomous Gap Closure
+
+After Phase 4 validation produces a confidence score and identifies gaps, System 3 must attempt autonomous closure of **closable** gaps before escalating any work to the wait.human stage. This phase is the critical link between validation findings and user escalation.
+
+### Gap Classification Decision Tree
+
+Every gap identified during Phase 4 scoring must be classified as **closable** or **not closable**:
+
+| Classification | Definition | Action |
+|---|---|---|
+| **Closable** | Gap is in-scope (PRD Section 8), fixable without architectural/UX decisions, and low-risk | Create fix-it codergen node, re-dispatch pipeline |
+| **Not Closable** | Gap requires user decision, is out-of-scope, or poses high risk | Escalate to wait.human with evidence |
+
+**Reference**: See [gap-decision-tree.md](gap-decision-tree.md) for detailed visual flowchart and decision logic.
+
+### Closable Gap Types
+
+The following gap types are safe for autonomous closure:
+
+**Low-Risk Gaps** (always safe):
+- Missing import statement (clear from error message)
+- Test assertion missing (clear from acceptance criteria)
+- Mock configuration incomplete (clear from test error)
+- UI styling missing (clear from screenshot or design system)
+- Simple validation missing (clear from acceptance criteria)
+- Error handling missing (clear from exception type)
+- Type annotation missing (clear from type check output)
+
+**Medium-Risk Gaps** (usually safe with constraints):
+- Bug fix for obvious logic error (off-by-one, negation reversal, etc.)
+- Test setup boilerplate (inferred from existing test patterns)
+- Documentation string (inferred from code context)
+
+**Always Closable — Regressions**:
+- Any gap where the feature **worked at Phase 0** but is now broken
+- Regressions get P0 priority and are closed even if complex
+- Prevents reintroduction of previously-fixed bugs
+
+### Not-Closable Gap Types
+
+The following gaps require wait.human escalation:
+
+**Architectural Decisions**:
+- "Should this API endpoint accept parameter X?"
+- "What should the database schema be?"
+- "Should we add this dependency?"
+- "What's the correct design pattern for this?"
+
+**UX/Design Decisions**:
+- "What color should this button be?"
+- "Should this field be required or optional?"
+- "What's the correct error message format?"
+- "How should the form layout be organized?"
+
+**Scope/Clarification**:
+- "Is this feature in scope or out?"
+- "Is this behavior intentional or a bug?"
+- "Should we support this use case?"
+
+**High-Risk Fixes**:
+- Changes affecting >5 files
+- Logic changes >10 lines
+- Changes to API contracts or database schemas
+- Breaking changes to other features
+
+### Mandatory Workflow for Autonomous Closure
+
+When gaps are identified, execute this 7-step workflow:
+
+#### Step 1: Analyze Gap List from Phase 4
+
+Review all gaps identified during validation scoring. For each gap, record:
+- Gap ID (e.g., G1, G2)
+- Description (what's missing or wrong)
+- Acceptance criterion it violates
+- Current implementation state
+
+#### Step 2: Classify Each Gap
+
+Use the decision tree in [gap-decision-tree.md](gap-decision-tree.md) to classify each gap:
+
+```python
+for gap in phase_4_gaps:
+    gap.closable = is_in_prd_scope(gap) \
+                   and is_fixable_without_decisions(gap) \
+                   and (is_regression(gap) or is_low_risk(gap))
+```
+
+**Closable Gaps** → Proceed to Step 3
+**Not-Closable Gaps** → Collect for Step 7 escalation
+
+#### Step 3: Create Fix-It Nodes for Closable Gaps
+
+For each closable gap, create a DOT node in the pipeline:
+
+```dot
+fix_gap_1 [
+    shape=box
+    label="FIX: Missing import in UserService"
+    handler="codergen"
+    worker_type="backend-solutions-engineer"
+    sd_path="docs/sds/example/SD-EXAMPLE-FIX-G1.md"
+    acceptance="Import added, test passes, no regressions"
+    prd_ref="PRD-EXAMPLE-001"
+    epic_id="FIX-G1"
+    bead_id="FIX-G1"
+    priority="P0"
+    status="pending"
+];
+```
+
+**Node attributes explained**:
+- `label` — human-readable gap description
+- `handler="codergen"` — always use codergen for fix-it nodes
+- `worker_type` — route to appropriate specialist (see gap-decision-tree.md)
+- `sd_path` — minimal solution design document for the gap
+- `acceptance` — how to verify the gap is closed
+- `priority` — P0 for regressions, P1 for high-severity closures, P2 for low-risk
+- `status="pending"` — runner will dispatch when it reaches this node
+
+#### Step 4: Create Minimal Solution Design Documents
+
+Each fix-it node needs a Solution Design that constrains the scope. Document:
+- **Gap Title** — exact title from gap list
+- **In-scope Changes** — specific files and lines to modify
+- **Acceptance Criteria** — how to verify closure
+- **Risk Assessment** — why this is safe to close autonomously
+- **Related Gaps** — cascade detection (if fixing G1 might create new gaps)
+
+Example minimal SD:
+
+```markdown
+# Fix: Missing validation on email field
+
+## Gap
+Feature 2, Scenario 1 expects email validation but field accepts any string.
+
+## In-Scope
+- File: `frontend/forms/UserForm.tsx`
+- Add: `email: z.string().email()` to validation schema
+- Lines: ~150-160
+
+## Acceptance
+- Form rejects invalid emails
+- Test `test_email_validation_rejects_invalid` passes
+- No regression in other form tests
+
+## Risk
+Low — changes only validation schema, no API/database changes.
+
+## Cascade
+None expected — validation is isolated.
+```
+
+#### Step 5: Integrate Fix-It Nodes into Pipeline
+
+Add fix-it nodes to the DOT file at the appropriate position. **Typical placement**:
+- After the `validate_phase_4` node (which identified gaps)
+- Before the `wait.system3` node (final gate)
+
+Update edges to wire fix-it nodes into the pipeline:
+
+```dot
+validate_phase_4 -> fix_gap_1;
+validate_phase_4 -> fix_gap_2;
+fix_gap_1 -> re_validate_1;
+fix_gap_2 -> re_validate_1;
+re_validate_1 -> wait.system3;
+```
+
+#### Step 6: Re-Validate After Fixes Complete
+
+After orchestrator executes fix-it nodes, run Phase 4 validation again on the same acceptance rubric:
+
+- **All gaps closed?** → Proceed to Step 7 (escalation of non-closable gaps only)
+- **New gaps introduced?** → Apply cascade detection rules:
+  - Track iteration count (start at 1)
+  - If iteration > 3, escalate entire gap set to wait.human
+  - If new gaps are closable, continue to Step 3
+  - If new gaps are not-closable, proceed to Step 7
+
+#### Step 7: Escalate Remaining Gaps to wait.human
+
+For each gap that is **not closable**, prepare escalation with context:
+
+```
+[ESCALATED GAP]
+Gap ID: G5
+Title: Missing database migration for new user roles table
+
+Why Not Closable:
+- Requires architectural decision on database schema design
+- Impacts multiple services (auth, user, admin)
+- Need to decide: normalize roles or embed in users table?
+
+Acceptance Criterion:
+Feature 4, Scenario 2 expects users with roles attribute populated
+
+Current State:
+- PR #47 added roles field to domain model
+- API endpoint returns empty roles array
+- No database columns exist yet
+
+What User Must Decide:
+1. Schema design: separate roles table or embedded?
+2. Migration timeline: now or deferred?
+3. Scope: which services need roles support?
+
+Recommendation:
+Schedule a 30-minute design review with backend architect.
+Evidence is available in validation report at line 245.
+```
+
+### Common Gap Patterns by Framework
+
+**React/TypeScript Frontend**:
+- Missing import → low-risk closure
+- Missing Tailwind class → low-risk closure
+- State not initialized → medium-risk, depends on logic
+- Event handler missing → medium-risk
+- Props validation → low-risk
+
+**Python/FastAPI Backend**:
+- Missing import → low-risk closure
+- Missing route → medium-risk
+- Missing validation → low-risk closure
+- Error handling → low-risk closure
+- Database query → medium-risk
+
+**Tests**:
+- Assertion missing → low-risk closure
+- Mock not configured → low-risk closure
+- Setup missing → low-risk closure
+- Test isolation → medium-risk
+
+**All Frameworks**:
+- Off-by-one error → low-risk closure (obvious fix)
+- Logic inversion → low-risk closure (obvious fix)
+- Type annotation → low-risk closure
+- Documentation string → low-risk closure
+
+### Time Complexity Thresholds
+
+Estimate time to closure for each gap. Use this to make closure decisions:
+
+| Estimate | Decision |
+|----------|----------|
+| < 5 min | Always create fix-it node |
+| 5-15 min | Create fix-it node |
+| 15-30 min | Create fix-it node (but monitor cascade) |
+| 30-60 min | Escalate (too complex) |
+| > 60 min | Escalate (major rework) |
+
+**If multiple gaps combined exceed 30 minutes**, escalate the entire set to wait.human with grouping.
+
+### Cascade Detection Rules
+
+Track iteration depth when re-validating after closures:
+
+```
+Iteration 1: Fix G1, G2, G3 → Re-validate → New gaps G4, G5
+             (3 closable fixes → 2 new gaps → continue)
+
+Iteration 2: Fix G4, G5 → Re-validate → New gaps G6
+             (2 closable fixes → 1 new gap → continue)
+
+Iteration 3: Fix G6 → Re-validate → No new gaps
+             (1 closable fix → clean → COMPLETE)
+
+But if Iteration 3 → Re-validate → New gaps G7, G8, G9
+                (3 new gaps at depth 3 → ESCALATE)
+```
+
+**Escalation trigger**: If after 3 iterations of closure attempts, you still have new closable gaps, escalate the entire set to wait.human with evidence of the cascade.
+
+### Beads Synchronization
+
+For each fix-it node created, create a corresponding Beads issue:
+
+```bash
+bd create --title="FIX-G1: Missing email validation" \
+          --type=task \
+          --priority=0 \
+          --description="Close G1 gap from Phase 4 validation" \
+          --epic-id=FIX-G1
+```
+
+Update the Beads issue when:
+- Fix-it node is created (mark as in_progress)
+- Worker completes the node (mark as done)
+- Gap is re-validated and confirmed closed (mark evidence)
+
+This enables cross-referencing between gap closure work and issue tracking.
+
+### Storing Gap Closure Evidence
+
+After all closable gaps are closed, store the evidence:
+
+```python
+mcp__hindsight__retain(
+    content=f"""
+Phase 4.5 Autonomous Gap Closure Results:
+- Gaps identified: {len(phase_4_gaps)}
+- Gaps closed autonomously: {len(closed_gaps)}
+- Gaps escalated: {len(escalated_gaps)}
+- Iterations required: {iteration_count}
+- Total time: {total_time_minutes} min
+
+Closed Gaps: {[g.id for g in closed_gaps]}
+Escalated Gaps: {[g.id for g in escalated_gaps]}
+Cascade depth: {iteration_count}
+""",
+    context="validation-gap-closure",
+    bank_id="claude-code-{project}"
+)
+```
+
+---
+
 ## Guardian Phase 4: Independent Validation (Full Reference)
 
 > Extracted from s3-guardian SKILL.md — complete validation procedure including evidence gathering, DOT pipeline integration, regression detection, scoring method construction, evidence gates, journey tests, verdict delivery, and results storage.
@@ -682,7 +1001,118 @@ def validate_dot_pipeline_node(node_id: str, node_attrs: dict):
 
 ---
 
-### Phase 4.5: Regression Detection
+### Phase 4.5: Autonomous Gap Closure
+
+After Phase 4 validation identifies gaps, System 3 autonomously decides whether to close each gap via a codergen fix-it node or escalate it to the `wait.human` gate. The goal is to **never report gaps to the user that can be fixed without architectural or UX decisions**.
+
+This phase implements the gap closure decision tree documented in `gap-closure-protocol.md` and `gap-decision-tree.md`.
+
+#### When Phase 4.5 Executes
+
+Phase 4.5 runs **immediately after** Phase 4 validation completes and has identified a list of gaps:
+
+```
+Phase 4: Independent Validation (identify gaps)
+    ↓
+Phase 4.5: Autonomous Gap Closure (this phase)
+    ├─ Analyze each gap
+    ├─ Decide: fixable autonomously or escalate?
+    ├─ Create + dispatch fix-it codergen nodes for fixable gaps
+    ├─ Re-validate scenarios corresponding to closed gaps
+    ↓
+wait.human Gate (only gaps requiring user input/decision)
+```
+
+Only when all autonomously-fixable gaps are closed does System 3 transition the pipeline to the `wait.human` gate.
+
+#### Gap Analysis Decision Tree
+
+For each gap identified in Phase 4:
+
+1. **Is gap in PRD scope?** (Reference PRD Section 8 epics)
+   - NO → Note as informational, do not escalate
+   - YES → Continue to step 2
+
+2. **Is gap fixable without architectural or UX decisions?**
+   - NO (requires design change, API rework, etc.) → Escalate to `wait.human`
+   - YES → Continue to step 3
+
+3. **Is this a regression?** (Compare against ZeroRepo baseline)
+   - YES → Create P0 fix-it node (highest priority)
+   - NO → Continue to step 4
+
+4. **Is this low-risk and fixable in <15 minutes?** (imports, test mocks, CSS, validation checks)
+   - YES → Create fix-it codergen node
+   - NO → Escalate to `wait.human` with evidence
+
+**Full decision flowchart and detailed gap examples** are documented in `gap-decision-tree.md`.
+
+#### Autonomous Fix-It Node Pattern
+
+When System 3 decides to close a gap autonomously:
+
+1. **Create the fix-it node in DOT** (e.g., `fix_gap_1`)
+   - Handler: `codergen`
+   - Worker type: Determined by gap (backend-solutions-engineer, frontend-dev-expert, or tdd-test-engineer)
+   - SD path: Minimal Solution Design (3-4 paragraphs, specific fix only)
+   - Acceptance: "Gherkin scenario X passes; no regressions introduced"
+   - Epic ID: FIX-X1 (temporary, for tracking)
+   - Bead ID: Real bead ID created via `bd create`
+
+2. **Wire fix-it into pipeline** (before `wait.human`)
+   ```dot
+   e1_gate -> fix_gap_1 [label="gaps_detected"];
+   fix_gap_1 -> revalidate_gap_1 [label="impl_complete"];
+   revalidate_gap_1 [handler="wait.system3", gate_type="gap-closure"];
+   revalidate_gap_1 -> e1_review [label="validated"];
+   ```
+
+3. **Dispatch and re-validate**
+   - Runner dispatches fix-it codergen node
+   - After completion, System 3 re-runs the exact Gherkin scenario that failed
+   - If scenario passes → mark gap as closed, continue to next gap
+   - If scenario still fails → requeue fix-it with updated guidance
+
+4. **Cascade depth control**
+   - Track iteration count for dependent gaps
+   - After 3 iterations of fix-it nodes revealing new gaps → escalate remaining gaps to `wait.human`
+   - Prevents runaway fix-it loops while allowing legitimate multi-step fixes
+
+#### Common Fix-It Patterns
+
+See `gap-closure-protocol.md` § "Common Fix-It Patterns by Gap Type" for:
+- Missing import (ImportError) — <2 minutes
+- Test mock setup (AssertionError) — <5 minutes
+- CSS class application (visual mismatch) — <3 minutes
+- Validation logic (missing assertion) — <5 minutes
+- Regressions (feature that broke) — <15 minutes with investigation
+
+#### Escalation to wait.human
+
+Escalate a gap to `wait.human` if any of these apply:
+
+| Reason | Example |
+|--------|---------|
+| Requires architectural redesign | API contract needs to return different field structure |
+| Requires UX/design decision | Button should be different color or form layout should change |
+| Outside PRD scope | Code doesn't follow company style guide; not a PRD requirement |
+| Requires user clarification | "Is feature X supposed to work with legacy API Y?" |
+| Would introduce cascading risk | Fixing this requires removing dependency X that other code depends on |
+| Iteration limit exceeded | 3 cascading fix-it nodes and gaps still appearing |
+
+**Escalation format**: Structured summary with gap title, scenario reference, evidence (error + root cause), reason for non-autonomy, and recommended next step. See `gap-closure-protocol.md` § "Escalation Format for wait.human".
+
+#### Completion Criteria
+
+Phase 4.5 is complete when:
+- All in-scope, fixable gaps have fix-it nodes created and dispatched
+- All fix-it codergen nodes have completed and re-validation passed
+- No gaps remain that are fixable autonomously
+- Pipeline transitions to `wait.human` gate with only gaps requiring user decision
+
+---
+
+### Phase 4.6: Regression Detection
 
 After the meta-orchestrator completes implementation but **before** running journey tests, run an
 automated regression check to detect components that were previously stable (`delta_status=existing`)

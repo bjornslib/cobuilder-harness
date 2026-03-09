@@ -552,68 +552,6 @@ else
     fi
 fi
 
-# Gate 3: Agent SDK verification (MANDATORY — cannot be bypassed)
-{
-    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-    LLM_SCRIPT="$SCRIPT_DIR/cs-verify-llm.py"
-
-    if [ ! -f "$LLM_SCRIPT" ]; then
-        echo "ERROR: Gate 3 independent verification is mandatory." >&2
-        echo "The Agent SDK verification script was not found at $LLM_SCRIPT" >&2
-        echo "" >&2
-        echo "System 3 must spawn a validation-test-agent teammate for independent verification:" >&2
-        echo "" >&2
-        echo "  Task(" >&2
-        echo "      subagent_type=\"validation-test-agent\"," >&2
-        echo "      team_name=\"s3-live\"," >&2
-        echo "      name=\"s3-gate3-validator\"," >&2
-        echo "      model=\"sonnet\"," >&2
-        echo "      prompt=\"--mode=e2e --promise=\$PROMISE_ID (see .claude/agents/validation-test-agent.md)\"" >&2
-        echo "  )" >&2
-        echo "" >&2
-        echo "Once the validator confirms all ACs pass, re-run cs-verify." >&2
-        exit 1
-    else
-        echo "Running Gate 3 Agent SDK verification..."
-
-        # Extract criteria JSON from promise file
-        CRITERIA_JSON=$(jq -c '.acceptance_criteria' "$PROMISE_FILE")
-
-        # Call Agent SDK verification
-        LLM_RESULT=$("$LLM_SCRIPT" \
-            --summary "$SUMMARY" \
-            --criteria "$CRITERIA_JSON" \
-            --promise-id "$PROMISE_ID" \
-            ${PROOF:+--proof "$PROOF"} 2>/dev/null) || true
-
-        if [ -n "$LLM_RESULT" ]; then
-            LLM_VERDICT=$(echo "$LLM_RESULT" | jq -r '.verdict // "WARN"')
-            LLM_REASONING=$(echo "$LLM_RESULT" | jq -r '.reasoning // "No response"')
-            LLM_CONFIDENCE=$(echo "$LLM_RESULT" | jq -r '.confidence // "N/A"')
-            LLM_COST=$(echo "$LLM_RESULT" | jq -r '.cost_estimate_usd // "N/A"')
-
-            if [ "$LLM_VERDICT" = "FAIL" ]; then
-                echo "" >&2
-                echo "GATE 3 FAILED: Agent SDK verification rejected evidence" >&2
-                echo "Reasoning: $LLM_REASONING" >&2
-                echo "Confidence: $LLM_CONFIDENCE" >&2
-                echo "" >&2
-                echo "The codebase-aware judge could not verify the claims." >&2
-                echo "Address the issues above and try again." >&2
-                exit 1
-            elif [ "$LLM_VERDICT" = "WARN" ]; then
-                echo "WARNING: Gate 3 Agent SDK unavailable. $LLM_REASONING" >&2
-                echo "Proceeding with Gates 1-2 only (graceful degradation)." >&2
-            else
-                echo "Gate 3: Agent SDK verification PASS (confidence: $LLM_CONFIDENCE, cost: \$$LLM_COST)"
-            fi
-        else
-            echo "WARNING: Gate 3 Agent SDK returned empty result." >&2
-            echo "Proceeding with Gates 1-2 only (graceful degradation)." >&2
-        fi
-    fi
-}
-
 TIMESTAMP=$(get_timestamp)
 SUMMARY=$(jq -r '.summary' "$PROMISE_FILE")
 

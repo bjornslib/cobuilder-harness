@@ -21,11 +21,17 @@ Validation Rules (from schema.md section 11):
     10. promise_id exists on graph if any node has promise_ac
     11. Edge conditions use valid syntax (pass, fail, partial)
     12. Refine evidence_path cross-references valid upstream research node
+    13. Full cluster topology check: every codergen node must have downstream wait.system3 and wait.human nodes
+    14. wait.human nodes must follow wait.system3 or research nodes
+    15. bead_id values on codergen nodes map to real beads (via `bd show`)
+    16. Manifest validation_method enforcement: if prd_ref exists, manifest features must declare validation_method
 """
 
 import argparse
 import json
+import os
 import re
+import subprocess
 import sys
 from typing import Any
 
@@ -34,7 +40,7 @@ from parser import parse_file
 
 # --- Constants ---
 
-VALID_STATUSES = {"pending", "active", "impl_complete", "validated", "failed"}
+VALID_STATUSES = {"pending", "active", "impl_complete", "validated", "accepted", "failed"}
 
 VALID_HANDLERS = {
     "start",
@@ -42,10 +48,12 @@ VALID_HANDLERS = {
     "codergen",
     "tool",
     "wait.human",
+    "wait.system3",
     "conditional",
     "parallel",
     "research",
     "refine",
+    "acceptance-test-writer",
 }
 
 HANDLER_SHAPE_MAP = {
@@ -54,10 +62,12 @@ HANDLER_SHAPE_MAP = {
     "codergen": "box",
     "tool": "box",
     "wait.human": "hexagon",
+    "wait.system3": "hexagon",
     "conditional": "diamond",
     "parallel": "parallelogram",
     "research": "tab",
     "refine": "note",
+    "acceptance-test-writer": "component",
 }
 
 VALID_CONDITIONS = {"pass", "fail", "partial"}
@@ -66,13 +76,15 @@ VALID_CONDITIONS = {"pass", "fail", "partial"}
 REQUIRED_ATTRS: dict[str, list[str]] = {
     "start": ["label", "handler"],
     "exit": ["label", "handler"],
-    "codergen": ["label", "handler", "bead_id", "worker_type"],
+    "codergen": ["label", "handler", "bead_id", "worker_type", "sd_path"],
     "tool": ["label", "handler", "command"],
     "wait.human": ["label", "handler", "gate", "mode"],
+    "wait.system3": ["label", "handler", "gate_type"],
     "conditional": ["label", "handler"],
     "parallel": ["label", "handler"],
     "research": ["label", "handler", "solution_design"],
     "refine": ["label", "handler", "solution_design", "evidence_path"],
+    "acceptance-test-writer": ["label", "handler", "prd_ref"],
 }
 
 # Recommended attributes per handler type — absence emits warnings (not errors).
@@ -88,11 +100,23 @@ VALID_WORKER_TYPES = {
     "backend-solutions-engineer",
     "tdd-test-engineer",
     "solution-architect",
+    "solution-design-architect",
+    "validation-test-agent",
+    "ux-designer",
 }
 
 VALID_GATE_TYPES = {"technical", "business", "e2e", "manual"}
 
 VALID_MODES = {"technical", "business"}
+
+VALID_VALIDATION_METHODS = {
+    "browser-required",  # Must use Claude-in-Chrome for UI validation
+    "api-required",      # Must make real HTTP requests
+    "code-analysis",     # Static code reading is sufficient
+    "doc-review",        # Documentation review (no runtime validation)
+    "e2e-test",          # End-to-end test execution required
+    "hybrid",            # Agent uses best judgment on tooling
+}
 
 
 class Issue:
@@ -116,12 +140,15 @@ class Issue:
         return f"  {prefix} (rule {self.rule:2d}){node_str}: {self.message}"
 
 
-def validate(data: dict[str, Any], strict: bool = False) -> list[Issue]:
+def validate(data: dict[str, Any], strict: bool = False, check_beads: bool = False,
+             dot_file_path: str = "") -> list[Issue]:
     """Validate a parsed DOT pipeline against schema rules.
 
     Args:
         data: Output from parser.parse_file() or parser.parse_dot().
         strict: If True, treat warnings as errors.
+        check_beads: If True, verify bead_id values exist via bd CLI.
+        dot_file_path: Path to the DOT file (used for resolving manifest paths).
 
     Returns:
         List of Issue objects.
@@ -305,9 +332,20 @@ def validate(data: dict[str, Any], strict: bool = False) -> list[Issue]:
             if wt and wt not in VALID_WORKER_TYPES:
                 issues.append(
                     Issue(
-                        "warning",
+                        "error",  # Changed from "warning" to "error" as per AC-5.3
                         8,
                         f"Unknown worker_type '{wt}', expected one of {sorted(VALID_WORKER_TYPES)}",
+                        n["id"],
+                    )
+                )
+            # Validate that sd_path is present for codergen nodes (AC-5.1)
+            sd_path = n["attrs"].get("sd_path", "")
+            if not sd_path:
+                issues.append(
+                    Issue(
+                        "error",  # Hard error for missing sd_path
+                        8,
+                        "Missing required attribute 'sd_path' for handler=codergen",
                         n["id"],
                     )
                 )
@@ -329,6 +367,26 @@ def validate(data: dict[str, Any], strict: bool = False) -> list[Issue]:
                         "warning",
                         8,
                         f"Unknown mode '{mode}', expected one of {sorted(VALID_MODES)}",
+                        n["id"],
+                    )
+                )
+        elif handler == "wait.system3":
+            gate_type = n["attrs"].get("gate_type", "")
+            if not gate_type:
+                issues.append(
+                    Issue(
+                        "error",
+                        8,
+                        "Missing required attribute 'gate_type' for handler=wait.system3",
+                        n["id"],
+                    )
+                )
+            elif gate_type not in {"unit", "e2e", "contract"}:
+                issues.append(
+                    Issue(
+                        "error",
+                        8,
+                        f"Invalid gate_type '{gate_type}' for handler=wait.system3, must be one of unit, e2e, contract",
                         n["id"],
                     )
                 )
@@ -439,6 +497,16 @@ def validate(data: dict[str, Any], strict: bool = False) -> list[Issue]:
                     )
                 )
 
+    # --- Rule 13: Cluster topology check (AC-5.2) ---
+    _check_cluster_topology(nodes, edges, adj, reverse_adj, issues, node_map)
+
+    # --- Rule 15: bead_id existence check (opt-in via --check-beads flag) ---
+    if check_beads:
+        _check_bead_ids(nodes, issues)
+
+    # --- Rule 16: Manifest validation_method enforcement ---
+    _check_manifest_validation_methods(graph_attrs, dot_file_path, issues)
+
     return issues
 
 
@@ -455,6 +523,102 @@ def _bfs(start: str, adj: dict[str, list[str]]) -> set[str]:
             if neighbor not in visited:
                 queue.append(neighbor)
     return visited
+
+
+def _check_cluster_topology(
+    nodes: list[dict],
+    edges: list[dict],
+    adj: dict[str, list[str]],
+    reverse_adj: dict[str, list[str]],
+    issues: list[Issue],
+    node_map: dict[str, dict] | None = None,
+) -> None:
+    """Check full cluster topology: acceptance-test-writer -> research -> refine -> codergen -> wait.system3 -> wait.human"""
+
+    # Build mapping from handler to node IDs
+    handler_to_nodes: dict[str, list[str]] = {}
+    for n in nodes:
+        handler = n["attrs"].get("handler", "")
+        if handler not in handler_to_nodes:
+            handler_to_nodes[handler] = []
+        handler_to_nodes[handler].append(n["id"])
+
+    # Check each codergen node has the full cluster topology leading to it
+    codergen_nodes = handler_to_nodes.get("codergen", [])
+
+    for cg_node in codergen_nodes:
+        # Find all upstream nodes that should be in the cluster
+        upstream_acceptance = []  # acceptance-test-writer nodes that reach this codergen
+        upstream_research = []    # research nodes that reach this codergen
+        upstream_refine = []      # refine nodes that reach this codergen
+
+        # Find all acceptance-test-writer nodes that can reach this codergen
+        for accept_node in handler_to_nodes.get("acceptance-test-writer", []):
+            if _can_reach(accept_node, cg_node, adj):
+                upstream_acceptance.append(accept_node)
+
+        # Find all research nodes that can reach this codergen
+        for research_node in handler_to_nodes.get("research", []):
+            if _can_reach(research_node, cg_node, adj):
+                upstream_research.append(research_node)
+
+        # Find all refine nodes that can reach this codergen
+        for refine_node in handler_to_nodes.get("refine", []):
+            if _can_reach(refine_node, cg_node, adj):
+                upstream_refine.append(refine_node)
+
+        # According to schema rule, every codergen node should have the full cluster:
+        # acceptance-test-writer -> research -> refine -> codergen -> wait.system3 -> wait.human
+        # But this might not be true for all codergen nodes - only for certain epic clusters
+        # For now, we'll validate the presence of downstream wait.system3 and wait.human
+        descendants = _bfs(cg_node, adj)
+        has_wait_system3 = any(n_id in descendants for n_id in handler_to_nodes.get("wait.system3", []))
+        has_wait_human = any(n_id in descendants for n_id in handler_to_nodes.get("wait.human", []))
+
+        # If we have a codergen node, it should eventually lead to wait.system3 and wait.human
+        if not has_wait_system3:
+            issues.append(
+                Issue(
+                    "error",  # Changed to error as per AC-5.2 requirement
+                    13,
+                    f"codergen node '{cg_node}' must have a downstream wait.system3 node in the cluster",
+                    cg_node,
+                )
+            )
+
+        if not has_wait_human:
+            issues.append(
+                Issue(
+                    "error",  # Changed to error as per AC-5.2 requirement
+                    13,
+                    f"codergen node '{cg_node}' must have a downstream wait.human node in the cluster",
+                    cg_node,
+                )
+            )
+
+    # Validate that wait.human nodes follow wait.system3 or research (AC-5.4)
+    wait_human_nodes = handler_to_nodes.get("wait.human", [])
+    wait_system3_nodes = handler_to_nodes.get("wait.system3", [])
+    research_nodes = handler_to_nodes.get("research", [])
+
+    for wh_node in wait_human_nodes:
+        # Check if this wait.human node has a direct predecessor that is wait.system3 or research
+        predecessors = reverse_adj.get(wh_node, [])
+        has_valid_predecessor = any(
+            pred in wait_system3_nodes or pred in research_nodes or
+            node_map.get(pred, {}).get("handler") in ["wait.system3", "research"]
+            for pred in predecessors
+        )
+
+        if not has_valid_predecessor:
+            issues.append(
+                Issue(
+                    "error",  # AC-5.4: wait.human must follow wait.system3 or research
+                    14,
+                    f"wait.human node '{wh_node}' must follow wait.system3 or research node",
+                    wh_node,
+                )
+            )
 
 
 def _check_cycles(
@@ -516,10 +680,160 @@ def _check_cycles(
             dfs(n["id"], [])
 
 
-def validate_file(filepath: str, strict: bool = False) -> list[Issue]:
+def _check_bead_ids(nodes: list[dict], issues: list[Issue]) -> None:
+    """Rule 15: Verify bead_id values on codergen nodes map to real beads.
+
+    Shells out to `bd show <bead_id>` for each unique bead_id.
+    Errors if the bead does not exist. Skips check gracefully if `bd` CLI
+    is unavailable (emits a warning instead).
+    """
+    # Collect unique bead_ids from codergen nodes
+    bead_ids: dict[str, list[str]] = {}  # bead_id -> [node_ids]
+    for n in nodes:
+        if n["attrs"].get("handler") != "codergen":
+            continue
+        bid = n["attrs"].get("bead_id", "")
+        if not bid:
+            continue  # Missing bead_id is caught by Rule 8 (required attrs)
+        bead_ids.setdefault(bid, []).append(n["id"])
+
+    if not bead_ids:
+        return
+
+    # Check if bd CLI is available
+    try:
+        subprocess.run(["bd", "--version"], capture_output=True, timeout=5)
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        issues.append(Issue(
+            "warning", 15,
+            "Cannot verify bead_id existence: 'bd' CLI not available on PATH",
+        ))
+        return
+
+    # Verify each unique bead_id exists
+    for bid, node_ids in bead_ids.items():
+        try:
+            result = subprocess.run(
+                ["bd", "show", bid],
+                capture_output=True, text=True, timeout=10,
+            )
+            if result.returncode != 0:
+                for nid in node_ids:
+                    issues.append(Issue(
+                        "error", 15,
+                        f"bead_id '{bid}' does not exist (bd show returned exit code {result.returncode})",
+                        nid,
+                    ))
+        except subprocess.TimeoutExpired:
+            issues.append(Issue(
+                "warning", 15,
+                f"Timeout verifying bead_id '{bid}' — skipping check",
+            ))
+
+
+def _check_manifest_validation_methods(
+    graph_attrs: dict[str, str],
+    dot_file_path: str,
+    issues: list[Issue],
+) -> None:
+    """Rule 16: If graph has prd_ref, verify manifest features declare validation_method."""
+    prd_ref = graph_attrs.get("prd_ref", "")
+    if not prd_ref or not dot_file_path:
+        return
+
+    # Resolve acceptance-tests directory relative to the DOT file's repo root.
+    # Walk up from the DOT file to find acceptance-tests/ directory.
+    dot_dir = os.path.dirname(os.path.abspath(dot_file_path))
+    search_dir = dot_dir
+    manifest_path = ""
+    for _ in range(10):  # max 10 levels up
+        candidate = os.path.join(search_dir, "acceptance-tests", prd_ref, "manifest.yaml")
+        if os.path.exists(candidate):
+            manifest_path = candidate
+            break
+        parent = os.path.dirname(search_dir)
+        if parent == search_dir:
+            break
+        search_dir = parent
+
+    if not manifest_path:
+        # No manifest found — not an error (manifest may not exist yet)
+        return
+
+    try:
+        import yaml
+    except ImportError:
+        issues.append(Issue(
+            "warning", 16,
+            "Cannot check manifest validation_method: PyYAML not installed",
+        ))
+        return
+
+    try:
+        with open(manifest_path) as fh:
+            manifest = yaml.safe_load(fh)
+    except (OSError, yaml.YAMLError) as exc:
+        issues.append(Issue(
+            "warning", 16,
+            f"Cannot parse manifest at {manifest_path}: {exc}",
+        ))
+        return
+
+    if not isinstance(manifest, dict):
+        return
+
+    features = manifest.get("features", [])
+    if not isinstance(features, list):
+        return
+
+    for feature in features:
+        if not isinstance(feature, dict):
+            continue
+        fid = feature.get("id", "?")
+        vm = feature.get("validation_method")
+        if not vm:
+            issues.append(Issue(
+                "error", 16,
+                f"Feature '{fid}' in manifest missing required 'validation_method' "
+                f"(must be one of {sorted(VALID_VALIDATION_METHODS)})",
+                prd_ref,
+            ))
+        elif vm not in VALID_VALIDATION_METHODS:
+            issues.append(Issue(
+                "error", 16,
+                f"Feature '{fid}' has invalid validation_method '{vm}', "
+                f"must be one of {sorted(VALID_VALIDATION_METHODS)}",
+                prd_ref,
+            ))
+
+
+def _can_reach(start: str, target: str, adj: dict[str, list[str]]) -> bool:
+    """Check if target is reachable from start using BFS."""
+    if start == target:
+        return True
+
+    visited = set()
+    queue = [start]
+
+    while queue:
+        node = queue.pop(0)
+        if node == target:
+            return True
+        if node in visited:
+            continue
+        visited.add(node)
+
+        for neighbor in adj.get(node, []):
+            if neighbor not in visited:
+                queue.append(neighbor)
+
+    return False
+
+
+def validate_file(filepath: str, strict: bool = False, check_beads: bool = False) -> list[Issue]:
     """Parse and validate a DOT file."""
     data = parse_file(filepath)
-    return validate(data, strict=strict)
+    return validate(data, strict=strict, check_beads=check_beads, dot_file_path=filepath)
 
 
 def main() -> None:
@@ -539,10 +853,16 @@ def main() -> None:
         action="store_true",
         help="Treat warnings as errors",
     )
+    ap.add_argument(
+        "--check-beads",
+        action="store_true",
+        dest="check_beads",
+        help="Verify bead_id values exist in .beads/ (requires bd CLI on PATH)",
+    )
     args = ap.parse_args()
 
     try:
-        issues = validate_file(args.file, strict=args.strict)
+        issues = validate_file(args.file, strict=args.strict, check_beads=args.check_beads)
     except FileNotFoundError:
         print(f"Error: File not found: {args.file}", file=sys.stderr)
         sys.exit(1)

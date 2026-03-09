@@ -420,15 +420,16 @@ See SD-HARNESS-UPGRADE-001-E7.2-python-runner.md for detailed class design. Key 
 
 | Epic | Phase | Status | Notes |
 | --- | --- | --- | --- |
-| E0 — Pipeline Progress Monitor | 1 | Validated | s3-guardian skill enhancement |
-| E1 — Node Semantics | 1 | Validated | Documentation only |
-| E2 — PRD Contract | 1 | Validated | Documentation only |
-| E3 — Workflow Protocols | 1 | Validated | Documentation only |
-| E4 — Agent Registry + Skills | 2 | Not started | Via pipeline runner + AgentSDK workers |
-| E5 — Schema + Validate | 2 | Not started | Via pipeline runner + AgentSDK workers |
-| E6 — Dispatch Worker | 2 | Partial | Issues 1-3 fixed in E7 commits (MCP bypass, SD wiring, tool examples). Skill injection + env vars remain. |
+| E0 — Pipeline Progress Monitor | 1 | **Complete** | s3-guardian skill enhancement. Haiku monitor pattern documented. |
+| E1 — Node Semantics | 1 | **Complete** | Documentation: handler types, topology rules, schema docs. |
+| E2 — PRD Contract | 1 | **Complete** | Documentation: prd-contract.md generation, compliance gate protocol. |
+| E3 — Workflow Protocols | 1 | **Complete** | Documentation: SD pinning, confidence baseline, concern queue, session handoff, living narrative. |
+| E4 — Agent Registry + Skills | 2 | **Complete** | 7 agent definitions with skills_required frontmatter. dispatch_worker.py loads agent defs + injects skill invocations. agent-schema.md updated. Pipeline-validated. |
+| E5 — Schema + Validate | 2 | **Complete** | VALID_WORKER_TYPES has all 7 types. node_map param fixed in _check_cluster_topology. V-15 (AT writer warning) and V-16 (skills_required validation) implemented in cobuilder/pipeline/validator.py. sd_path mandatory on codergen. Pipeline-validated. |
+| E6 — Dispatch Worker | 2 | **Complete** | ATTRACTOR_SIGNAL_DIR env var injected (GAP-6.1). Skill injection from agent definitions via load_agent_definition (GAP-6.2). sd_hash (SHA256) included in signal evidence (GAP-6.3). MCP bypass, SD wiring, tool examples from E7 commits. Pipeline-validated. |
 | E7.1 — Worker Prompt Restructuring | 2 | **Complete** | 21/22 tests pass (1 skip). Slim system prompt (~3K), restructured initial prompt. Commit c5ddb4d. |
-| E7.2 — Python Runner | 2 | **Complete** | 23/23 tests pass. Watchdog + AgentSDK dispatch, SIGNAL_TRANSITIONS, tool auto-accept. Commits c5ddb4d, 9594e62, 3552db9. |
+| E7.2 — Python Runner | 2 | **Complete** | 23/23 tests pass. Watchdog + AgentSDK dispatch, SIGNAL_TRANSITIONS, tool auto-accept. ThreadPoolExecutor for OTel context propagation. Logfire worker_tool/worker_text real-time events. Finalize gate fix (accepted status). Commits c5ddb4d–f4438e8. Post-validation fixes: signal protocol uses $ATTRACTOR_SIGNAL_DIR env var (e1d25eb), sd_path attribute name aligned with E5 schema (8697a1a). |
+| E7.3 — Gate Monitor Pattern | 2 | **Designed** | SD written. Pipeline DOT created (2 parallel codergen nodes). Haiku monitor detects .gate-wait markers for wait.system3 (Gherkin E2E) and wait.human (AskUserQuestion round-trip). Not yet implemented. |
 | E8 — Initiative Graph | 3 | Future | ~6-12 months |
 | E9 — Persistent S3 | 3 | Future | ~6-12 months |
 | E10 — Epic-Scoped Runners | 3 | Future | ~6-12 months |

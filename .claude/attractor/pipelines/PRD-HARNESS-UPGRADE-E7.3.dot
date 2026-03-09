@@ -1,0 +1,80 @@
+digraph "PRD-HARNESS-UPGRADE-E7.3" {
+    graph [
+        label="PRD-HARNESS-UPGRADE-001: E7.3 Gate Monitor Pattern"
+        labelloc="t"
+        fontsize=14
+        rankdir="TB"
+        prd_ref="PRD-HARNESS-UPGRADE-001"
+        target_dir="/Users/theb/Documents/Windsurf/claude-harness-setup"
+    ];
+
+    node [fontname="Helvetica" fontsize=11];
+    edge [fontname="Helvetica" fontsize=9];
+
+    start [
+        shape=Mdiamond
+        label="START"
+        handler="start"
+        status="validated"
+        fillcolor="lightgreen"
+        style="filled"
+    ];
+
+    impl_runner [
+        shape=box
+        label="E7.3a: Pipeline Runner Gate Markers"
+        handler="codergen"
+        worker_type="backend-solutions-engineer"
+        sd_path="docs/sds/harness-upgrade/SD-HARNESS-UPGRADE-001-E7.3-gate-monitor.md"
+        acceptance="AC-7.3.1: _handle_human writes .gate-wait with gate_type wait.human, summary_ref, mode. AC-7.3.2: _handle_gate marker includes summary_ref and epic_id. AC-7.3.3: _apply_signal cleans up .gate-wait after processing. AC-7.3.7: All existing tests pass."
+        prd_ref="PRD-HARNESS-UPGRADE-001"
+        epic_id="E7.3"
+        status="pending"
+    ];
+
+    impl_skill [
+        shape=box
+        label="E7.3b: s3-guardian Skill + Monitoring Patterns"
+        handler="codergen"
+        worker_type="backend-solutions-engineer"
+        sd_path="docs/sds/harness-upgrade/SD-HARNESS-UPGRADE-001-E7.3-gate-monitor.md"
+        acceptance="AC-7.3.4: monitoring-patterns.md Section 8 documents gate-aware Haiku monitor with MONITOR_GATE_WAITING. AC-7.3.5: Section 8 documents S3 response handlers for wait.system3 (Gherkin E2E) and wait.human (AskUserQuestion). AC-7.3.6: s3-guardian SKILL.md Quick Reference updated with gate monitoring."
+        prd_ref="PRD-HARNESS-UPGRADE-001"
+        epic_id="E7.3"
+        status="pending"
+    ];
+
+    gate_e73 [
+        shape=hexagon
+        label="E7.3 Validation Gate"
+        handler="wait.system3"
+        gate_type="e2e"
+        summary_ref=".claude/summaries/E7.3-gate-summary.md"
+        epic_id="E7.3"
+        status="pending"
+    ];
+
+    review_e73 [
+        shape=octagon
+        label="E7.3 Human Review"
+        handler="wait.human"
+        mode="technical"
+        summary_ref=".claude/summaries/E7.3-gate-summary.md"
+        epic_id="E7.3"
+        status="pending"
+    ];
+
+    finalize [
+        shape=Msquare
+        label="FINALIZE"
+        handler="exit"
+        status="pending"
+    ];
+
+    start -> impl_runner [label="begin"];
+    start -> impl_skill [label="begin"];
+    impl_runner -> gate_e73 [label="impl_complete"];
+    impl_skill -> gate_e73 [label="impl_complete"];
+    gate_e73 -> review_e73 [label="validated"];
+    review_e73 -> finalize [label="validated"];
+}

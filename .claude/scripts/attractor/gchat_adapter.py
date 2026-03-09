@@ -402,6 +402,52 @@ def _extract_space_from_name(msg_name: str) -> str:
     return ""
 
 
+def send_review_request(
+    node_id: str,
+    pipeline_id: str,
+    acceptance: str = "",
+    mode: str = "technical",
+) -> None:
+    """Send a human-review gate notification to Google Chat via webhook.
+
+    Reads the webhook URL from the GOOGLE_CHAT_WEBHOOK_URL environment variable.
+    Falls back silently if the variable is unset.
+
+    Args:
+        node_id: Pipeline node ID that requires review (e.g., "e1_review").
+        pipeline_id: Pipeline identifier (e.g., "PRD-NEWCHECK-001").
+        acceptance: Acceptance criteria text from the node attributes.
+        mode: Review mode ("technical" or "product").
+    """
+    import os
+
+    webhook_url = os.environ.get("GOOGLE_CHAT_WEBHOOK_URL", "")
+    if not webhook_url:
+        return  # No webhook configured — skip silently
+
+    mode_label = "Technical Review" if mode == "technical" else "Product Review"
+    text_lines = [
+        f"🔍 *Human Review Required* — {mode_label}",
+        f"Pipeline: `{pipeline_id}`  Node: `{node_id}`",
+    ]
+    if acceptance:
+        text_lines.append(f"Acceptance: {acceptance[:400]}")
+    text_lines.append("Approve by writing a pass signal to the node's signal file.")
+
+    payload = {"text": "\n".join(text_lines)}
+    try:
+        import httpx
+        with httpx.Client(timeout=10.0) as client:
+            response = client.post(
+                webhook_url,
+                json=payload,
+                headers={"Content-Type": "application/json"},
+            )
+            response.raise_for_status()
+    except Exception:  # noqa: BLE001
+        pass  # Caller already catches and logs
+
+
 def _text_widget(text: str) -> dict[str, Any]:
     """Create a Google Chat textParagraph widget."""
     return {"textParagraph": {"text": text}}

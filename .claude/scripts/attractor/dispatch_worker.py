@@ -1,22 +1,10 @@
-"""dispatch_worker.py — Headless worker dispatch via ``claude -p``.
+"""dispatch_worker.py — Worker dispatch utilities for AgentSDK pipeline execution.
 
-Extracted from spawn_orchestrator.py to consolidate the 3-layer architecture:
-    Guardian → Runner → dispatch_worker.py → claude -p --output-format stream-json
-
-Provides two functions:
-    _build_headless_worker_cmd()  — Build the CLI command and environment
-    run_headless_worker()         — Execute the worker subprocess with JSONL streaming
-
-Usage (programmatic):
-    from dispatch_worker import _build_headless_worker_cmd, run_headless_worker
-
-    cmd, env = _build_headless_worker_cmd(
-        task_prompt="Implement auth module",
-        work_dir="/path/to/repo",
-        node_id="impl_auth",
-        pipeline_id="PRD-AUTH-001",
-    )
-    result = await run_headless_worker(cmd, env, work_dir="/path/to/repo")
+Provides shared utilities used by pipeline_runner.py for AgentSDK-based worker dispatch:
+    compute_sd_hash()        — Compute hash of a solution design file
+    load_attractor_env()     — Load attractor-specific environment credentials
+    create_signal_evidence() — Write signal evidence files for pipeline nodes
+    load_agent_definition()  — Load agent definition YAML from .claude/agents/
 """
 
 from __future__ import annotations
@@ -25,8 +13,11 @@ import hashlib
 import json
 import logging
 import os
+import re
 import subprocess
+import sys
 import threading
+import yaml
 from collections.abc import Callable
 from pathlib import Path
 
@@ -135,203 +126,139 @@ def load_attractor_env() -> dict[str, str]:
     return result
 
 
-def _build_headless_worker_cmd(
-    task_prompt: str,
-    work_dir: str,
-    worker_type: str = "backend-solutions-engineer",
-    model: str = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6"),
-    node_id: str = "",
-    pipeline_id: str = "",
-    runner_id: str = "",
-    prd_ref: str = "",
-) -> tuple[list[str], dict[str, str]]:
-    """Build a headless worker command using ``claude -p``.
-
-    Three-Layer Context:
-      Layer 1 (ROLE): ``--system-prompt`` from ``.claude/agents/{worker_type}.md``
-      Layer 2 (TASK): ``-p`` argument (*task_prompt*)
-      Layer 3 (IDENTITY): env vars (``WORKER_NODE_ID``, ``PIPELINE_ID``, etc.)
+def load_agent_definition(work_dir: str, worker_type: str) -> dict:
+    """Load an agent definition from its Markdown file and parse YAML frontmatter.
 
     Args:
-        task_prompt: The task description sent as the ``-p`` argument.
-        work_dir: Working directory for the worker process.
-        worker_type: Agent type — filename stem under ``.claude/agents/``.
-        model: Claude model identifier.
-        node_id: Pipeline node identifier.
-        pipeline_id: Pipeline identifier string.
-        runner_id: Runner identifier (for traceability).
-        prd_ref: PRD reference (e.g., PRD-AUTH-001).
+        work_dir: The working directory of the project
+        worker_type: The agent type (filename stem)
 
     Returns:
-        Tuple of (command list, environment dict).
+        The parsed YAML frontmatter as a dictionary
+
+    Raises:
+        FileNotFoundError: If the agent definition file does not exist
+        ValueError: If the frontmatter is malformed
     """
-    # Read Layer 1: ROLE from .claude/agents/{worker_type}.md
     agents_dir = Path(work_dir) / ".claude" / "agents"
-    role_file = agents_dir / f"{worker_type}.md"
-    if role_file.exists():
-        role_content = role_file.read_text()
-        # Strip frontmatter if present
-        if role_content.startswith("---"):
-            _, _, rest = role_content.partition("---")
-            _, _, role_content = rest.partition("---")
-        role_content = role_content.strip()
-    else:
-        role_content = f"You are a specialist agent ({worker_type}). Implement features directly."
+    agent_file = agents_dir / f"{worker_type}.md"
 
-    cmd = [
-        "claude",
-        "-p", task_prompt,
-        "--system-prompt", role_content,
-        "--permission-mode", "bypassPermissions",
-        "--output-format", "stream-json",
-        "--verbose",
-        "--model", model,
-        # Bypass all MCP server initialization for headless workers.
-        # Without this, 11+ MCP servers from .mcp.json cause extreme
-        # startup delays (30s+) or hangs in subprocess mode.
-        "--mcp-config", '{"mcpServers":{}}',
-        "--strict-mcp-config",
-    ]
+    if not agent_file.exists():
+        raise FileNotFoundError(f"Agent definition not found: {agent_file}")
 
-    # Layer 3: IDENTITY as env vars (zero context token cost)
-    env = dict(os.environ)
-    # Overlay attractor-specific credentials for headless workers.
-    env.update(load_attractor_env())
-    env.update({
-        "WORKER_NODE_ID": node_id,
-        "PIPELINE_ID": pipeline_id,
-        "RUNNER_ID": runner_id,
-        "PRD_REF": prd_ref,
-    })
-    # Remove CLAUDECODE to prevent nested session detection
-    env.pop("CLAUDECODE", None)
+    content = agent_file.read_text()
 
-    return cmd, env
+    if not content.startswith("---"):
+        raise ValueError(f"Agent file {agent_file} does not have YAML frontmatter")
 
+    # Find the boundaries of the YAML frontmatter
+    lines = content.split('\n')
+    if len(lines) < 3:
+        raise ValueError(f"Agent file {agent_file} has malformed YAML frontmatter")
 
-async def run_headless_worker(
-    cmd: list[str],
-    env: dict[str, str],
-    work_dir: str,
-    timeout_seconds: int = 1800,
-    on_event: Callable[[dict], None] | None = None,
-) -> dict:
-    """Run a headless worker via subprocess, streaming JSONL output line-by-line.
-
-    Uses ``subprocess.Popen`` with ``--output-format stream-json`` to read JSONL
-    events in real time.  Each line is a JSON object with a ``type`` field.  The
-    final ``{"type": "result", ...}`` line carries the same payload that the old
-    ``--output-format json`` returned, so the return value remains backward
-    compatible.
-
-    Args:
-        cmd: Command list (typically from :func:`_build_headless_worker_cmd`).
-        env: Environment dict for the subprocess.
-        work_dir: Working directory for the subprocess.
-        timeout_seconds: Maximum wall-clock time before killing the worker.
-        on_event: Optional callback invoked for every successfully parsed JSONL
-            event.  Receives the parsed ``dict``.  Exceptions raised inside the
-            callback are logged and suppressed.
-
-    Returns:
-        Dict with ``status`` (``"success"``, ``"error"``, or ``"timeout"``),
-        plus output or error details, plus ``events`` (list of all parsed events).
-
-        On success:
-            ``{"status": "success", "output": <result_event>, "exit_code": 0,
-               "events": [...]}``
-        On error:
-            ``{"status": "error", "exit_code": N, "stdout": "...",
-               "stderr": "...", "events": [...]}``
-        On timeout:
-            ``{"status": "timeout", "events": [...]}``
-    """
-    events: list[dict] = []
-    stderr_lines: list[str] = []
-
-    process = subprocess.Popen(
-        cmd,
-        cwd=work_dir,
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-
-    # Drain stderr in a background thread to prevent the pipe from blocking
-    # when the subprocess writes more than the OS pipe buffer allows.
-    def _drain_stderr() -> None:
-        assert process.stderr is not None
-        for line in process.stderr:
-            stderr_lines.append(line)
-
-    stderr_thread = threading.Thread(target=_drain_stderr, daemon=True)
-    stderr_thread.start()
-
-    timed_out = False
-    assert process.stdout is not None
-    try:
-        for raw_line in process.stdout:
-            line = raw_line.strip()
-            if not line:
-                continue
-            try:
-                event = json.loads(line)
-            except json.JSONDecodeError:
-                logger.debug("run_headless_worker: skipping non-JSON line: %.200s", line)
-                continue
-
-            events.append(event)
-
-            if on_event is not None:
-                try:
-                    on_event(event)
-                except Exception as exc:  # noqa: BLE001
-                    logger.warning("run_headless_worker: on_event callback raised: %s", exc)
-
-            # Check wall-clock timeout after each event to allow early detection.
-            # process.poll() is non-blocking; None means still running.
-    except Exception:  # noqa: BLE001
-        pass
-    finally:
-        # Enforce hard timeout: if the process is still running after
-        # ``timeout_seconds`` the caller's wall-clock limit has been exceeded.
-        # We use communicate(timeout=...) only if the process hasn't exited yet
-        # so that we don't re-read stdout (already consumed above).
-        try:
-            process.wait(timeout=timeout_seconds)
-        except subprocess.TimeoutExpired:
-            timed_out = True
-            process.kill()
-            process.wait()
-
-    stderr_thread.join(timeout=5)
-    stderr_combined = "".join(stderr_lines)
-
-    if timed_out:
-        return {"status": "timeout", "events": events}
-
-    exit_code = process.returncode
-
-    # Locate the final result event (last event with type=="result")
-    result_event: dict | None = None
-    for event in reversed(events):
-        if event.get("type") == "result":
-            result_event = event
+    # Find where the frontmatter ends (the second occurrence of '---')
+    frontmatter_end_idx = -1
+    for i in range(1, len(lines)):
+        if lines[i].strip() == "---":
+            frontmatter_end_idx = i
             break
 
-    if exit_code == 0:
-        # Use the result event when present; fall back to the whole events list.
-        output: object = result_event if result_event is not None else events
-        return {"status": "success", "output": output, "exit_code": 0, "events": events}
-    else:
-        stdout_tail = "".join(
-            json.dumps(e) for e in events[-10:]
-        )[-2000:]
-        return {
-            "status": "error",
-            "exit_code": exit_code,
-            "stdout": stdout_tail,
-            "stderr": stderr_combined[-2000:],
-            "events": events,
-        }
+    if frontmatter_end_idx == -1:
+        raise ValueError(f"Agent file {agent_file} has malformed YAML frontmatter (missing closing ---)")
+
+    # Extract frontmatter lines (from after first --- to before second ---)
+    frontmatter_lines = lines[1:frontmatter_end_idx]
+
+    # Manually parse the YAML frontmatter, handling multi-line content carefully
+    result = {}
+    i = 0
+    while i < len(frontmatter_lines):
+        line = frontmatter_lines[i].rstrip()
+
+        if not line.strip():  # Skip empty lines
+            i += 1
+            continue
+
+        # Check if this line is a field definition (key: value format)
+        colon_pos = line.find(':')
+        if colon_pos != -1:
+            key = line[:colon_pos].strip()
+            value_part = line[colon_pos + 1:].strip()
+
+            # Check if this field has a multi-line value (indented content after)
+            # Look ahead to see if subsequent lines are more indented
+            next_i = i + 1
+            multi_line_value = []
+
+            # If the initial value part isn't empty, start with that
+            if value_part:
+                multi_line_value.append(value_part)
+
+            # Collect indented lines that belong to this field
+            while next_i < len(frontmatter_lines):
+                next_line = frontmatter_lines[next_i]
+                if next_line.strip() == "":
+                    # Empty line, but check if next line is indented (still part of this field)
+                    next_i += 1
+                    continue
+
+                # Count leading spaces to determine indentation
+                leading_spaces = len(next_line) - len(next_line.lstrip())
+
+                # If it's more indented than the key, it's part of this field
+                key_indent = len(line) - len(line.lstrip())
+                if leading_spaces > key_indent and next_line.strip():
+                    multi_line_value.append(next_line.strip())
+                    next_i += 1
+                else:
+                    # Less or equal indentation means a new field
+                    break
+
+            # Join multi-line value with newlines
+            full_value = '\n'.join(multi_line_value) if multi_line_value else ''
+
+            # Process the value based on its content
+            if key == "skills_required":
+                # Handle skills list format like [item1, item2, ...]
+                if full_value.startswith('[') and full_value.endswith(']'):
+                    # Extract items from bracketed list
+                    items_str = full_value[1:-1]  # Remove [ and ]
+                    # Split by comma, but be careful of commas in the middle of complex values
+                    items = [item.strip().strip('"\'') for item in items_str.split(',')]
+                    items = [item for item in items if item]  # Filter out empty items
+                    result[key] = items
+                else:
+                    result[key] = []  # Default to empty list if not properly formatted
+            elif full_value.lower() in ['true', 'false']:
+                # Handle boolean values
+                result[key] = full_value.lower() == 'true'
+            elif full_value and full_value.lstrip('-').isdigit():
+                # Handle integer values
+                result[key] = int(full_value)
+            else:
+                # Store as string (this handles the problematic description field)
+                result[key] = full_value
+
+            # Move to the next potential field
+            i = next_i
+        else:
+            # This shouldn't happen in proper YAML, but skip this line
+            i += 1
+
+    return result
+
+
+def _build_headless_worker_cmd(*args, **kwargs):  # type: ignore[no-untyped-def]
+    """Removed: headless mode is no longer supported. Use pipeline_runner.py with AgentSDK."""
+    raise NotImplementedError(
+        "_build_headless_worker_cmd removed. Use pipeline_runner.py --dot-file with AgentSDK dispatch."
+    )
+
+
+def run_headless_worker(*args, **kwargs):  # type: ignore[no-untyped-def]
+    """Removed: headless mode is no longer supported. Use pipeline_runner.py with AgentSDK."""
+    raise NotImplementedError(
+        "run_headless_worker removed. Use pipeline_runner.py --dot-file with AgentSDK dispatch."
+    )
+
+

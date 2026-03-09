@@ -1,11 +1,10 @@
 ---
 title: "SD-HARNESS-UPGRADE-001 Epic 6: Dispatch Worker Enhancements (SDK Mode)"
-status: active
+status: complete
 type: solution-design
-last_verified: 2026-03-07
+last_verified: 2026-03-07T00:00:00.000Z
 grade: authoritative
 ---
-
 # SD-HARNESS-UPGRADE-001 Epic 6: Dispatch Worker Enhancements (SDK Mode)
 
 ## 1. Problem Statement
@@ -120,7 +119,7 @@ The `wait.system3` gate dispatches a `validation-test-agent` (with `--mode=pipel
 ## 3. Files Changed
 
 | File | Change |
-|------|--------|
+| --- | --- |
 | `dispatch_worker.py` | bypassPermissions, ATTRACTOR_SIGNAL_DIR, CONCERNS_FILE, skill injection, SD hash |
 | `runner.py` | Pass `sd_path` to dispatch functions |
 

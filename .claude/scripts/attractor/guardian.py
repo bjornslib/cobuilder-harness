@@ -95,7 +95,7 @@ else:
 logfire.configure(
     send_to_logfire=_logfire_enabled,
     inspect_arguments=False,
-    scrubbing=logfire.ScrubbingOptions(callback=lambda m: m.value),
+    scrubbing=False,
 )
 
 # ---------------------------------------------------------------------------
@@ -171,7 +171,7 @@ All scripts are in {scripts_dir}:
 - python3 {scripts_dir}/respond_to_runner.py KILL_ORCHESTRATOR --node <id> --reason <text>    # Abort
 - python3 {scripts_dir}/escalate_to_terminal.py --pipeline {pipeline_id} --issue <text>   # Escalate
 - python3 {scripts_dir}/runner.py --spawn --node <id> --prd <prd_ref> [--acceptance <text>] [--bead-id <id>] --mode sdk{target_dir_flag} --dot-file {dot_path}  # Launch runner (SDK mode)
-- python3 {scripts_dir}/runner.py --spawn --node <id> --prd <prd_ref> [--acceptance <text>] [--bead-id <id>] --mode headless{target_dir_flag} --dot-file {dot_path}  # Launch runner (headless CLI mode)
+- python3 {scripts_dir}/runner.py --spawn --node <id> --prd <prd_ref> [--acceptance <text>] [--bead-id <id>] --mode tmux{target_dir_flag} --dot-file {dot_path}  # Launch runner (tmux interactive mode)
 
 ## Pipeline Execution Flow
 

@@ -31,7 +31,7 @@ VALID_TRANSITIONS: dict[str, set[str]] = {
     "pending": {"active"},
     "active": {"impl_complete", "validated", "failed"},  # hexagons go active→validated/failed directly
     "impl_complete": {"validated", "failed", "active"},  # active for retry after fail
-    "failed": {"active"},
+    "failed": {"active", "pending"},  # pending: gate nodes reset to pending on runner restart
     "validated": {"accepted"},  # validated -> accepted (pipeline runner final step)
     "accepted": set(),  # terminal
 }
@@ -290,16 +290,17 @@ def route_from_diamond(
 
 
 def check_finalize_gate(dot_content: str) -> tuple[bool, list[str]]:
-    """Check whether all hexagon (validation gate) nodes are 'validated'.
+    """Check whether all hexagon (validation gate) nodes are 'validated' or 'accepted'.
 
     This is the finalize gate guard (R4.7): the finalize node may only be
-    activated when every hexagon node in the pipeline has reached 'validated'.
+    activated when every hexagon node in the pipeline has reached 'validated'
+    or 'accepted' (signal processing transitions validated → accepted).
 
     Returns:
         (all_validated: bool, not_validated: list[str])
-        all_validated is True when every hexagon node is 'validated'.
-        not_validated lists the IDs of hexagon nodes that are NOT yet
-        'validated'.
+        all_validated is True when every hexagon node is 'validated' or 'accepted'.
+        not_validated lists the IDs of hexagon nodes that have not yet
+        reached a terminal validation state.
     """
     from parser import parse_dot
 
@@ -308,7 +309,7 @@ def check_finalize_gate(dot_content: str) -> tuple[bool, list[str]]:
     for node in data["nodes"]:
         if node["attrs"].get("shape") == "hexagon":
             status = node["attrs"].get("status", "pending")
-            if status != "validated":
+            if status not in ("validated", "accepted"):
                 not_validated.append(node["id"])
     return len(not_validated) == 0, not_validated
 

@@ -78,6 +78,25 @@ except ImportError:
     _SDK_AVAILABLE = False
 
 # ---------------------------------------------------------------------------
+# Logfire instrumentation (optional — graceful no-op if not installed)
+# ---------------------------------------------------------------------------
+
+try:
+    import logfire
+    logfire.configure(scrubbing=False)
+    _LOGFIRE_AVAILABLE = True
+except ImportError:
+    logfire = None  # type: ignore[assignment]
+    _LOGFIRE_AVAILABLE = False
+
+# OpenTelemetry context propagation for background threads
+try:
+    from contextvars import copy_context
+    _CONTEXT_COPY_AVAILABLE = True
+except ImportError:
+    _CONTEXT_COPY_AVAILABLE = False
+
+# ---------------------------------------------------------------------------
 # Logging
 # ---------------------------------------------------------------------------
 
@@ -107,6 +126,7 @@ HANDLER_REGISTRY: dict[str, str] = {
     "gate":       "_handle_gate",
     "wait.human": "_handle_human",
     "wait.system3": "_handle_gate",
+    "acceptance-test-writer": "_handle_worker",
 }
 
 # Mechanical transitions applied to validation signal results
@@ -192,7 +212,9 @@ class PipelineRunner:
     def __init__(self, dot_path: str, resume: bool = False) -> None:
         self.dot_path = os.path.abspath(dot_path)
         self.dot_dir = os.path.dirname(self.dot_path)
-        self.signal_dir = os.path.join(self.dot_dir, "signals")
+        # Each pipeline gets its own signal subdirectory to avoid cross-pipeline clutter
+        self.pipeline_id = os.path.splitext(os.path.basename(self.dot_path))[0]
+        self.signal_dir = os.path.join(self.dot_dir, "signals", self.pipeline_id)
         self.resume = resume
 
         # Load attractor .env if present (sets ANTHROPIC_MODEL, ANTHROPIC_BASE_URL, etc.)
@@ -203,6 +225,10 @@ class PipelineRunner:
 
         # Retry counters: node_id -> int
         self.retry_counts: dict[str, int] = {}
+
+        # Requeue guidance: node_id -> failure message from downstream verify
+        # Injected into worker prompt on re-dispatch so the worker knows what to fix
+        self.requeue_guidance: dict[str, str] = {}
 
         # Threading event — wakes the main loop on file changes
         self._wake_event = threading.Event()
@@ -253,8 +279,20 @@ class PipelineRunner:
 
     def run(self) -> bool:
         """Run the pipeline to completion. Returns True on success, False on failure."""
-        log.info("Starting pipeline runner  dot=%s  resume=%s  watchdog=%s  sdk=%s",
-                 self.dot_path, self.resume, _WATCHDOG_AVAILABLE, _SDK_AVAILABLE)
+        log.info("Starting pipeline runner  dot=%s  resume=%s  watchdog=%s  sdk=%s  logfire=%s",
+                 self.dot_path, self.resume, _WATCHDOG_AVAILABLE, _SDK_AVAILABLE, _LOGFIRE_AVAILABLE)
+
+        # Top-level Logfire span wraps the entire pipeline run
+        if _LOGFIRE_AVAILABLE:
+            self._pipeline_span = logfire.span(
+                "pipeline_runner {pipeline_id}",
+                pipeline_id=self.pipeline_id,
+                dot_path=str(self.dot_path),
+                resume=self.resume,
+            )
+            self._pipeline_span.__enter__()
+        else:
+            self._pipeline_span = None
 
         if not self.resume:
             self._reset_active_nodes()
@@ -281,6 +319,8 @@ class PipelineRunner:
             for obs in observers:
                 obs.stop()
                 obs.join()
+            if self._pipeline_span is not None:
+                self._pipeline_span.__exit__(None, None, None)
 
     def _main_loop(self) -> bool:
         """Main event loop. Blocks on _wake_event until pipeline completes."""
@@ -337,6 +377,20 @@ class PipelineRunner:
                 nid = node["id"]
                 log.info("[resume] Re-dispatching validation for impl_complete node: %s", nid)
                 self._dispatch_validation_agent(nid, nid)
+
+            # Re-dispatch codergen workers for active nodes with no in-memory worker.
+            # This handles the case where validation fails and requeues a node back to
+            # "active" in the DOT, but the dispatch loop only picks up "pending" nodes.
+            orphaned_active_nodes = [
+                n for n in nodes
+                if n["attrs"].get("status") == "active"
+                and n["attrs"].get("handler") == "codergen"
+                and n["id"] not in self.active_workers
+            ]
+            for node in orphaned_active_nodes:
+                nid = node["id"]
+                log.info("[resume] Re-dispatching codergen for orphaned active node: %s", nid)
+                self._dispatch_node(node, data)
 
             # If nothing is dispatchable and nothing is active, we're stuck
             if not self.active_workers:
@@ -429,6 +483,93 @@ class PipelineRunner:
 
         return dispatchable
 
+    def _find_predecessor_workers(self, node_id: str, data: dict) -> list[str]:
+        """Find upstream codergen/research/refine predecessor node IDs for a given node."""
+        edges = data.get("edges", [])
+        nodes_by_id = {n["id"]: n for n in data.get("nodes", [])}
+
+        predecessors: list[str] = []
+        for edge in edges:
+            if edge["dst"] == node_id:
+                src = edge["src"]
+                src_node = nodes_by_id.get(src)
+                if src_node and src_node["attrs"].get("handler") in WORKER_HANDLERS:
+                    predecessors.append(src)
+        return predecessors
+
+    def _requeue_upstream_worker(self, tool_node_id: str, failure_message: str, data: dict) -> bool:
+        """When a verify tool fails, requeue its upstream codergen predecessor.
+
+        Returns True if an upstream node was successfully requeued, False if no
+        eligible predecessor was found (caller should mark tool as permanently failed).
+        """
+        predecessors = self._find_predecessor_workers(tool_node_id, data)
+        if not predecessors:
+            log.warning("[requeue] No upstream worker found for tool node %s", tool_node_id)
+            return False
+
+        requeued_any = False
+        for pred_id in predecessors:
+            retries = self.retry_counts.get(pred_id, 0) + 1
+            self.retry_counts[pred_id] = retries
+
+            if retries >= MAX_RETRIES:
+                log.error("[requeue] Upstream %s exhausted retries (%d/%d) — cannot fix %s",
+                          pred_id, retries, MAX_RETRIES, tool_node_id)
+                continue
+
+            # Store the failure message so the re-dispatched worker gets context
+            self.requeue_guidance[pred_id] = (
+                f"Your previous implementation failed verification at node '{tool_node_id}'.\n"
+                f"Error: {failure_message}\n"
+                f"Fix the issue and re-signal completion."
+            )
+
+            # Transition predecessor back to pending: accepted/validated → failed → active
+            # Then _find_dispatchable_nodes will NOT pick it up (status != pending).
+            # We need to get it to pending. The valid chain from accepted is not standard,
+            # so we edit the DOT directly.
+            nodes_by_id = {n["id"]: n for n in data.get("nodes", [])}
+            pred_node = nodes_by_id.get(pred_id)
+            if pred_node:
+                current = pred_node["attrs"].get("status", "pending")
+                log.info("[requeue] Resetting upstream %s (%s -> pending) for retry %d/%d",
+                         pred_id, current, retries, MAX_RETRIES)
+                # Use direct DOT edit to reset to pending (transition chain doesn't support accepted->pending)
+                self._force_status(pred_id, "pending")
+                # Also reset the tool node itself to pending so it re-runs after the worker
+                self._force_status(tool_node_id, "pending")
+                requeued_any = True
+
+        return requeued_any
+
+    def _force_status(self, node_id: str, target_status: str) -> None:
+        """Directly edit the DOT file to set a node's status, bypassing transition validation.
+
+        Used for requeue operations where the standard transition chain doesn't support
+        the required state change (e.g., accepted -> pending).
+        """
+        import re as _re
+        try:
+            with open(self.dot_path) as fh:
+                content = fh.read()
+            # Match status="..." within the node's attribute block
+            # Pattern: find the node definition and replace its status
+            pattern = _re.compile(
+                rf'({_re.escape(node_id)}\s*\[.*?status\s*=\s*")([^"]*?)(")',
+                _re.DOTALL,
+            )
+            new_content, count = pattern.subn(rf'\g<1>{target_status}\g<3>', content)
+            if count > 0:
+                with open(self.dot_path, "w") as fh:
+                    fh.write(new_content)
+                self.dot_content = new_content
+                log.info("[force-status] %s -> %s (direct DOT edit)", node_id, target_status)
+            else:
+                log.warning("[force-status] Could not find status attribute for %s in DOT", node_id)
+        except OSError as exc:
+            log.error("[force-status] Failed to edit DOT: %s", exc)
+
     # ------------------------------------------------------------------
     # Node dispatch
     # ------------------------------------------------------------------
@@ -488,6 +629,10 @@ class PipelineRunner:
 
         log.info("[worker] Dispatching %s (handler=%s worker_type=%s)",
                  nid, attrs.get("handler"), worker_type)
+        if _LOGFIRE_AVAILABLE:
+            logfire.info("dispatch_worker {node_id}",
+                         node_id=nid, handler=attrs.get("handler"),
+                         worker_type=worker_type, prd_ref=prd_ref)
 
         # Build task prompt from node attributes
         prompt = self._build_worker_prompt(node, data)
@@ -500,14 +645,12 @@ class PipelineRunner:
             "prd_ref": prd_ref,
         }
 
-        # Dispatch in background thread so the main loop stays responsive
-        thread = threading.Thread(
-            target=self._dispatch_agent_sdk,
-            args=(nid, worker_type, prompt),
-            name=f"worker-{nid}",
-            daemon=True,
-        )
-        thread.start()
+        # Dispatch via ThreadPoolExecutor so Logfire auto-propagates OTel context.
+        # (Logfire patches ThreadPoolExecutor; raw threading.Thread loses trace linkage.)
+        if not hasattr(self, "_executor"):
+            from concurrent.futures import ThreadPoolExecutor
+            self._executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix="worker")
+        self._executor.submit(self._dispatch_agent_sdk, nid, worker_type, prompt)
 
     def _handle_tool(self, node: dict, data: dict) -> None:  # noqa: ARG002
         """Tool nodes: run subprocess.run() with the command from node attrs."""
@@ -518,7 +661,10 @@ class PipelineRunner:
             self._write_node_signal(nid, {"status": "failed", "message": "no command attribute"})
             return
 
-        log.info("[tool] %s — running: %s", nid, cmd)
+        log.info("[tool] %s — running: %s", nid, cmd[:200])
+        _span = logfire.span("tool {node_id}", node_id=nid, command=cmd[:200]) if _LOGFIRE_AVAILABLE else None
+        if _span:
+            _span.__enter__()
         self.active_workers[nid] = {
             "node_id": nid,
             "started_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -534,11 +680,16 @@ class PipelineRunner:
                 cwd=self.dot_dir,
             )
             if result.returncode == 0:
+                if _LOGFIRE_AVAILABLE:
+                    logfire.info("tool PASS", node_id=nid)
                 self._write_node_signal(nid, {
                     "status": "success",
                     "message": result.stdout[-500:] if result.stdout else "exit code 0",
                 })
             else:
+                if _LOGFIRE_AVAILABLE:
+                    logfire.info("tool FAIL exit={rc}", node_id=nid, rc=result.returncode,
+                                 stderr=result.stderr[-300:] if result.stderr else "")
                 self._write_node_signal(nid, {
                     "status": "failed",
                     "message": f"exit {result.returncode}: {result.stderr[-300:]}",
@@ -550,6 +701,8 @@ class PipelineRunner:
         finally:
             self.active_workers.pop(nid, None)
             self._wake_event.set()
+            if _span:
+                _span.__exit__(None, None, None)
 
     def _handle_gate(self, node: dict, data: dict) -> None:  # noqa: ARG002
         """Gate/wait.system3 nodes: emit a gate-wait signal and mark as waiting.
@@ -568,12 +721,17 @@ class PipelineRunner:
         # Write a gate-wait marker file so System 3 knows to look at this node
         gate_marker = os.path.join(self.signal_dir, f"{nid}.gate-wait")
         with open(gate_marker, "w") as fh:
-            json.dump({"node_id": nid, "waiting_for": "system3",
-                       "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat()}, fh)
+            json.dump({
+                "node_id": nid,
+                "gate_type": "wait.system3",
+                "summary_ref": node["attrs"].get("summary_ref", ""),
+                "epic_id": node["attrs"].get("epic_id", ""),
+                "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            }, fh)
         log.info("[gate] Gate marker written: %s", gate_marker)
 
     def _handle_human(self, node: dict, data: dict) -> None:
-        """Human review nodes (wait.human): emit a GChat review request."""
+        """Human review nodes (wait.human): emit gate-wait marker + GChat review request."""
         nid = node["id"]
         log.info("[human] %s — requesting human review", nid)
         self.active_workers[nid] = {
@@ -581,6 +739,18 @@ class PipelineRunner:
             "waiting_for": "human",
             "started_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         }
+        # Write a gate-wait marker file so System 3 / monitor can detect this gate
+        gate_marker = os.path.join(self.signal_dir, f"{nid}.gate-wait")
+        with open(gate_marker, "w") as fh:
+            json.dump({
+                "node_id": nid,
+                "gate_type": "wait.human",
+                "summary_ref": node["attrs"].get("summary_ref", ""),
+                "mode": node["attrs"].get("mode", "technical"),
+                "epic_id": node["attrs"].get("epic_id", ""),
+                "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            }, fh)
+        log.info("[human] Gate marker written: %s", gate_marker)
         # Attempt GChat notification; fall back gracefully
         try:
             from gchat_adapter import send_review_request  # type: ignore[import]
@@ -603,19 +773,32 @@ class PipelineRunner:
         This method runs in a background thread. On completion it writes a
         signal file to {signal_dir}/{node_id}.json and sets _wake_event.
         """
-        log.info("[sdk] Dispatching worker  node=%s  type=%s", node_id, worker_type)
+        worker_model = os.environ.get("ANTHROPIC_MODEL") or os.environ.get("PIPELINE_WORKER_MODEL", "claude-haiku-4-5-20251001")
+        log.info("[sdk] Dispatching worker  node=%s  type=%s  model=%s  cwd=%s",
+                 node_id, worker_type, worker_model, self._get_target_dir())
 
-        if not _SDK_AVAILABLE or claude_code_sdk is None:
-            log.error("[sdk] claude_code_sdk not available — cannot dispatch %s", node_id)
-            self._write_node_signal(node_id, {
-                "status": "failed",
-                "message": "claude_code_sdk not installed. Install with: pip install claude-code-sdk",
-            })
-            self.active_workers.pop(node_id, None)
-            self._wake_event.set()
-            return
+        # Logfire span covers the entire worker lifecycle (dispatch → completion)
+        _span = None
+        if _LOGFIRE_AVAILABLE:
+            _span = logfire.span(
+                "sdk_worker {node_id} ({worker_type})",
+                node_id=node_id, worker_type=worker_type,
+                model=worker_model, cwd=self._get_target_dir(),
+                sdk_version=getattr(claude_code_sdk, "__version__", "unknown"),
+            )
+            _span.__enter__()
 
         try:
+            if not _SDK_AVAILABLE or claude_code_sdk is None:
+                log.error("[sdk] claude_code_sdk not available — cannot dispatch %s", node_id)
+                self._write_node_signal(node_id, {
+                    "status": "failed",
+                    "message": "claude_code_sdk not installed. Install with: pip install claude-code-sdk",
+                })
+                self.active_workers.pop(node_id, None)
+                self._wake_event.set()
+                return
+
             self._dispatch_via_sdk(node_id, worker_type, prompt)
         except Exception as exc:  # noqa: BLE001
             log.error("[sdk] SDK dispatch failed for %s: %s", node_id, exc)
@@ -625,6 +808,9 @@ class PipelineRunner:
             })
             self.active_workers.pop(node_id, None)
             self._wake_event.set()
+        finally:
+            if _span:
+                _span.__exit__(None, None, None)
 
     def _dispatch_via_sdk(self, node_id: str, worker_type: str, prompt: str) -> None:
         """Dispatch worker using claude_code_sdk."""
@@ -636,12 +822,33 @@ class PipelineRunner:
         # Worker model: ANTHROPIC_MODEL (from attractor .env) > PIPELINE_WORKER_MODEL > default
         worker_model = os.environ.get("ANTHROPIC_MODEL") or os.environ.get("PIPELINE_WORKER_MODEL", "claude-haiku-4-5-20251001")
 
+        # NOTE: Skill() is NOT available to SDK agents — skills_required from agent
+        # definitions are informational only. The system prompt from the agent .md
+        # file already contains domain knowledge that replaces skill invocation.
+
         async def _run() -> dict:
             # Build clean env without CLAUDECODE
             clean_env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
+            # Add ATTRACTOR_SIGNAL_DIR as required by GAP-6.1
+            clean_env["ATTRACTOR_SIGNAL_DIR"] = str(self.signal_dir)
             options = claude_code_sdk.ClaudeCodeOptions(  # type: ignore[attr-defined]
                 system_prompt=self._build_system_prompt(worker_type),
-                allowed_tools=["Bash", "Read", "Write", "Edit", "Glob", "Grep", "MultiEdit"],
+                allowed_tools=[
+                    "Bash", "Read", "Write", "Edit", "Glob", "Grep", "MultiEdit", "TodoWrite", "WebFetch", "WebSearch",
+                    # LSP: type info, definitions, diagnostics (built-in, requires pyright-langserver / typescript-language-server)
+                    "LSP",
+                    # Serena: semantic code navigation and symbol-level editing
+                    "mcp__serena__activate_project",
+                    "mcp__serena__check_onboarding_performed",
+                    "mcp__serena__find_symbol",
+                    "mcp__serena__search_for_pattern",
+                    "mcp__serena__get_symbols_overview",
+                    "mcp__serena__find_referencing_symbols",
+                    "mcp__serena__find_file",
+                    "mcp__serena__replace_symbol_body",
+                    "mcp__serena__insert_after_symbol",
+                    "mcp__serena__insert_before_symbol",
+                ],
                 permission_mode="bypassPermissions",
                 model=worker_model,
                 cwd=self._get_target_dir(),
@@ -650,12 +857,32 @@ class PipelineRunner:
             )
             messages = []
             result_text = ""
+            _first_msg_logged = False
             try:
                 async for msg in claude_code_sdk.query(  # type: ignore[attr-defined]
                     prompt=prompt,
                     options=options,
                 ):
                     messages.append(msg)
+                    msg_type = type(msg).__name__
+                    if not _first_msg_logged and _LOGFIRE_AVAILABLE:
+                        logfire.info("worker_first_message {node_id}",
+                                     node_id=node_id, worker_type=worker_type,
+                                     msg_type=msg_type)
+                        _first_msg_logged = True
+                    # Log tool use and assistant text for real-time visibility
+                    if _LOGFIRE_AVAILABLE and hasattr(msg, "content") and msg_type == "AssistantMessage":
+                        for block in (msg.content if isinstance(msg.content, list) else []):
+                            block_type = type(block).__name__
+                            if block_type == "ToolUseBlock":
+                                logfire.info("worker_tool {node_id} {tool}",
+                                             node_id=node_id, tool=getattr(block, "name", ""),
+                                             input_preview=str(getattr(block, "input", ""))[:300])
+                            elif block_type == "TextBlock":
+                                text = getattr(block, "text", "")
+                                if text and len(text.strip()) > 5:
+                                    logfire.info("worker_text {node_id}",
+                                                 node_id=node_id, text=text[:300])
                     # Capture result from ResultMessage
                     if hasattr(msg, "result") and msg.result:  # type: ignore[union-attr]
                         result_text = str(msg.result)[:500]
@@ -675,6 +902,12 @@ class PipelineRunner:
                 return {"status": "success", "message": result_text}
             return {"status": "success", "message": f"SDK worker completed ({len(messages)} events)"}
 
+        if _LOGFIRE_AVAILABLE:
+            logfire.info("worker_dispatch_start {node_id}",
+                         node_id=node_id, worker_type=worker_type,
+                         model=worker_model, cwd=self._get_target_dir())
+
+        t0 = time.time()
         try:
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -683,6 +916,15 @@ class PipelineRunner:
             result = {"status": "failed", "message": str(exc)}
         finally:
             loop.close()
+
+        elapsed = time.time() - t0
+        log.info("[sdk] Worker %s finished in %.1fs  status=%s  msgs=%s",
+                 node_id, elapsed, result.get("status"), result.get("message", "")[:100])
+        if _LOGFIRE_AVAILABLE:
+            logfire.info("worker_complete {node_id} {status} in {elapsed_s}s",
+                         node_id=node_id, worker_type=worker_type,
+                         status=result.get("status"), elapsed_s=round(elapsed, 1),
+                         message=result.get("message", "")[:200])
 
         self._write_node_signal(node_id, result)
         self.active_workers.pop(node_id, None)
@@ -699,13 +941,128 @@ class PipelineRunner:
             "type": "validation",
             "started_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
         }
-        thread = threading.Thread(
-            target=self._run_validation_subprocess,
-            args=(node_id, target_node_id),
-            name=f"validate-{node_id}",
-            daemon=True,
+        # Dispatch via ThreadPoolExecutor so Logfire auto-propagates OTel context.
+        if not hasattr(self, "_executor"):
+            from concurrent.futures import ThreadPoolExecutor
+            self._executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix="worker")
+        self._executor.submit(self._run_validation_subprocess, node_id, target_node_id)
+
+    def _build_validation_prompt(self, target_node_id: str) -> str:
+        """Build a rich validation prompt with acceptance criteria, files changed, and SD."""
+        data = parse_dot(self.dot_content)
+        node = next((n for n in data["nodes"] if n["id"] == target_node_id), None)
+        if node is None:
+            return f"Validate node {target_node_id} in pipeline {self.pipeline_id}."
+
+        attrs = node["attrs"]
+        acceptance = attrs.get("acceptance", "")
+        sd_path = attrs.get("sd_path", "")
+        label = attrs.get("label", target_node_id).replace("\\n", " ")
+
+        lines = [
+            f"# Validate: {label}",
+            f"Node ID: {target_node_id}",
+            f"Pipeline: {self.pipeline_id}",
+        ]
+
+        if acceptance:
+            lines.append(f"\n## Acceptance Criteria\n{acceptance}")
+        else:
+            lines.append("\n## Acceptance Criteria\n(none specified — check for reasonable implementation)")
+
+        # Read the worker's signal to get files_changed
+        processed_dir = os.path.join(self.signal_dir, "processed")
+        files_changed = []
+        if os.path.isdir(processed_dir):
+            for fname in sorted(os.listdir(processed_dir), reverse=True):
+                if target_node_id in fname and fname.endswith(".json"):
+                    try:
+                        with open(os.path.join(processed_dir, fname)) as fh:
+                            worker_signal = json.load(fh)
+                            files_changed = worker_signal.get("files_changed", [])
+                            if files_changed:
+                                break
+                    except (OSError, json.JSONDecodeError):
+                        continue
+
+        if files_changed:
+            lines.append(f"\n## Files Changed by Worker\n" + "\n".join(f"- {f}" for f in files_changed))
+            lines.append("\nRead these files to verify the implementation.")
+        else:
+            lines.append("\n## Files Changed\n(not reported — search the codebase to find relevant changes)")
+
+        # Inline SD if available
+        if sd_path:
+            sd_abs = os.path.join(self.dot_dir, sd_path) if not os.path.isabs(sd_path) else sd_path
+            if os.path.exists(sd_abs):
+                try:
+                    with open(sd_abs) as fh:
+                        sd_content = fh.read()
+                    lines.append(f"\n## Solution Design\n{sd_content}")
+                except OSError:
+                    lines.append(f"\n## Solution Design Path\n{sd_path}")
+            else:
+                lines.append(f"\n## Solution Design Path\n{sd_path}")
+
+        # Read manifest validation_method and prepend method-specific instructions
+        prd_ref = attrs.get("prd_ref", data.get("graph_attrs", {}).get("prd_ref", ""))
+        self._validation_method_hint = None  # Store for allowed_tools decision
+        if prd_ref:
+            # Walk up from DOT file directory to find acceptance-tests/{prd_ref}/manifest.yaml
+            manifest_path = ""
+            search_dir = self.dot_dir
+            for _ in range(10):
+                candidate = os.path.join(search_dir, "acceptance-tests", prd_ref, "manifest.yaml")
+                if os.path.exists(candidate):
+                    manifest_path = candidate
+                    break
+                parent = os.path.dirname(search_dir)
+                if parent == search_dir:
+                    break
+                search_dir = parent
+
+            if manifest_path:
+                try:
+                    import yaml
+                    with open(manifest_path) as mfh:
+                        manifest = yaml.safe_load(mfh)
+                    methods = set()
+                    for feature in (manifest or {}).get("features", []):
+                        vm = feature.get("validation_method", "")
+                        if vm:
+                            methods.add(vm)
+                    if "browser-required" in methods:
+                        self._validation_method_hint = "browser-required"
+                        lines.insert(0,
+                            "MANDATORY: This PRD has browser-required features. "
+                            "You MUST use Claude in Chrome (mcp__claude-in-chrome__*) tools to validate UI. "
+                            "Static code analysis alone (Read/Grep) = automatic 0.0 score. "
+                            "Required tool sequence: tabs_context_mcp -> navigate -> read_page -> screenshot -> interact. "
+                            "If the frontend is not running, report 'BLOCKED: frontend not running' — do NOT fall back to code analysis.\n"
+                        )
+                    elif "api-required" in methods:
+                        self._validation_method_hint = "api-required"
+                        lines.insert(0,
+                            "MANDATORY: This PRD has api-required features. "
+                            "You MUST make actual HTTP requests (curl/httpx) to validate API endpoints. "
+                            "Reading router/endpoint code alone = automatic 0.0 score. "
+                            "If the API server is not running, report 'BLOCKED: API server not running'.\n"
+                        )
+                except Exception:  # noqa: BLE001
+                    pass  # Best-effort — don't block validation on manifest parse errors
+
+        # Signal file path for result
+        signal_file_path = os.path.join(self.signal_dir, f"{target_node_id}.json")
+        lines.append(
+            f"\n## Write Your Result\n"
+            f"Write your validation result to: {signal_file_path}\n\n"
+            f"PASS example:\n"
+            f'```\nWrite(file_path="{signal_file_path}", content=\'{{"result": "pass", "reason": "All criteria met"}}\')\n```\n\n'
+            f"FAIL example:\n"
+            f'```\nWrite(file_path="{signal_file_path}", content=\'{{"result": "fail", "reason": "Criterion X not met because..."}}\')\n```'
         )
-        thread.start()
+
+        return "\n".join(lines)
 
     def _run_validation_subprocess(self, node_id: str, target_node_id: str) -> None:
         """Run validation-test-agent via AgentSDK. Falls back to auto-pass if unavailable.
@@ -715,37 +1072,83 @@ class PipelineRunner:
         """
         import asyncio
 
+        _span = None
+        if _LOGFIRE_AVAILABLE:
+            _span = logfire.span(
+                "validation_agent {node_id}",
+                node_id=node_id, target_node_id=target_node_id,
+            )
+            _span.__enter__()
+
         if not _SDK_AVAILABLE or claude_code_sdk is None:
             log.warning("[validation] SDK not available — auto-passing %s", node_id)
             signal: dict = {"result": "pass", "reason": "auto-pass: SDK not available for validation"}
             self._write_node_signal(node_id, signal)
             self.active_workers.pop(node_id, None)
             self._wake_event.set()
+            if _span:
+                _span.__exit__(None, None, None)
             return
 
         os.environ.pop("CLAUDECODE", None)
         worker_model = os.environ.get("ANTHROPIC_MODEL") or os.environ.get("PIPELINE_WORKER_MODEL", "claude-haiku-4-5-20251001")
-        prompt = (
-            f"Validate node {target_node_id} in pipeline {self.pipeline_id}. "
-            f"Check if the implementation meets acceptance criteria. "
-            f"DOT file: {self.dot_path}"
-        )
+
+        # Build a rich validation prompt with acceptance criteria and context
+        prompt = self._build_validation_prompt(target_node_id)
+
+        if _LOGFIRE_AVAILABLE:
+            logfire.info("validation_dispatch {node_id}",
+                         node_id=node_id, model=worker_model,
+                         cwd=self._get_target_dir())
 
         async def _run() -> dict:
             clean_env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
+            # Base tools for validation; extend for browser-required PRDs
+            validation_tools = ["Read", "Bash", "Grep", "Glob"]
+            if getattr(self, "_validation_method_hint", None) == "browser-required":
+                validation_tools.extend([
+                    "mcp__claude-in-chrome__navigate",
+                    "mcp__claude-in-chrome__read_page",
+                    "mcp__claude-in-chrome__find",
+                    "mcp__claude-in-chrome__get_page_text",
+                    "mcp__claude-in-chrome__computer",
+                    "mcp__claude-in-chrome__javascript_tool",
+                    "mcp__claude-in-chrome__form_input",
+                    "mcp__claude-in-chrome__tabs_context_mcp",
+                    "mcp__claude-in-chrome__tabs_create_mcp",
+                ])
             options = claude_code_sdk.ClaudeCodeOptions(  # type: ignore[attr-defined]
-                system_prompt="You are a validation agent. Check if implementation meets acceptance criteria. Respond with PASS or FAIL.",
-                allowed_tools=["Read", "Bash", "Grep", "Glob"],
+                system_prompt=self._build_system_prompt("validation-test-agent"),
+                allowed_tools=validation_tools,
                 permission_mode="bypassPermissions",
                 model=worker_model,
                 cwd=self._get_target_dir(),
-                max_turns=10,
+                max_turns=100,
                 env=clean_env,
             )
             messages = []
+            _first_msg_logged = False
             try:
                 async for msg in claude_code_sdk.query(prompt=prompt, options=options):  # type: ignore[attr-defined]
                     messages.append(msg)
+                    msg_type = type(msg).__name__
+                    if not _first_msg_logged and _LOGFIRE_AVAILABLE:
+                        logfire.info("validation_first_message {node_id}",
+                                     node_id=node_id, msg_type=msg_type)
+                        _first_msg_logged = True
+                    # Log tool use and text for visibility
+                    if _LOGFIRE_AVAILABLE and hasattr(msg, "content") and msg_type == "AssistantMessage":
+                        for block in (msg.content if isinstance(msg.content, list) else []):
+                            block_type = type(block).__name__
+                            if block_type == "ToolUseBlock":
+                                logfire.info("validation_tool {node_id} {tool}",
+                                             node_id=node_id, tool=getattr(block, "name", ""),
+                                             input_preview=str(getattr(block, "input", ""))[:300])
+                            elif block_type == "TextBlock":
+                                text = getattr(block, "text", "")
+                                if text and len(text.strip()) > 5:
+                                    logfire.info("validation_text {node_id}",
+                                                 node_id=node_id, text=text[:300])
                     if hasattr(msg, "result") and msg.result:  # type: ignore[union-attr]
                         result_text = str(msg.result).lower()
                         if "fail" in result_text:
@@ -762,9 +1165,16 @@ class PipelineRunner:
             log.warning("[validation] Dispatch failed for %s — auto-passing: %s", node_id, exc)
             signal = {"result": "pass", "reason": f"auto-pass: {exc}"}
 
+        if _LOGFIRE_AVAILABLE:
+            logfire.info("validation_complete {node_id} {result}",
+                         node_id=node_id, result=signal.get("result"),
+                         reason=signal.get("reason", "")[:200])
+
         self._write_node_signal(node_id, signal)
         self.active_workers.pop(node_id, None)
         self._wake_event.set()
+        if _span:
+            _span.__exit__(None, None, None)
 
     # ------------------------------------------------------------------
     # Signal processing
@@ -804,6 +1214,20 @@ class PipelineRunner:
 
     def _apply_signal(self, node_id: str, signal: dict) -> None:
         """Mechanically apply a signal to the pipeline graph. No LLM involved."""
+        sig_status = signal.get("status") or signal.get("result", "unknown")
+        log.info("[signal] Processing signal for %s  status=%s", node_id, sig_status)
+        # Clean up gate-wait marker if present (prevents monitor re-triggering on stale markers)
+        gate_marker = os.path.join(self.signal_dir, f"{node_id}.gate-wait")
+        if os.path.exists(gate_marker):
+            try:
+                os.remove(gate_marker)
+                log.info("[signal] Cleaned up gate-wait marker: %s", gate_marker)
+            except OSError as exc:
+                log.warning("[signal] Failed to remove gate-wait marker: %s", exc)
+        if _LOGFIRE_AVAILABLE:
+            logfire.info("signal {node_id} → {signal_status}",
+                         node_id=node_id, signal_status=sig_status,
+                         signal_keys=list(signal.keys()))
         # Reload current content to get latest state
         try:
             with open(self.dot_path) as fh:
@@ -879,28 +1303,47 @@ class PipelineRunner:
                 elif current_status == "active":
                     self._do_transition(node_id, "impl_complete")
                     log.info("[signal] %s: worker success -> impl_complete", node_id)
-                    # Auto-dispatch validation agent for impl_complete nodes
+                    # Auto-dispatch validation agent — it owns the active_workers slot
+                    # until it completes. Do NOT pop here; _run_validation_subprocess
+                    # calls active_workers.pop when done, preventing the resume loop
+                    # from re-dispatching validation while it is already in-flight.
                     self._dispatch_validation_agent(node_id, node_id)
+                    return
                 elif current_status in ("validated", "accepted"):
                     log.debug("[signal] %s already in terminal state %s — ignoring success signal", node_id, current_status)
                 self.active_workers.pop(node_id, None)
 
             elif status in ("failed", "error"):
-                retries = self.retry_counts.get(node_id, 0) + 1
-                self.retry_counts[node_id] = retries
-                if retries >= MAX_RETRIES:
-                    if current_status == "active":
-                        self._do_transition(node_id, "failed")
-                    log.error("[signal] %s: worker failed permanently (retry %d/%d)",
-                              node_id, retries, MAX_RETRIES)
-                else:
-                    # Reset to pending for retry by going through failed
-                    if current_status == "active":
-                        self._do_transition(node_id, "failed")
+                handler = node["attrs"].get("handler", "")
+                failure_msg = signal.get("message", "unknown error")
+
+                if handler == "tool":
+                    # Tool verify nodes: requeue the upstream codergen worker
+                    # instead of retrying the tool itself
+                    log.info("[signal] %s: tool verify failed — attempting upstream requeue", node_id)
+                    requeued = self._requeue_upstream_worker(node_id, failure_msg, data)
+                    if not requeued:
+                        # No eligible upstream — mark tool as permanently failed
+                        if current_status == "active":
+                            self._do_transition(node_id, "failed")
+                        log.error("[signal] %s: tool failed, no upstream to requeue — permanent failure",
+                                  node_id)
                     self.active_workers.pop(node_id, None)
-                    log.warning("[signal] %s: worker failed (retry %d/%d) — will retry",
-                                node_id, retries, MAX_RETRIES)
-                self.active_workers.pop(node_id, None)
+                else:
+                    # Non-tool nodes (codergen/research/refine): retry the node itself
+                    retries = self.retry_counts.get(node_id, 0) + 1
+                    self.retry_counts[node_id] = retries
+                    if retries >= MAX_RETRIES:
+                        if current_status == "active":
+                            self._do_transition(node_id, "failed")
+                        log.error("[signal] %s: worker failed permanently (retry %d/%d)",
+                                  node_id, retries, MAX_RETRIES)
+                    else:
+                        # Reset to pending for retry via force_status
+                        self._force_status(node_id, "pending")
+                        log.warning("[signal] %s: worker failed (retry %d/%d) — reset to pending for retry",
+                                    node_id, retries, MAX_RETRIES)
+                    self.active_workers.pop(node_id, None)
 
     # ------------------------------------------------------------------
     # DOT file transition helpers
@@ -950,8 +1393,46 @@ class PipelineRunner:
         """Write a signal file for node_id at {signal_dir}/{node_id}.json.
 
         Uses atomic write-then-rename to ensure watchdog sees a complete file.
+
+        Implements GAP-6.3: Add sd_hash to signal evidence when available.
         """
         os.makedirs(self.signal_dir, exist_ok=True)
+
+        # Implement GAP-6.3: Include sd_hash in signal evidence
+        # Look up node to check if it has an sd_path attribute
+        try:
+            # Reload current DOT content to get node attributes
+            with open(self.dot_path) as fh:
+                current_content = fh.read()
+            data = parse_dot(current_content)
+            node = next((n for n in data["nodes"] if n["id"] == node_id), None)
+
+            if node and node["attrs"].get("sd_path"):
+                sd_path = node["attrs"]["sd_path"]
+                sd_abs = os.path.join(self.dot_dir, sd_path) if not os.path.isabs(sd_path) else sd_path
+
+                if os.path.exists(sd_abs):
+                    try:
+                        # Import compute function from dispatch_worker for GAP-6.3
+                        from dispatch_worker import compute_sd_hash
+                        with open(sd_abs, 'r') as sd_fh:
+                            sd_content = sd_fh.read()
+                        payload["sd_hash"] = compute_sd_hash(sd_content)
+                        payload["sd_path"] = sd_path  # Also include the path for reference
+                    except ImportError:
+                        # If compute_sd_hash is not available, fall back to basic approach
+                        import hashlib
+                        with open(sd_abs, 'r') as sd_fh:
+                            sd_content = sd_fh.read()
+                        payload["sd_hash"] = hashlib.sha256(sd_content.encode()).hexdigest()[:16]
+                        payload["sd_path"] = sd_path
+                    except Exception:
+                        # If there's any error reading the SD file, continue without sd_hash
+                        pass
+        except Exception:
+            # If there's any error looking up node attributes, continue without sd_hash
+            pass
+
         final_path = os.path.join(self.signal_dir, f"{node_id}.json")
         tmp_path = final_path + ".tmp"
         with open(tmp_path, "w") as fh:
@@ -994,13 +1475,25 @@ class PipelineRunner:
         for node in data["nodes"]:
             if node["attrs"].get("status") == "active":
                 nid = node["id"]
+                handler = node["attrs"].get("handler", "")
                 log.info("[reset] Resetting active node %s -> pending (fresh start)", nid)
-                try:
-                    content, _ = apply_transition(content, nid, "failed")
-                    # Note: we can't go failed->pending directly; leave as failed
-                    # The dispatcher will skip non-pending nodes
-                except ValueError:
-                    pass
+                if handler in ("wait.system3", "wait.human", "gate"):
+                    # Gate nodes have no running worker — they were just waiting.
+                    # Transition active→failed, then failed→pending so the gate
+                    # can be re-dispatched cleanly. Both transitions go through
+                    # apply_transition which handles the specific node's status.
+                    try:
+                        content, _ = apply_transition(content, nid, "failed")
+                        content, _ = apply_transition(content, nid, "pending")
+                    except ValueError:
+                        pass
+                else:
+                    try:
+                        content, _ = apply_transition(content, nid, "failed")
+                        # Note: we can't go failed->pending directly; leave as failed
+                        # The dispatcher will skip non-pending nodes
+                    except ValueError:
+                        pass
 
         tmp_path = self.dot_path + ".tmp"
         try:
@@ -1023,7 +1516,7 @@ class PipelineRunner:
         label = attrs.get("label", nid).replace("\\n", " ")
         acceptance = attrs.get("acceptance", "")
         prd_ref = attrs.get("prd_ref", data.get("graph_attrs", {}).get("prd_ref", ""))
-        solution_design_path = attrs.get("solution_design", "")
+        solution_design_path = attrs.get("sd_path", "") or attrs.get("solution_design", "")
         bead_id = attrs.get("bead_id", "")
 
         # Inline solution design content if file exists
@@ -1053,24 +1546,57 @@ class PipelineRunner:
         else:
             lines.append(f"\n## Solution Design Path\n{solution_design_path or '(none)'}")
 
+        # Inject failure guidance if this is a requeued node
+        guidance = self.requeue_guidance.pop(nid, None)
+        if guidance:
+            lines.append(
+                f"\n## IMPORTANT: Previous Attempt Failed\n"
+                f"{guidance}\n"
+                f"Focus specifically on fixing the issue described above."
+            )
+
+        # Resolve signal path at prompt-build time so worker gets the absolute path
+        signal_file_path = os.path.join(self.signal_dir, f"{nid}.json")
+
         lines.append(
-            f"\n## Signal Protocol\n"
-            f"When your work is complete, write a JSON result file to:\n"
-            f"  {self.signal_dir}/{nid}.json\n\n"
-            f"Format:\n"
-            f'  {{"status": "success", "files_changed": ["file1", "file2"], "message": "brief description"}}\n\n'
-            f"Use Write tool with file_path parameter:\n"
-            f"  Write(file_path=\"{self.signal_dir}/{nid}.json\", content='{{\"status\": \"success\", \"message\": \"done\"}}')\n\n"
-            f"Tool usage reminder: boolean values are true/false (not True/False). "
-            f"MCP tools are unavailable in this headless context. "
-            f"Use only: Bash, Read, Write, Edit, Glob, Grep, MultiEdit."
+            f"\n## Signal Protocol — MANDATORY on completion\n"
+            f"When your task is done (success or failure), write a signal file.\n\n"
+            f"Signal file path (absolute): {signal_file_path}\n\n"
+            f"Use Write (this is a NEW file):\n"
+            f'```\n'
+            f'Write(file_path="{signal_file_path}", content=\'{{"status": "success", "files_changed": ["file1.py"], "message": "brief description"}}\')\n'
+            f'```\n\n'
+            f"On failure:\n"
+            f'```\n'
+            f'Write(file_path="{signal_file_path}", content=\'{{"status": "error", "message": "what went wrong", "files_changed": []}}\')\n'
+            f'```\n\n'
+            f"IMPORTANT: Use this EXACT path. Do NOT construct your own path.\n"
+            f"For modifying existing source code files, ALWAYS use Edit (not Write)."
         )
 
         return "\n".join(lines)
 
     def _build_system_prompt(self, worker_type: str) -> str:
-        """Load system prompt from .claude/agents/{worker_type}.md."""
+        """Load system prompt from .claude/agents/{worker_type}.md + tool reference."""
         agents_dir = os.path.join(self.dot_dir, ".claude", "agents")
+
+        # Always load tool reference — this is critical for smaller models
+        tool_ref = ""
+        tool_ref_file = os.path.join(agents_dir, "worker-tool-reference.md")
+        if os.path.exists(tool_ref_file):
+            try:
+                with open(tool_ref_file) as fh:
+                    raw = fh.read()
+                # Strip frontmatter
+                if raw.startswith("---"):
+                    _, _, rest = raw.partition("---")
+                    _, _, raw = rest.partition("---")
+                tool_ref = raw.strip()
+            except OSError:
+                pass
+
+        # Load role-specific prompt
+        role_content = ""
         role_file = os.path.join(agents_dir, f"{worker_type}.md")
         if os.path.exists(role_file):
             try:
@@ -1080,10 +1606,17 @@ class PipelineRunner:
                 if content.startswith("---"):
                     _, _, rest = content.partition("---")
                     _, _, content = rest.partition("---")
-                return content.strip()
+                role_content = content.strip()
             except OSError:
                 pass
-        return f"You are a specialist agent ({worker_type}). Implement features directly using the provided tools."
+
+        if not role_content:
+            role_content = f"You are a specialist agent ({worker_type}). Implement features directly using the provided tools."
+
+        # Tool reference goes FIRST so it's always visible, even if role prompt is long
+        if tool_ref:
+            return f"{tool_ref}\n\n---\n\n{role_content}"
+        return role_content
 
 
 # ---------------------------------------------------------------------------

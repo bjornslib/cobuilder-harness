@@ -1,0 +1,132 @@
+---
+title: "PRD-VERIFY-UX: verify-check UX Improvements"
+prd_id: "PRD-VERIFY-UX"
+description: "UX improvements to /verify-check form based on Hayden's recorded feedback"
+implementation_repo: "zenagent2"
+date_created: "2026-03-05"
+date_last_verified: "2026-03-05"
+
+# Feature Scoring Rubric
+# Each feature is weighted by business priority and implementation complexity
+# Scores are 0.0-1.0 (0=not implemented, 1.0=pixel-perfect match)
+
+features:
+  - id: "progress-bar"
+    name: "Full-width Progress Bar at Top"
+    priority: "P0"
+    weight: 0.20
+    description: "Thin blue-to-purple gradient bar spanning full width at card top, above title"
+    acceptance_criteria:
+      - "Bar is at absolute top of card (above title)"
+      - "Bar spans full width (left-to-right edges)"
+      - "Bar has blue-to-purple gradient (from-blue-500 to-purple-600)"
+      - "Bar height is ~4-6px (thin)"
+      - "Progress increases from 0% to 100% smoothly"
+      - "No text counter inline (bar itself is indicator)"
+
+  - id: "field-expansion"
+    name: "Field Expansion/Shrinking Based on State"
+    priority: "P0"
+    weight: 0.20
+    description: "Active fields expand with blue border, completed fields shrink and fade"
+    acceptance_criteria:
+      - "Active field has py-4 padding and blue left border (4px)"
+      - "Active field background is transparent (no color)"
+      - "Confirmed field has py-1/py-2 reduced padding"
+      - "Confirmed field text is muted (text-gray-400, 75% opacity)"
+      - "Transitions between states use transition-all duration-300"
+      - "No abrupt visual jumps during state change"
+
+  - id: "chat-selective-response"
+    name: "Chat Agent Responds Only on Change"
+    priority: "P0"
+    weight: 0.15
+    description: "Agent welcome appears on load, but only responds when user clicks Change (not Confirm)"
+    acceptance_criteria:
+      - "Welcome message appears and types out (typewriter animation)"
+      - "No agent response on employment Yes/No selection"
+      - "No agent response on field Confirm click"
+      - "Agent RESPONDS when Change button is clicked"
+      - "Change response includes context about what was changed"
+      - "Response appears within 2-3 seconds"
+
+  - id: "signature-field-conditional"
+    name: "Signature Field Hidden Until Complete"
+    priority: "P1"
+    weight: 0.15
+    description: "Name input and Submit button only appear when all form fields are confirmed"
+    acceptance_criteria:
+      - "Signature input is NOT visible when form has pending fields"
+      - "Submit button is NOT visible when form has pending fields"
+      - "Bottom bar does NOT render until all fields are resolved"
+      - "Bottom bar appears smoothly (transition) when last field confirmed"
+      - "Signature input and Submit button visible once form is complete"
+
+  - id: "label-language"
+    name: "Plain Language Labels ('Your Name')"
+    priority: "P2"
+    weight: 0.10
+    description: "Replace 'Verifier' with 'Your name', 'EG' placeholder with plain instruction"
+    acceptance_criteria:
+      - "Input label reads 'Your name' (not 'Verifier')"
+      - "Placeholder reads 'Type your full name to confirm' (not 'EG')"
+      - "No industry jargon in signature section"
+      - "Labels are clear and action-oriented"
+
+  - id: "chat-minimize-voice"
+    name: "Chat Panel Minimizes During Voice Mode"
+    priority: "P1"
+    weight: 0.10
+    description: "When voice call is active, chat panel collapses to show only LIVE badge, waveform, and End Call button"
+    acceptance_criteria:
+      - "Full message list hidden during voice mode"
+      - "Text input field hidden during voice mode"
+      - "LIVE badge visible (top-left, small, green dot)"
+      - "Animated waveform visible (center) showing audio activity"
+      - "End Call button visible (top-right, red)"
+      - "Chat panel expands back smoothly when call ends"
+      - "Transition between collapsed/expanded takes 300-500ms"
+
+  - id: "typewriter-animation"
+    name: "Welcome Message Typewriter Animation"
+    priority: "P2"
+    weight: 0.05
+    description: "First agent message types out character-by-character on page load"
+    acceptance_criteria:
+      - "Welcome message appears character-by-character (not all at once)"
+      - "Animation speed is readable (not too fast, not too slow)"
+      - "Animation completes within 3-5 seconds"
+      - "Text is fully readable by end of animation"
+
+  - id: "candidate-info-deemphasis"
+    name: "Candidate Info De-emphasis"
+    priority: "P2"
+    weight: 0.05
+    description: "Candidate name and company appear with reduced visual weight (small, muted text)"
+    acceptance_criteria:
+      - "Text size is smaller (text-xs or text-sm)"
+      - "Text color is muted (text-gray-400)"
+      - "No bold borders or large container"
+      - "Visually subordinate to form fields and progress bar"
+      - "Does not distract from main verification task"
+
+# Scoring Thresholds
+pass_threshold: 0.60  # 60% weighted score = ACCEPT
+amend_threshold: 0.45  # 45-60% = AMEND (rework needed)
+fail_threshold: 0.45   # <45% = REJECT
+
+# Confidence Levels
+confidence_scoring:
+  code_inspection: 0.7  # Reading code can verify 70% confidence
+  browser_testing: 1.0  # Browser tests are 100% confidence (ground truth)
+
+# Test Files
+test_files:
+  - "verify-check-ux.feature"  # Gherkin scenarios
+  - "executable-tests/"  # Browser automation tests
+
+# Implementation Details Reference
+reference_files:
+  - "references/feedback-transcript-summary.md"
+  - "references/design-screenshots-analysis.md"
+  - "references/file-changes-guide.md"

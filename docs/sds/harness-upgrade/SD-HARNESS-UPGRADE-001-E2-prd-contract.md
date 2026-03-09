@@ -1,6 +1,6 @@
 ---
 title: "SD-HARNESS-UPGRADE-001 Epic 2: PRD Contract + E2E Gate Protocol"
-status: active
+status: complete
 type: solution-design
 last_verified: 2026-03-07
 grade: authoritative

@@ -20,6 +20,8 @@ Validation Rules (from schema.md section 11):
     9.  No unguarded cycles (only via diamond fail-edges)
     10. promise_id exists on graph if any node has promise_ac
     11. Edge conditions use valid syntax (pass, fail, partial)
+    12. Full cluster topology check: every codergen node must have downstream wait.system3 and wait.human nodes
+    13. wait.human nodes must follow wait.system3 or research nodes
 """
 
 import argparse
@@ -40,9 +42,11 @@ VALID_HANDLERS = {
     "codergen",
     "tool",
     "wait.human",
+    "wait.system3",
     "conditional",
     "parallel",
     "research",
+    "acceptance-test-writer",
 }
 
 HANDLER_SHAPE_MAP = {
@@ -51,9 +55,11 @@ HANDLER_SHAPE_MAP = {
     "codergen": "box",
     "tool": "box",
     "wait.human": "hexagon",
+    "wait.system3": "hexagon",
     "conditional": "diamond",
     "parallel": "parallelogram",
     "research": "tab",
+    "acceptance-test-writer": "component",
 }
 
 VALID_CONDITIONS = {"pass", "fail", "partial"}
@@ -62,12 +68,14 @@ VALID_CONDITIONS = {"pass", "fail", "partial"}
 REQUIRED_ATTRS: dict[str, list[str]] = {
     "start": ["label", "handler"],
     "exit": ["label", "handler"],
-    "codergen": ["label", "handler", "bead_id", "worker_type"],
+    "codergen": ["label", "handler", "bead_id", "worker_type", "sd_path"],
     "tool": ["label", "handler", "command"],
     "wait.human": ["label", "handler", "gate", "mode"],
+    "wait.system3": ["label", "handler", "gate_type"],
     "conditional": ["label", "handler"],
     "parallel": ["label", "handler"],
     "research": ["label", "handler", "downstream_node", "solution_design"],
+    "acceptance-test-writer": ["label", "handler", "prd_ref"],
 }
 
 # Recommended attributes per handler type — absence emits warnings (not errors).
@@ -82,6 +90,9 @@ VALID_WORKER_TYPES = {
     "backend-solutions-engineer",
     "tdd-test-engineer",
     "solution-architect",
+    "solution-design-architect",
+    "validation-test-agent",
+    "ux-designer",
 }
 
 VALID_GATE_TYPES = {"technical", "business", "e2e", "manual"}
@@ -299,9 +310,21 @@ def validate(data: dict[str, Any], strict: bool = False) -> list[Issue]:
             if wt and wt not in VALID_WORKER_TYPES:
                 issues.append(
                     Issue(
-                        "warning",
+                        "error",  # Changed from "warning" to "error" as per AC-5.3
                         8,
                         f"Unknown worker_type '{wt}', expected one of {sorted(VALID_WORKER_TYPES)}",
+                        n["id"],
+                    )
+                )
+
+            # Validate that sd_path is present for codergen nodes (AC-5.1)
+            sd_path = n["attrs"].get("sd_path", "")
+            if not sd_path:
+                issues.append(
+                    Issue(
+                        "error",  # Hard error for missing sd_path
+                        8,
+                        "Missing required attribute 'sd_path' for handler=codergen",
                         n["id"],
                     )
                 )
@@ -323,6 +346,26 @@ def validate(data: dict[str, Any], strict: bool = False) -> list[Issue]:
                         "warning",
                         8,
                         f"Unknown mode '{mode}', expected one of {sorted(VALID_MODES)}",
+                        n["id"],
+                    )
+                )
+        elif handler == "wait.system3":
+            gate_type = n["attrs"].get("gate_type", "")
+            if not gate_type:
+                issues.append(
+                    Issue(
+                        "error",
+                        8,
+                        "Missing required attribute 'gate_type' for handler=wait.system3",
+                        n["id"],
+                    )
+                )
+            elif gate_type not in {"unit", "e2e", "contract"}:
+                issues.append(
+                    Issue(
+                        "error",
+                        8,
+                        f"Invalid gate_type '{gate_type}' for handler=wait.system3, must be one of unit, e2e, contract",
                         n["id"],
                     )
                 )
@@ -374,7 +417,184 @@ def validate(data: dict[str, Any], strict: bool = False) -> list[Issue]:
                     )
                 )
 
+    # --- Rule 12: Cluster topology check (AC-5.2) ---
+    _check_cluster_topology(nodes, edges, adj, reverse_adj, issues, node_map)
+
     return issues
+
+
+def _check_cluster_topology(
+    nodes: list[dict],
+    edges: list[dict],
+    adj: dict[str, list[str]],
+    reverse_adj: dict[str, list[str]],
+    issues: list[Issue],
+    node_map: dict[str, dict],   # <-- This parameter was missing and caused NameError
+) -> None:
+    """Check full cluster topology: acceptance-test-writer -> research -> refine -> codergen -> wait.system3 -> wait.human"""
+
+    # Build mapping from handler to node IDs
+    handler_to_nodes: dict[str, list[str]] = {}
+    for n in nodes:
+        handler = n["attrs"].get("handler", "")
+        if handler not in handler_to_nodes:
+            handler_to_nodes[handler] = []
+        handler_to_nodes[handler].append(n["id"])
+
+    # Check each codergen node has the full cluster topology leading to it
+    codergen_nodes = handler_to_nodes.get("codergen", [])
+
+    for cg_node in codergen_nodes:
+        # Find all upstream nodes that should be in the cluster
+        upstream_acceptance = []  # acceptance-test-writer nodes that reach this codergen
+        upstream_research = []    # research nodes that reach this codergen
+        upstream_refine = []      # refine nodes that reach this codergen
+
+        # Find all acceptance-test-writer nodes that can reach this codergen
+        for accept_node in handler_to_nodes.get("acceptance-test-writer", []):
+            if _can_reach(accept_node, cg_node, adj):
+                upstream_acceptance.append(accept_node)
+
+        # Find all research nodes that can reach this codergen
+        for research_node in handler_to_nodes.get("research", []):
+            if _can_reach(research_node, cg_node, adj):
+                upstream_research.append(research_node)
+
+        # Find all refine nodes that can reach this codergen
+        for refine_node in handler_to_nodes.get("refine", []):
+            if _can_reach(refine_node, cg_node, adj):
+                upstream_refine.append(refine_node)
+
+        # According to schema rule, every codergen node should have the full cluster:
+        # acceptance-test-writer -> research -> refine -> codergen -> wait.system3 -> wait.human
+        # But this might not be true for all codergen nodes - only for certain epic clusters
+        # For now, we'll validate the presence of downstream wait.system3 and wait.human
+        descendants = _bfs(cg_node, adj)
+        has_wait_system3 = any(n_id in descendants for n_id in handler_to_nodes.get("wait.system3", []))
+        has_wait_human = any(n_id in descendants for n_id in handler_to_nodes.get("wait.human", []))
+
+        # If we have a codergen node, it should eventually lead to wait.system3 and wait.human
+        if not has_wait_system3:
+            issues.append(
+                Issue(
+                    "error",  # Changed to error as per AC-5.2 requirement
+                    12,
+                    f"codergen node '{cg_node}' must have a downstream wait.system3 node in the cluster",
+                    cg_node,
+                )
+            )
+
+        if not has_wait_human:
+            issues.append(
+                Issue(
+                    "error",  # Changed to error as per AC-5.2 requirement
+                    12,
+                    f"codergen node '{cg_node}' must have a downstream wait.human node in the cluster",
+                    cg_node,
+                )
+            )
+
+    # Rule V-15: warn codergen without upstream acceptance-test-writer node
+    for cg_node in codergen_nodes:
+        predecessors_all = _bfs_reverse(cg_node, reverse_adj)
+        has_at_writer = any(
+            node_map.get(p, {}).get("handler") == "acceptance-test-writer"
+            for p in predecessors_all
+        )
+        if not has_at_writer:
+            issues.append(Issue(
+                "warning", 15,  # V-15: Warning for codergen without upstream AT writer
+                f"codergen node '{cg_node}' has no upstream acceptance-test-writer node (V-15)",
+                cg_node,
+            ))
+
+    # Rule V-16: warn when skills_required references missing skill dir
+    for n in nodes:
+        handler = n["attrs"].get("handler", "")
+        if handler == "codergen":
+            worker_type = n["attrs"].get("worker_type", "").strip()
+            if worker_type:
+                # Check for agent file to get skills_required
+                import os
+                import yaml
+                from pathlib import Path
+
+                agent_path = Path(f".claude/agents/{worker_type}.md")
+                if agent_path.exists():
+                    try:
+                        content = agent_path.read_text()
+                        # Parse YAML frontmatter
+                        if content.startswith("---"):
+                            # Find the end of the YAML frontmatter
+                            lines = content.split('\n')
+                            if len(lines) > 1 and lines[0] == "---":
+                                # Find the closing ---
+                                for i in range(1, len(lines)):
+                                    if lines[i] == "---" and i > 0:
+                                        fm_content = '\n'.join(lines[1:i])
+                                        try:
+                                            fm = yaml.safe_load(fm_content)
+                                            if fm and isinstance(fm, dict) and "skills_required" in fm:
+                                                for skill in fm.get("skills_required", []):
+                                                    skill_dir = Path(f".claude/skills/{skill}")
+                                                    if not skill_dir.exists():
+                                                        issues.append(Issue(
+                                                            "warning", 16,  # V-16: Warning for missing skill directory
+                                                            f"Agent '{worker_type}' requires skill '{skill}' but .claude/skills/{skill}/ not found (V-16)",
+                                                            n["id"],
+                                                        ))
+                                        except yaml.YAMLError:
+                                            pass  # Skip invalid YAML
+                                        break
+                    except Exception:
+                        pass  # Don't fail validation on agent file parse errors
+
+    # Validate that wait.human nodes follow wait.system3 or research (AC-5.4)
+    wait_human_nodes = handler_to_nodes.get("wait.human", [])
+    wait_system3_nodes = handler_to_nodes.get("wait.system3", [])
+    research_nodes = handler_to_nodes.get("research", [])
+
+    for wh_node in wait_human_nodes:
+        # Check if this wait.human node has a direct predecessor that is wait.system3 or research
+        predecessors = reverse_adj.get(wh_node, [])
+        has_valid_predecessor = any(
+            pred in wait_system3_nodes or pred in research_nodes or
+            node_map.get(pred, {}).get("handler") in ["wait.system3", "research"]
+            for pred in predecessors
+        )
+
+        if not has_valid_predecessor:
+            issues.append(
+                Issue(
+                    "error",  # AC-5.4: wait.human must follow wait.system3 or research
+                    13,
+                    f"wait.human node '{wh_node}' must follow wait.system3 or research node",
+                    wh_node,
+                )
+            )
+
+
+def _can_reach(start: str, target: str, adj: dict[str, list[str]]) -> bool:
+    """Check if target is reachable from start using BFS."""
+    if start == target:
+        return True
+
+    visited = set()
+    queue = [start]
+
+    while queue:
+        node = queue.pop(0)
+        if node == target:
+            return True
+        if node in visited:
+            continue
+        visited.add(node)
+
+        for neighbor in adj.get(node, []):
+            if neighbor not in visited:
+                queue.append(neighbor)
+
+    return False
 
 
 def _bfs(start: str, adj: dict[str, list[str]]) -> set[str]:
@@ -389,6 +609,21 @@ def _bfs(start: str, adj: dict[str, list[str]]) -> set[str]:
         for neighbor in adj.get(node, []):
             if neighbor not in visited:
                 queue.append(neighbor)
+    return visited
+
+
+def _bfs_reverse(start: str, reverse_adj: dict[str, list[str]]) -> set[str]:
+    """Breadth-first search backwards from start node, return all predecessor nodes."""
+    visited: set[str] = set()
+    queue = [start]
+    while queue:
+        node = queue.pop(0)
+        if node in visited:
+            continue
+        visited.add(node)
+        for predecessor in reverse_adj.get(node, []):
+            if predecessor not in visited:
+                queue.append(predecessor)
     return visited
 
 

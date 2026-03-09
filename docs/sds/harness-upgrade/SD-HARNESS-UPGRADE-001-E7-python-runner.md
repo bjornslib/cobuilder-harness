@@ -1,6 +1,6 @@
 ---
 title: "SD-HARNESS-UPGRADE-001: Pure Python Pipeline Runner"
-status: active
+status: complete
 type: solution-design
 last_verified: 2026-03-07
 grade: authoritative
@@ -704,6 +704,13 @@ The runner is a **state machine**, not a reasoning system.
 - `CLAUDECODE` env var must be stripped from worker env to avoid nested session detection
 - Validation auto-pass when SDK unavailable (prevents pipeline blocking in non-SDK environments)
 - `target_dir` graph attribute used for worker cwd instead of `dot_dir`
+
+### Post-validation fixes (same session)
+- **ThreadPoolExecutor for OTel propagation**: Worker dispatch threads switched from `threading.Thread` to `ThreadPoolExecutor` — Logfire auto-patches TPE for trace context propagation but not raw threads. Commit bcd074d.
+- **Logfire real-time worker visibility**: `worker_dispatch_start`, `worker_first_message`, `worker_tool`, `worker_text` events logged per SDK message in the async stream loop. Commit f4438e8.
+- **Finalize gate fix**: `check_finalize_gate()` in `transition.py` accepted only `status=="validated"` but `_apply_signal` transitions hexagons through `validated→accepted`. Fix: accept both. Commit f4438e8.
+- **Signal protocol env var**: Worker prompt now references `$ATTRACTOR_SIGNAL_DIR` instead of hardcoded absolute path — prevents LLM path hallucination (qwen3-coder-plus wrote signal to wrong repo path). Commit e1d25eb.
+- **sd_path attribute alignment**: `_build_initial_prompt()` read `solution_design` attribute but DOT schema uses `sd_path`. Fix: read `sd_path` first, fall back to `solution_design`. Commit 8697a1a.
 
 ### E2E validation results (6 live pipeline runs)
 - Tool nodes: 0 LLM tokens, instant execution

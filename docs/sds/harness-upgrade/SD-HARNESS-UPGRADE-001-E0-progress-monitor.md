@@ -1,6 +1,6 @@
 ---
 title: "SD-HARNESS-UPGRADE-001 Epic 0: Pipeline Progress Monitor"
-status: active
+status: complete
 type: solution-design
 last_verified: 2026-03-07
 grade: authoritative

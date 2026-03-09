@@ -274,12 +274,22 @@ def main(argv: list[str] | None = None) -> None:
     options = ClaudeCodeOptions(
         allowed_tools=[
             "Read", "Edit", "Write",
+            # LSP: type info, go-to-definition, diagnostics (for validating code references in SD)
+            "LSP",
             # MCP: memory persistence (Hindsight for reflection and cross-session learnings)
             "mcp__hindsight__reflect",
             "mcp__hindsight__retain",
             "mcp__hindsight__recall",
             # MCP: reasoning tool for resolving conflicting research findings
             "mcp__perplexity__perplexity_reason",
+            # MCP: Serena — navigate code to verify claims in Solution Design (read-only navigation)
+            "mcp__serena__activate_project",
+            "mcp__serena__check_onboarding_performed",
+            "mcp__serena__find_symbol",
+            "mcp__serena__search_for_pattern",
+            "mcp__serena__get_symbols_overview",
+            "mcp__serena__find_referencing_symbols",
+            "mcp__serena__find_file",
         ],
         system_prompt="You are a refine agent that incorporates validated research findings into Solution Design documents.",
         cwd=target_dir,

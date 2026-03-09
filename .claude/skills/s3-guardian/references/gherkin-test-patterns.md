@@ -600,6 +600,7 @@ This creates:
 - [ ] Evidence references are specific (file names, function names, test names from SD File Scope)
 - [ ] Red flags section present for each scenario
 - [ ] manifest.yaml has valid thresholds (default: accept=0.60, investigate=0.40)
+- [ ] **Every feature has `validation_method`** — one of: `browser-required`, `api-required`, `code-analysis`, `doc-review`, `e2e-test`, `hybrid`. This is enforced by validator.py Rule 16; pipelines will fail validation without it.
 
 If the acceptance-test-writer cannot find a Goals section in the SD, use the SD's Business Context
 section (Section 1) or derive objectives from the parent PRD's Goals (Section 2).

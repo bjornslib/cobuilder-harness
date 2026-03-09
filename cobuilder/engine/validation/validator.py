@@ -53,6 +53,15 @@ from cobuilder.engine.validation.rules import (
     StartNoIncoming,
     StylesheetSyntaxValid,
 )
+from cobuilder.engine.validation.advanced_rules import (
+    SdPathOnCodergen,
+    WorkerTypeRegistry,
+    WaitHumanAfterWaitSystem3,
+    FullClusterTopology,
+    WaitSystem3Requirements,
+    CodergenWithoutUpstreamAT,
+    MissingSkillReference,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +86,15 @@ DEFAULT_RULES: list[type] = [
     FidelityValuesValid,
     GoalGatesHaveRetry,
     LlmNodesHavePrompts,
+    # Advanced rules - warning level
+    CodergenWithoutUpstreamAT,
+    MissingSkillReference,
+    # Advanced rules - error level
+    SdPathOnCodergen,
+    WorkerTypeRegistry,
+    WaitHumanAfterWaitSystem3,
+    FullClusterTopology,
+    WaitSystem3Requirements,
 ]
 
 

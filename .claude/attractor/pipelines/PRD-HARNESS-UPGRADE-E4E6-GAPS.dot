@@ -1,0 +1,152 @@
+digraph "PRD-HARNESS-UPGRADE-E4E6-GAPS" {
+    graph [
+        label="PRD-HARNESS-UPGRADE-001: E4-E6 Gap Remediation"
+        labelloc="t"
+        fontsize=14
+        rankdir="TB"
+        prd_ref="PRD-HARNESS-UPGRADE-001"
+        target_dir="/Users/theb/Documents/Windsurf/claude-harness-setup"
+    ];
+
+    node [fontname="Helvetica" fontsize=11];
+    edge [fontname="Helvetica" fontsize=9];
+
+    start [
+        shape=Mdiamond
+        label="START"
+        handler="start"
+        status="validated"
+        fillcolor="lightgreen"
+        style="filled"
+    ];
+
+    impl_e5_gaps [
+        shape=box
+        label="Fix E5 validator.py gaps (5.3, 5.4, 5.5, 5.6)"
+        handler="codergen"
+        worker_type="backend-solutions-engineer"
+        sd_path="docs/sds/harness-upgrade/SD-HARNESS-UPGRADE-001-E4E6-GAPS.md"
+        bead_id="claude-harness-setup-fxq8"
+        acceptance="GAP-5.3: VALID_WORKER_TYPES has all 7 agent types. GAP-5.4: _check_cluster_topology receives node_map param, no NameError. GAP-5.5: V-15 warns codergen without upstream AT writer. GAP-5.6: V-16 warns when skills_required references missing skill dir."
+        prd_ref="PRD-HARNESS-UPGRADE-001"
+        epic_id="E5-GAPS"
+        status="accepted"
+    
+        fillcolor="palegreen"
+    
+        style="filled"
+    ];
+
+    verify_e5_gaps [
+        shape=box
+        label="Verify E5 gaps fixed"
+        handler="tool"
+        command="cd /Users/theb/Documents/Windsurf/claude-harness-setup && python3 -c \"import sys; sys.path.insert(0,'.claude/scripts/attractor'); from validator import VALID_WORKER_TYPES; types=['frontend-dev-expert','backend-solutions-engineer','tdd-test-engineer','solution-architect','solution-design-architect','validation-test-agent','ux-designer']; missing=[t for t in types if t not in VALID_WORKER_TYPES]; assert not missing, f'Missing: {missing}'; print(f'PASS GAP-5.3: All {len(types)} worker types registered'); import inspect; from validator import _check_cluster_topology; params=inspect.signature(_check_cluster_topology).parameters; assert 'node_map' in params, 'node_map not in params'; print('PASS GAP-5.4: node_map parameter exists')\""
+        status="accepted"
+    
+        fillcolor="palegreen"
+    
+        style="filled"
+    ];
+
+    gate_e5 [
+        shape=hexagon
+        label="E5 Gaps Gate"
+        handler="wait.system3"
+        gate_type="e2e"
+        epic_id="E5-GAPS"
+        status="accepted"
+    
+        fillcolor="palegreen"
+    
+        style="filled"
+    ];
+
+    review_e5 [
+        shape=hexagon
+        label="E5 Gaps Review"
+        handler="wait.human"
+        gate="technical"
+        mode="technical"
+        epic_id="E5-GAPS"
+        status="accepted"
+    
+        fillcolor="palegreen"
+    
+        style="filled"
+    ];
+
+    impl_e6_gaps [
+        shape=box
+        label="Fix E6 pipeline_runner.py gaps (6.1, 6.2, 6.3)"
+        handler="codergen"
+        worker_type="backend-solutions-engineer"
+        sd_path="docs/sds/harness-upgrade/SD-HARNESS-UPGRADE-001-E4E6-GAPS.md"
+        bead_id="claude-harness-setup-i6xt"
+        acceptance="GAP-6.1: clean_env includes ATTRACTOR_SIGNAL_DIR. GAP-6.2: Worker prompt includes skill invocations from agent skills_required. GAP-6.3: Signal evidence includes sd_hash field computed from sd_path."
+        prd_ref="PRD-HARNESS-UPGRADE-001"
+        epic_id="E6-GAPS"
+        status="accepted"
+    
+        fillcolor="palegreen"
+    
+        style="filled"
+    ];
+
+    verify_e6_gaps [
+        shape=box
+        label="Verify E6 gaps fixed"
+        handler="tool"
+        command="cd /Users/theb/Documents/Windsurf/claude-harness-setup && python3 -c \"content=open('.claude/scripts/attractor/pipeline_runner.py').read(); checks=[('ATTRACTOR_SIGNAL_DIR' in content, 'GAP-6.1: ATTRACTOR_SIGNAL_DIR env var'), ('skills_required' in content or 'load_agent_definition' in content, 'GAP-6.2: skill injection'), ('sd_hash' in content or 'compute_sd_hash' in content, 'GAP-6.3: sd_hash in signal')]; passed=[c[1] for c in checks if c[0]]; failed=[c[1] for c in checks if not c[0]]; print(f'PASS ({len(passed)}/{len(checks)}): {passed}'); [print(f'FAIL: {f}') for f in failed]; assert len(failed)==0, f'Failed: {failed}'\""
+        status="accepted"
+    
+        fillcolor="palegreen"
+    
+        style="filled"
+    ];
+
+    gate_e6 [
+        shape=hexagon
+        label="E6 Gaps Gate"
+        handler="wait.system3"
+        gate_type="e2e"
+        epic_id="E6-GAPS"
+        status="accepted"
+    
+        fillcolor="palegreen"
+    
+        style="filled"
+    ];
+
+    review_e6 [
+        shape=hexagon
+        label="E6 Gaps Review"
+        handler="wait.human"
+        gate="technical"
+        mode="technical"
+        epic_id="E6-GAPS"
+        status="accepted"
+    
+        fillcolor="palegreen"
+    
+        style="filled"
+    ];
+
+    finalize [
+        shape=Msquare
+        label="FINALIZE"
+        handler="exit"
+        status="pending"
+    ];
+
+    start -> impl_e5_gaps [label="begin"];
+    impl_e5_gaps -> verify_e5_gaps [label="impl_complete"];
+    verify_e5_gaps -> gate_e5 [label="validated"];
+    gate_e5 -> review_e5 [label="validated"];
+    review_e5 -> impl_e6_gaps [label="validated"];
+    impl_e6_gaps -> verify_e6_gaps [label="impl_complete"];
+    verify_e6_gaps -> gate_e6 [label="validated"];
+    gate_e6 -> review_e6 [label="validated"];
+    review_e5 -> finalize [label="validated"];
+    review_e6 -> finalize [label="validated"];
+}

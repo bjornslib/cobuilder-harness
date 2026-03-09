@@ -29,7 +29,7 @@ Spawn usage (fire-and-forget subprocess):
         [--solution-design <path>] \\
         [--acceptance <text>] \\
         [--bead-id <id>] \\
-        [--mode sdk|tmux|headless] \\
+        [--mode sdk|tmux] \\
         [--dot-file <path>]
 
 Architecture:
@@ -115,7 +115,7 @@ else:
 logfire.configure(
     send_to_logfire=_logfire_enabled,
     inspect_arguments=False,
-    scrubbing=logfire.ScrubbingOptions(callback=lambda m: m.value),
+    scrubbing=False,
 )
 
 # ---------------------------------------------------------------------------
@@ -597,7 +597,7 @@ Examples:
                         help="Override signals directory path")
     parser.add_argument("--dry-run", action="store_true", dest="dry_run",
                         help="Log config without spawning the SDK agent (for testing)")
-    parser.add_argument("--mode", choices=["sdk", "tmux", "headless"], default="tmux", dest="mode",
+    parser.add_argument("--mode", choices=["sdk", "tmux"], default="tmux", dest="mode",
                         help="Orchestrator launch mode: sdk (no --worktree) or tmux (default)")
 
     args = parser.parse_args(argv)
@@ -1358,7 +1358,7 @@ def main(argv: list[str] | None = None) -> None:
                 sys.exit(1)
 
         elif args.dot_file:
-            # Mode-switching path (tmux/headless): use RunnerStateMachine for pipeline-aware monitoring.
+            # Mode-switching path (tmux/sdk): use RunnerStateMachine for pipeline-aware monitoring.
             emit_event(
                 "runner/init",
                 node=node_id,

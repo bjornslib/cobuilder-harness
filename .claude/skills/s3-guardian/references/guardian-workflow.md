@@ -203,28 +203,11 @@ cs-promise --create "Guardian: Validate PRD-{ID} implementation" \
 cs-promise --start <promise-id>
 ```
 
-### 3.2 Spawn Meta-Orchestrator (Headless Mode)
+### 3.2 Spawn Meta-Orchestrator
 
-Use `spawn_orchestrator.py --mode headless` for automated pipelines with signal-file monitoring. The headless mode runs the orchestrator as a `claude -p` subprocess with structured JSON output.
+**DEFAULT**: Use `pipeline_runner.py --dot-file` to launch workers via AgentSDK (see system3-meta-orchestrator output style → DOT Graph Navigation for full pattern).
 
-```bash
-# Spawn via headless mode (automated, API-billed)
-python3 "${IMPL_REPO}/.claude/scripts/attractor/spawn_orchestrator.py" \
-    --node "s3-${INITIATIVE}" \
-    --prd "${PRD_ID}" \
-    --repo-root "${IMPL_REPO}" \
-    --mode headless \
-    --prompt "You are the System 3 meta-orchestrator. Invoke Skill('s3-guardian') first. Then read PRD-${PRD_ID} at .taskmaster/docs/PRD-${PRD_ID}.md. Parse tasks with Task Master. Spawn orchestrators as needed. Report when all epics are complete."
-
-# The process runs as a subprocess. Output is captured as JSON.
-# Monitor via signal files: .claude/attractor/signals/<node>.json
-```
-
-**What headless mode does internally**:
-1. Builds `claude -p "<prompt>" --system-prompt <role> --permission-mode bypassPermissions --output-format stream-json --verbose`
-2. Sets Three-Layer Context: ROLE (--system-prompt), TASK (-p), IDENTITY (env vars)
-3. Streams JSONL events line-by-line from stdout (types: `system/init`, `assistant`, `result`, etc.)
-4. Writes signal files for guardian monitoring (includes full event stream)
+For interactive sessions where human observation matters, use `spawn_orchestrator.py --mode tmux`:
 
 ### 3.2.1 Spawn Meta-Orchestrator (tmux Mode — Interactive)
 
@@ -442,6 +425,135 @@ Feature: F2 — {name} (validation_method: api-required)
 
 See [validation-scoring.md](validation-scoring.md) Section 10 for the complete keyword reference.
 
+### 5.4a Autonomous Gap Closure (In-Flight Pipeline Modification)
+
+**Trigger**: Gaps have been identified in Sections 5.3-5.3b, but BEFORE making the final decision in 5.4.
+
+**Purpose**: System 3 autonomously creates codergen fix-it nodes for gaps that can be fixed without architectural or UX decisions, modifies the DOT pipeline in-place, and re-validates affected scenarios. This ensures only gaps requiring user input (architectural/design decisions) are escalated to `wait.human`.
+
+#### Decision Tree for Each Gap
+
+For each gap identified in Sections 5.3-5.3b:
+
+1. **Is gap in PRD scope?** (Check against PRD Section 8 epics)
+   - NO → Mark as informational, do not create fix-it
+   - YES → Continue
+
+2. **Is gap fixable without architectural or UX decisions?**
+   - NO (requires design change, API contract rework, etc.) → Escalate
+   - YES → Continue
+
+3. **Is this a regression?** (Compare against ZeroRepo baseline at `.zerorepo/baseline.json`)
+   - YES (feature worked before, now broken) → P0 priority fix-it
+   - NO → Continue
+
+4. **Low-risk and fixable in <15 minutes?** (imports, test mocks, CSS, validation logic)
+   - YES → Create autonomous fix-it codergen node
+   - NO → Escalate to `wait.human`
+
+**Full decision tree with detailed examples**: See [gap-decision-tree.md](gap-decision-tree.md).
+
+#### Creating and Deploying Fix-It Nodes
+
+For each gap decided for autonomous closure:
+
+1. **Create minimal Solution Design** (3-4 paragraphs, specific fix only)
+   - Path: `docs/sds/fix-gap-{gap_id}.md`
+   - Acceptance: "Gherkin scenario {scenario_name} passes; no regressions introduced"
+   - Example: Missing import, test mock configuration, CSS class, validation check
+
+2. **Create Beads issue** for tracking
+   ```bash
+   bd create --title="FIX-{gap_id}: {gap_title} — gap from Phase 4 validation" \
+             --type=task --priority=1 \
+             --description="Gap identified during Phase 4 validation: {gap_description}. Closes scenario {scenario}."
+   BEAD_ID=$(bd list --title="FIX-{gap_id}" --json | jq -r '.[0].id')
+   ```
+
+3. **Add fix-it node to DOT pipeline** (in-flight modification)
+   ```dot
+   fix_gap_x1 [
+       shape=box
+       label="FIX: {gap_title}"
+       handler="codergen"
+       worker_type="backend-solutions-engineer|frontend-dev-expert|tdd-test-engineer"
+       sd_path="docs/sds/fix-gap-{gap_id}.md"
+       bead_id="{BEAD_ID}"
+       acceptance="Scenario {scenario_name} passes, no regressions"
+       status="pending"
+   ];
+
+   e1_gate -> fix_gap_x1 [label="gaps_detected"];
+   fix_gap_x1 -> revalidate_gap_x1 [label="impl_complete"];
+   revalidate_gap_x1 [
+       shape=hexagon
+       label="Re-validate Gap X1"
+       handler="wait.system3"
+       gate_type="gap-closure"
+       status="pending"
+   ];
+   revalidate_gap_x1 -> e1_review [label="validated"];
+   ```
+
+4. **Dispatch fix-it via runner**
+   ```bash
+   python3 .claude/scripts/attractor/runner.py --spawn \
+       --node fix_gap_x1 \
+       --prd PRD-{ID} \
+       --dot-file .claude/attractor/pipelines/PRD-{ID}.dot
+   ```
+
+5. **Re-validate after fix completes**
+   ```bash
+   # Run exact scenario that failed
+   behave acceptance-tests/PRD-{ID}/{scenario_name}.feature:S{scenario_num}
+
+   # If passes:
+   python3 .claude/scripts/attractor/cli.py node-modify \
+       --dot-file .claude/attractor/pipelines/PRD-{ID}.dot \
+       --node-id revalidate_gap_x1 \
+       --set status=validated
+
+   bd close $BEAD_ID
+
+   # If fails, requeue with corrected guidance
+   ```
+
+#### Cascade Control
+
+Track iteration count to prevent infinite fix-it loops:
+
+```python
+cascade_depth = 0
+max_iterations = 3
+
+for gap in gaps_found:
+    cascade_depth += 1
+
+    if cascade_depth > max_iterations:
+        # Stop autonomous closure, escalate remaining gaps to wait.human
+        escalate_remaining_gaps()
+        break
+
+    if is_autonomous_fixable(gap):
+        create_and_dispatch_fix_it(gap)
+        revalidate(gap)
+    else:
+        escalate_to_wait_human(gap)
+```
+
+After 3 iterations of fix-it nodes, escalate remaining gaps with summary: "Cascade detected: 3 iterations revealed additional gaps. Escalating for user decision on approach."
+
+#### Completion
+
+Phase 4.5 (Autonomous Gap Closure) is complete when:
+- All in-scope, autonomously-fixable gaps have been fixed and re-validated
+- All fix-it codergen nodes have completed successfully
+- No gaps remain that don't require architectural or UX decisions
+- Pipeline is ready for the final decision in Section 5.4
+
+**Detailed protocol**: See [gap-closure-protocol.md](gap-closure-protocol.md) for complete patterns, common fix-it types, and escalation criteria.
+
 ### 5.4 Make Decision
 
 Compare the total weighted score against manifest thresholds:
@@ -487,6 +599,306 @@ Generate a structured validation report:
 ## Recommendations
 - {next steps based on decision}
 ```
+
+---
+
+## 5.5 In-Flight Pipeline Modification: Phase 4.5 Gap Closure
+
+When Phase 4 validation identifies gaps and the decision is made to autonomously close **closable** gaps (see validation-scoring.md § Phase 4.5), you must add fix-it nodes to the running pipeline atomically. This section documents the mechanics of adding nodes to a live pipeline without interrupting orchestrator execution.
+
+### When In-Flight Modification is Triggered
+
+In-flight pipeline modification happens when:
+1. **Phase 4 validation completes** with gaps identified
+2. **Gap analysis confirms closable gaps** exist (see gap-decision-tree.md)
+3. **Decision is made to continue** (escalation gates not reached)
+4. **Orchestrator is still active** (pipeline runner still executing)
+
+Modification does NOT happen if:
+- Orchestrator has already reached `wait.human` or final state
+- All gaps are non-closable (escalate directly without modification)
+- Modification depth exceeds 3 iterations (escalate to user)
+
+### Safe Atomic Modification Pattern
+
+Pipeline modification must be atomic — a failing operation should not leave the DOT file in an inconsistent state. Use this pattern:
+
+```bash
+#!/bin/bash
+# Safe in-flight pipeline modification
+
+PIPELINE_PATH="path/to/simple-pipeline.dot"
+BACKUP_PATH="${PIPELINE_PATH}.backup-$(date +%s)"
+
+# Step 1: Validate current state
+cobuilder cli validate --dot-file "${PIPELINE_PATH}" \
+    || { echo "ERROR: Pipeline invalid before modification"; exit 1; }
+
+# Step 2: Create backup (recovery point)
+cp "${PIPELINE_PATH}" "${BACKUP_PATH}"
+
+# Step 3: Add fix-it node (atomic operation)
+cobuilder cli node-add \
+    --dot-file "${PIPELINE_PATH}" \
+    --node-id "fix_gap_1" \
+    --label "FIX: Missing import" \
+    --handler "codergen" \
+    --attributes "worker_type=backend-solutions-engineer,sd_path=docs/sds/fix-g1.md,priority=P0"
+
+# Step 4: Wire node into pipeline (add edges)
+cobuilder cli edge-add \
+    --dot-file "${PIPELINE_PATH}" \
+    --from "validate_phase_4" \
+    --to "fix_gap_1"
+
+cobuilder cli edge-add \
+    --dot-file "${PIPELINE_PATH}" \
+    --from "fix_gap_1" \
+    --to "re_validate_gaps"
+
+# Step 5: Validate new pipeline
+cobuilder cli validate --dot-file "${PIPELINE_PATH}" \
+    || {
+        echo "ERROR: Pipeline validation failed after modification"
+        echo "Rolling back to backup: ${BACKUP_PATH}"
+        mv "${BACKUP_PATH}" "${PIPELINE_PATH}"
+        exit 1
+    }
+
+# Step 6: Checkpoint (save validated state)
+cobuilder cli checkpoint \
+    --dot-file "${PIPELINE_PATH}" \
+    --label "Phase 4.5 modification: added fix_gap_1"
+
+# Step 7: Clean up backup (success)
+rm -f "${BACKUP_PATH}"
+
+echo "SUCCESS: Pipeline modified atomically with fix-it node"
+```
+
+### CLI Commands for Pipeline Modification
+
+**Create a fix-it node:**
+```bash
+cobuilder cli node-add \
+    --dot-file "simple-pipeline.dot" \
+    --node-id "fix_gap_1" \
+    --label "FIX: Missing validation check" \
+    --handler "codergen" \
+    --attributes "worker_type=backend-solutions-engineer,sd_path=docs/sds/FIX-G1.md,priority=P0,status=pending"
+```
+
+**Add edge from validation gate to fix-it node:**
+```bash
+cobuilder cli edge-add \
+    --dot-file "simple-pipeline.dot" \
+    --from "validate_phase_4" \
+    --to "fix_gap_1"
+```
+
+**Add edge from fix-it node to re-validation:**
+```bash
+cobuilder cli edge-add \
+    --dot-file "simple-pipeline.dot" \
+    --from "fix_gap_1" \
+    --to "re_validate_after_fix"
+```
+
+**Validate modified pipeline:**
+```bash
+cobuilder cli validate --dot-file "simple-pipeline.dot"
+```
+
+**Checkpoint current state (for history):**
+```bash
+cobuilder cli checkpoint \
+    --dot-file "simple-pipeline.dot" \
+    --label "Added fix-it node for gap G1"
+```
+
+### Pipeline Topology During Gap Closure
+
+Typical pipeline structure during Phase 4.5:
+
+```dot
+validate_phase_4 [handler="wait.system3" ...];
+
+fix_gap_1 [handler="codergen" ...];
+fix_gap_2 [handler="codergen" ...];
+fix_gap_3 [handler="codergen" ...];
+
+re_validate_gaps [handler="wait.system3" ...];
+
+validate_phase_4 -> fix_gap_1;
+validate_phase_4 -> fix_gap_2;
+validate_phase_4 -> fix_gap_3;
+
+fix_gap_1 -> re_validate_gaps;
+fix_gap_2 -> re_validate_gaps;
+fix_gap_3 -> re_validate_gaps;
+
+re_validate_gaps -> [await results, analyze new gaps];
+```
+
+**Modification Steps:**
+1. After `validate_phase_4` identifies gaps, create fix-it nodes
+2. Wire them all to exit from the validation gate
+3. Wire all fixes to converge on re-validation node
+4. Allow orchestrator to execute fixes and re-validate
+5. If new gaps emerge, repeat (tracking iteration count)
+
+### Cascading Gap Management
+
+When re-validation reveals new gaps, track iteration depth to prevent infinite loops:
+
+```python
+iteration = 0
+max_iterations = 3
+
+while iteration < max_iterations:
+    iteration += 1
+
+    # Run validation
+    gaps = validate_against_rubric()
+
+    if not gaps:
+        print("SUCCESS: All gaps closed")
+        return
+
+    # Classify gaps
+    closable_gaps = [g for g in gaps if is_closable(g)]
+    escalate_gaps = [g for g in gaps if not is_closable(g)]
+
+    if escalate_gaps and not closable_gaps:
+        print(f"ESCALATE: {len(escalate_gaps)} non-closable gaps")
+        return escalate_to_wait_human(escalate_gaps)
+
+    if not closable_gaps:
+        print("NO WORK: All gaps are non-closable")
+        return escalate_to_wait_human(gaps)
+
+    # Create fix-it nodes for closable gaps
+    for gap in closable_gaps:
+        create_fix_it_node(gap)
+
+    # Add nodes to pipeline and continue
+    modify_pipeline_in_flight(closable_gaps)
+
+    # Orchestrator will execute new nodes automatically
+
+if iteration >= max_iterations:
+    print(f"ESCALATE: Max iterations {max_iterations} reached")
+    print(f"Remaining closable gaps suggest architecture issue")
+    return escalate_to_wait_human_with_cascade_evidence(gaps)
+```
+
+**Cascade escalation trigger**: If you reach 3 iterations (9 potential fix-it nodes) and still have closable gaps, escalate the entire set to wait.human with evidence of cascading failures. This indicates a deeper architectural issue that requires human insight.
+
+### Beads Synchronization During Modification
+
+When adding fix-it nodes in-flight, keep Beads synchronized:
+
+```bash
+# For each fix-it node created:
+bd create \
+    --title="FIX-G1: Missing email validation" \
+    --type=task \
+    --priority=0 \
+    --description="Phase 4.5 autonomous gap closure: Add validation to email field" \
+    --epic-id="FIX-G1"
+
+# Link the Beads issue to the orchestrator epic
+bd dep add "FIX-G1" "PRD-{ID}-epic"
+
+# When the fix-it node completes:
+bd update "FIX-G1" --status=done --notes="Fix-it node completed by worker, re-validation pending"
+
+# After re-validation confirms closure:
+bd update "FIX-G1" --notes="Gap confirmed closed in re-validation, signature: {validation_score}"
+```
+
+### Solution Design Requirements for Fix-It Nodes
+
+Each fix-it node requires a minimal Solution Design document:
+
+```markdown
+---
+title: "FIX-G1: Missing Email Validation"
+---
+
+# Gap Closure Solution Design
+
+## Gap Reference
+- Gap ID: G1
+- Identified in Phase 4 validation
+- Acceptance criterion violated: Feature 2, Scenario 1
+
+## In-Scope Changes
+- **File**: `frontend/forms/UserForm.tsx`
+- **Change**: Add email validation schema
+- **Lines**: ~150-160
+- **Dependencies**: Uses existing `z.string()` from zod library (already imported)
+
+## Acceptance for Closure
+1. Form validation fails when email format is invalid
+2. Test `test_email_validation_invalid` passes
+3. No regression in other form tests (verify with `npm test -- forms`)
+4. User can still submit valid email addresses
+
+## Risk Assessment
+- **Complexity**: Low (single schema validation line)
+- **Cascade risk**: None (isolated to form validation)
+- **Performance impact**: Negligible (runs on client-side form input)
+- **API impact**: None (API validation unchanged)
+
+## Verification Steps
+1. Manual test: Submit form with invalid email → should fail
+2. Automated test: Run `npm test -- UserForm.test.tsx`
+3. Full suite: Run `npm test` to detect regressions
+4. QA checklist: Form still submits on valid email
+
+---
+```
+
+The SD is minimal because it's closing a specific gap, not designing a feature. Focus on **what changed**, **how to verify**, and **what could break**.
+
+### Timeline for In-Flight Modification
+
+Typical Phase 4.5 timeline:
+
+| Step | Duration | Activity |
+|------|----------|----------|
+| Validate & identify gaps | 10 min | Phase 4 validation completes, gaps extracted |
+| Gap analysis & classification | 5 min | Use gap-decision-tree.md to classify |
+| Create fix-it SDs | 10 min | Write minimal solution designs |
+| Modify pipeline | 2 min | Add nodes, wire edges, checkpoint |
+| Orchestrator executes | 10-30 min | Workers run fix-it nodes |
+| Re-validate | 10 min | Run Phase 4 validation on fixed code |
+| **Total** | **47-67 min** | |
+
+If > 60 minutes total, escalate remaining gaps to wait.human rather than continuing.
+
+### Common Gotchas in In-Flight Modification
+
+**Gotcha 1: Modifying pipeline without backup**
+- WRONG: `cobuilder cli node-add` directly on active pipeline
+- RIGHT: Create backup first, validate after modification, checkpoint on success
+
+**Gotcha 2: Not wiring edges correctly**
+- WRONG: Add node but forget to connect it to validation gate
+- RIGHT: `edge-add` from validation node to fix-it, fix-it to re-validation
+
+**Gotcha 3: Using node-add without checkpoint**
+- WRONG: Modify 5 nodes in sequence without checkpoints
+- RIGHT: Checkpoint after each safe modification step
+
+**Gotcha 4: Infinite cascade loops**
+- WRONG: Keep fixing gaps indefinitely
+- RIGHT: Stop after 3 iterations and escalate to wait.human
+
+**Gotcha 5: Not updating Beads alongside pipeline**
+- WRONG: Pipeline has fix-it nodes but Beads has no corresponding issues
+- RIGHT: `bd create` for each fix-it, track progress, link to epic
 
 ---
 
