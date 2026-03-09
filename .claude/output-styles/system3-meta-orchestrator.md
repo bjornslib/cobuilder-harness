@@ -259,16 +259,30 @@ mcp__serena__switch_modes(["planning", "one-shot"])  # For System 3 sessions
 
 This enables `find_symbol`, `search_for_pattern`, and `get_symbols_overview` for all subsequent investigation. Lightweight lookups need no re-activation.
 
-**Investigation preference order** (use Serena first, fall back only if unavailable):
-```python
-# ✅ PREFERRED: Serena semantic tools
-mcp__serena__find_symbol(name_path_pattern="ClassName/method_name", include_body=True)
-mcp__serena__search_for_pattern(substring_pattern="pattern_here", restrict_search_to_code_files=True)
-mcp__serena__get_symbols_overview(relative_path="src/module.py")
+**Note:** LSP is a built-in tool (no ToolSearch needed). It requires installed language servers: `pyright-langserver` for Python, `typescript-language-server` for TypeScript/JS.
 
-# ⚠️ FALLBACK: Standard tools (use when Serena is unavailable or for non-code files)
-# Grep / Read / Glob
-```
+### Code Navigation Decision Guide
+
+Use **Serena** and **LSP** together — they are complementary, not competing:
+
+| Task | Tool | Why |
+|------|------|-----|
+| Find a symbol by name/pattern | `mcp__serena__find_symbol()` | Semantic search, works despite import errors |
+| Understand file/module structure | `mcp__serena__get_symbols_overview()` | Fast structural overview |
+| Find all callers of a function | `mcp__serena__find_referencing_symbols()` | Cross-file reference graph |
+| Search by regex/substring | `mcp__serena__search_for_pattern()` | Replaces Grep for source code |
+| Edit a method body | `mcp__serena__replace_symbol_body()` | Precise symbol-scoped edit |
+| Get type info / docstrings | `LSP(operation="hover")` | Only LSP provides this |
+| Jump to exact definition | `LSP(operation="goToDefinition")` | Type-resolved, not pattern-matched |
+| Find all usages (with types) | `LSP(operation="findReferences")` | Richer than Serena referencing |
+| Detect errors in file | `LSP(operation="documentSymbol")` + diagnostics | Real-time type errors |
+| Trace call hierarchy | `LSP(operation="incomingCalls"/"outgoingCalls")` | Not available in Serena |
+| Find implementations of interface | `LSP(operation="goToImplementation")` | Not available in Serena |
+
+**Decision rule:**
+- **Structure/navigation/editing** → Serena first
+- **Types/signatures/errors/definitions** → LSP
+- **Grep/Read on source code** → last resort fallback only
 
 ### Step 1: Query Your Private Bank (Meta-Wisdom)
 

@@ -83,7 +83,7 @@ except ImportError:
 
 try:
     import logfire
-    logfire.configure()
+    logfire.configure(scrubbing=False)
     _LOGFIRE_AVAILABLE = True
 except ImportError:
     logfire = None  # type: ignore[assignment]
@@ -833,7 +833,22 @@ class PipelineRunner:
             clean_env["ATTRACTOR_SIGNAL_DIR"] = str(self.signal_dir)
             options = claude_code_sdk.ClaudeCodeOptions(  # type: ignore[attr-defined]
                 system_prompt=self._build_system_prompt(worker_type),
-                allowed_tools=["Bash", "Read", "Write", "Edit", "Glob", "Grep", "MultiEdit", "TodoWrite", "WebFetch", "WebSearch"],
+                allowed_tools=[
+                    "Bash", "Read", "Write", "Edit", "Glob", "Grep", "MultiEdit", "TodoWrite", "WebFetch", "WebSearch",
+                    # LSP: type info, definitions, diagnostics (built-in, requires pyright-langserver / typescript-language-server)
+                    "LSP",
+                    # Serena: semantic code navigation and symbol-level editing
+                    "mcp__serena__activate_project",
+                    "mcp__serena__check_onboarding_performed",
+                    "mcp__serena__find_symbol",
+                    "mcp__serena__search_for_pattern",
+                    "mcp__serena__get_symbols_overview",
+                    "mcp__serena__find_referencing_symbols",
+                    "mcp__serena__find_file",
+                    "mcp__serena__replace_symbol_body",
+                    "mcp__serena__insert_after_symbol",
+                    "mcp__serena__insert_before_symbol",
+                ],
                 permission_mode="bypassPermissions",
                 model=worker_model,
                 cwd=self._get_target_dir(),

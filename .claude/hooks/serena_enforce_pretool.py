@@ -186,8 +186,8 @@ def main() -> None:
         ext = _get_extension(target_path)
         _approve(
             f"[serena-enforce] Tip: Serena is active. For exploration, prefer "
-            f"mcp__serena__find_symbol(name_path=\"ClassName/method\", include_body=True) "
-            f"or mcp__serena__get_symbols_overview() over Read for {ext} files "
+            f"Serena (find_symbol, get_symbols_overview) for navigation or "
+            f"LSP(operation='hover') for type info — both are more precise than Read for {ext} files "
             f"(70-95% token savings). Read is allowed for pre-edit file loading."
         )
         return
@@ -199,7 +199,8 @@ def main() -> None:
         if target.is_file() and _is_source_code(target_path):
             _block(
                 f"[serena-enforce] Serena is active for this project. "
-                f"Use mcp__serena__search_for_pattern(pattern=\"...\", relative_path=\"...\") "
+                f"Use mcp__serena__search_for_pattern() for pattern search, or "
+                f"LSP(operation='findReferences') for symbol usages — "
                 f"instead of Grep for source code files. "
                 f"Bypass: set SERENA_ENFORCE_SKIP=1 or create .claude/.serena-enforce-skip"
             )
@@ -213,7 +214,8 @@ def main() -> None:
             if glob_filter in code_globs or glob_filter in code_types:
                 _block(
                     f"[serena-enforce] Serena is active for this project. "
-                    f"Use mcp__serena__search_for_pattern(pattern=\"...\") "
+                    f"Use mcp__serena__search_for_pattern() for pattern search, or "
+                    f"LSP(operation='findReferences') for symbol usages — "
                     f"instead of Grep with type/glob filter '{glob_filter}'. "
                     f"Bypass: set SERENA_ENFORCE_SKIP=1 or create .claude/.serena-enforce-skip"
                 )

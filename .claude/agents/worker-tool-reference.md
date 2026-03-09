@@ -9,7 +9,23 @@ grade: authoritative
 # Worker Tool Reference
 
 Your primary tools are: Bash, Read, Write, Edit, Glob, Grep, MultiEdit, TodoWrite, WebFetch, WebSearch.
-MCP tools may also be available depending on the project configuration.
+
+You also have access to **LSP** (built-in type/definition tool) and **Serena MCP** (semantic code navigation). Use them for code investigation before falling back to Grep/Read on source files.
+
+**Code Navigation Decision Guide** (use the right tool, not the first one):
+
+| Task | Best Tool |
+|------|-----------|
+| Find a symbol by name | `mcp__serena__find_symbol` |
+| Understand file/module structure | `mcp__serena__get_symbols_overview` |
+| Find all callers of a function | `mcp__serena__find_referencing_symbols` |
+| Search by regex/substring in code | `mcp__serena__search_for_pattern` |
+| Edit a method body precisely | `mcp__serena__replace_symbol_body` |
+| Get type info / docstrings | `LSP(operation="hover")` |
+| Jump to exact definition | `LSP(operation="goToDefinition")` |
+| Find all usages with types | `LSP(operation="findReferences")` |
+| Detect type errors in file | `LSP(operation="documentSymbol")` |
+| Grep/Read on source code | **Last resort only** (70-95% less efficient) |
 
 ## ABSOLUTE PATHS — MANDATORY
 
@@ -196,6 +212,59 @@ WebSearch(query="React useCallback best practices 2025")
 
 - Returns search results with snippets
 - Use when you need current information about a framework, library, or pattern
+
+## LSP (type info and definitions)
+
+Query type information, definitions, and diagnostics from the language server. Requires `pyright-langserver` (Python) or `typescript-language-server` (TypeScript/JS) to be installed.
+
+```
+LSP(operation="hover", filePath="/absolute/path/to/file.py", line=33, character=10)
+```
+
+Operations:
+- `"hover"` — type info and docstrings at a position
+- `"goToDefinition"` — find where a symbol is defined
+- `"findReferences"` — all usages of a symbol (with types)
+- `"documentSymbol"` — list all symbols + diagnostics in a file
+- `"incomingCalls"` / `"outgoingCalls"` — call hierarchy
+- `"goToImplementation"` — find concrete implementations of an interface
+
+Use LSP when you need type information or exact definitions. Use Serena for structural navigation.
+
+## Serena MCP (semantic code navigation)
+
+Navigate code semantically — no regex, no line numbers, just symbol names.
+
+**Activate first** (once per session):
+```
+mcp__serena__check_onboarding_performed()
+mcp__serena__activate_project(project="<project-name>")
+```
+
+**Find a symbol**:
+```
+mcp__serena__find_symbol(name_path_pattern="ClassName/method_name", include_body=True)
+```
+
+**Search for a pattern across source files**:
+```
+mcp__serena__search_for_pattern(substring_pattern="pattern_here", restrict_search_to_code_files=True)
+```
+
+**Get file/module structure**:
+```
+mcp__serena__get_symbols_overview(relative_path="src/module.py")
+```
+
+**Find all callers of a symbol**:
+```
+mcp__serena__find_referencing_symbols(name_path="ClassName/method_name", relative_path="src/module.py")
+```
+
+**Replace a method body** (implementation workers only):
+```
+mcp__serena__replace_symbol_body(name_path="ClassName/method_name", relative_path="src/module.py", body="    def method_name(self):\n        ...")
+```
 
 ## Common Workflows
 

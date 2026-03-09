@@ -166,6 +166,17 @@ See **[references/hindsight-validation-checklist.md](references/hindsight-valida
 
 ---
 
+## Code Investigation Tools
+
+When investigating implementation during validation (Phase 4):
+
+- **Serena** (`find_symbol`, `find_referencing_symbols`, `get_symbols_overview`) — structure and cross-file references
+- **LSP** (`hover`, `goToDefinition`, `documentSymbol`) — types, signatures, and diagnostics
+
+Diagnostics surfaced by LSP (e.g., import errors, type mismatches) count as validation evidence — document them in the scorecard.
+
+---
+
 ## Recursive Guardian Pattern
 
 The guardian pattern is recursive. A guardian can watch:

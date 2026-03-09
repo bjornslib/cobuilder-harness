@@ -262,6 +262,8 @@ def main(argv: list[str] | None = None) -> None:
     options = ClaudeCodeOptions(
         allowed_tools=[
             "Bash", "Read", "Edit", "Write", "ToolSearch",
+            # LSP: type info, go-to-definition, diagnostics
+            "LSP",
             # MCP: research tools (Context7 for docs, Perplexity for cross-validation)
             "mcp__context7__resolve-library-id",
             "mcp__context7__query-docs",
@@ -272,6 +274,14 @@ def main(argv: list[str] | None = None) -> None:
             "mcp__hindsight__reflect",
             "mcp__hindsight__retain",
             "mcp__hindsight__recall",
+            # MCP: Serena — semantic code navigation (read existing code to validate patterns)
+            "mcp__serena__activate_project",
+            "mcp__serena__check_onboarding_performed",
+            "mcp__serena__find_symbol",
+            "mcp__serena__search_for_pattern",
+            "mcp__serena__get_symbols_overview",
+            "mcp__serena__find_referencing_symbols",
+            "mcp__serena__find_file",
         ],
         system_prompt="You are a research agent that validates implementation patterns against current documentation.",
         cwd=target_dir,

@@ -1,22 +1,10 @@
-"""dispatch_worker.py — Headless worker dispatch via ``claude -p``.
+"""dispatch_worker.py — Worker dispatch utilities for AgentSDK pipeline execution.
 
-Extracted from spawn_orchestrator.py to consolidate the 3-layer architecture:
-    Guardian → Runner → dispatch_worker.py → claude -p --output-format stream-json
-
-Provides two functions:
-    _build_headless_worker_cmd()  — Build the CLI command and environment
-    run_headless_worker()         — Execute the worker subprocess with JSONL streaming
-
-Usage (programmatic):
-    from dispatch_worker import _build_headless_worker_cmd, run_headless_worker
-
-    cmd, env = _build_headless_worker_cmd(
-        task_prompt="Implement auth module",
-        work_dir="/path/to/repo",
-        node_id="impl_auth",
-        pipeline_id="PRD-AUTH-001",
-    )
-    result = await run_headless_worker(cmd, env, work_dir="/path/to/repo")
+Provides shared utilities used by pipeline_runner.py for AgentSDK-based worker dispatch:
+    compute_sd_hash()        — Compute hash of a solution design file
+    load_attractor_env()     — Load attractor-specific environment credentials
+    create_signal_evidence() — Write signal evidence files for pipeline nodes
+    load_agent_definition()  — Load agent definition YAML from .claude/agents/
 """
 
 from __future__ import annotations
@@ -260,229 +248,17 @@ def load_agent_definition(work_dir: str, worker_type: str) -> dict:
     return result
 
 
-def _build_headless_worker_cmd(
-    task_prompt: str,
-    work_dir: str,
-    worker_type: str = "backend-solutions-engineer",
-    model: str = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6"),
-    node_id: str = "",
-    pipeline_id: str = "",
-    runner_id: str = "",
-    prd_ref: str = "",
-) -> tuple[list[str], dict[str, str]]:
-    """Build a headless worker command using ``claude -p``.
-
-    Three-Layer Context:
-      Layer 1 (ROLE): ``--system-prompt`` from ``.claude/agents/{worker_type}.md``
-      Layer 2 (TASK): ``-p`` argument (*task_prompt*)
-      Layer 3 (IDENTITY): env vars (``WORKER_NODE_ID``, ``PIPELINE_ID``, etc.)
-
-    Args:
-        task_prompt: The task description sent as the ``-p`` argument.
-        work_dir: Working directory for the worker process.
-        worker_type: Agent type — filename stem under ``.claude/agents/``.
-        model: Claude model identifier.
-        node_id: Pipeline node identifier.
-        pipeline_id: Pipeline identifier string.
-        runner_id: Runner identifier (for traceability).
-        prd_ref: PRD reference (e.g., PRD-AUTH-001).
-
-    Returns:
-        Tuple of (command list, environment dict).
-    """
-    # Load agent definition with skills_required and other metadata
-    try:
-        agent_def = load_agent_definition(work_dir, worker_type)
-        skills_required = agent_def.get("skills_required", [])
-    except (FileNotFoundError, ValueError) as e:
-        print(f"ERROR: Failed to load agent definition for '{worker_type}': {e}", file=sys.stderr)
-        raise
-
-    # Read Layer 1: ROLE from .claude/agents/{worker_type}.md
-    agents_dir = Path(work_dir) / ".claude" / "agents"
-    role_file = agents_dir / f"{worker_type}.md"
-    if role_file.exists():
-        role_content = role_file.read_text()
-        # Strip frontmatter if present
-        if role_content.startswith("---"):
-            _, _, rest = role_content.partition("---")
-            _, _, role_content = rest.partition("---")
-        role_content = role_content.strip()
-
-        # Inject skill invocations at the beginning of the role content
-        if skills_required:
-            skills_section = f"\n\n## Required Skills\n\nBefore starting work, run:\n"
-            for skill in skills_required:
-                skills_section += f"- `Skill(\"{skill}\")`\n"
-            role_content = skills_section + role_content
-    else:
-        # This shouldn't happen due to the hard error check above, but just in case
-        role_content = f"You are a specialist agent ({worker_type}). Implement features directly."
-
-    cmd = [
-        "claude",
-        "-p", task_prompt,
-        "--system-prompt", role_content,
-        "--permission-mode", "bypassPermissions",
-        "--output-format", "stream-json",
-        "--verbose",
-        "--model", model,
-        # Bypass all MCP server initialization for headless workers.
-        # Without this, 11+ MCP servers from .mcp.json cause extreme
-        # startup delays (30s+) or hangs in subprocess mode.
-        "--mcp-config", '{"mcpServers":{}}',
-        "--strict-mcp-config",
-    ]
-
-    # Layer 3: IDENTITY as env vars (zero context token cost)
-    env = dict(os.environ)
-    # Overlay attractor-specific credentials for headless workers.
-    env.update(load_attractor_env())
-
-    # Set ATTRACTOR_SIGNAL_DIR and CONCERNS_FILE for worker subprocesses
-    attractor_signals_dir = os.path.join(work_dir, ".claude", "attractor", "signals")
-    os.makedirs(attractor_signals_dir, exist_ok=True)
-
-    # Set CONCERNS_FILE path
-    concerns_file = os.path.join(attractor_signals_dir, "concerns.jsonl")
-
-    env.update({
-        "WORKER_NODE_ID": node_id,
-        "PIPELINE_ID": pipeline_id,
-        "RUNNER_ID": runner_id,
-        "PRD_REF": prd_ref,
-        "ATTRACTOR_SIGNAL_DIR": attractor_signals_dir,
-        "CONCERNS_FILE": concerns_file,
-    })
-    # Remove CLAUDECODE to prevent nested session detection
-    env.pop("CLAUDECODE", None)
-
-    return cmd, env
-
-
-async def run_headless_worker(
-    cmd: list[str],
-    env: dict[str, str],
-    work_dir: str,
-    timeout_seconds: int = 1800,
-    on_event: Callable[[dict], None] | None = None,
-) -> dict:
-    """Run a headless worker via subprocess, streaming JSONL output line-by-line.
-
-    Uses ``subprocess.Popen`` with ``--output-format stream-json`` to read JSONL
-    events in real time.  Each line is a JSON object with a ``type`` field.  The
-    final ``{"type": "result", ...}`` line carries the same payload that the old
-    ``--output-format json`` returned, so the return value remains backward
-    compatible.
-
-    Args:
-        cmd: Command list (typically from :func:`_build_headless_worker_cmd`).
-        env: Environment dict for the subprocess.
-        work_dir: Working directory for the subprocess.
-        timeout_seconds: Maximum wall-clock time before killing the worker.
-        on_event: Optional callback invoked for every successfully parsed JSONL
-            event.  Receives the parsed ``dict``.  Exceptions raised inside the
-            callback are logged and suppressed.
-
-    Returns:
-        Dict with ``status`` (``"success"``, ``"error"``, or ``"timeout"``),
-        plus output or error details, plus ``events`` (list of all parsed events).
-
-        On success:
-            ``{"status": "success", "output": <result_event>, "exit_code": 0,
-               "events": [...]}``
-        On error:
-            ``{"status": "error", "exit_code": N, "stdout": "...",
-               "stderr": "...", "events": [...]}``
-        On timeout:
-            ``{"status": "timeout", "events": [...]}``
-    """
-    events: list[dict] = []
-    stderr_lines: list[str] = []
-
-    process = subprocess.Popen(
-        cmd,
-        cwd=work_dir,
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
+def _build_headless_worker_cmd(*args, **kwargs):  # type: ignore[no-untyped-def]
+    """Removed: headless mode is no longer supported. Use pipeline_runner.py with AgentSDK."""
+    raise NotImplementedError(
+        "_build_headless_worker_cmd removed. Use pipeline_runner.py --dot-file with AgentSDK dispatch."
     )
 
-    # Drain stderr in a background thread to prevent the pipe from blocking
-    # when the subprocess writes more than the OS pipe buffer allows.
-    def _drain_stderr() -> None:
-        assert process.stderr is not None
-        for line in process.stderr:
-            stderr_lines.append(line)
 
-    stderr_thread = threading.Thread(target=_drain_stderr, daemon=True)
-    stderr_thread.start()
+def run_headless_worker(*args, **kwargs):  # type: ignore[no-untyped-def]
+    """Removed: headless mode is no longer supported. Use pipeline_runner.py with AgentSDK."""
+    raise NotImplementedError(
+        "run_headless_worker removed. Use pipeline_runner.py --dot-file with AgentSDK dispatch."
+    )
 
-    timed_out = False
-    assert process.stdout is not None
-    try:
-        for raw_line in process.stdout:
-            line = raw_line.strip()
-            if not line:
-                continue
-            try:
-                event = json.loads(line)
-            except json.JSONDecodeError:
-                logger.debug("run_headless_worker: skipping non-JSON line: %.200s", line)
-                continue
 
-            events.append(event)
-
-            if on_event is not None:
-                try:
-                    on_event(event)
-                except Exception as exc:  # noqa: BLE001
-                    logger.warning("run_headless_worker: on_event callback raised: %s", exc)
-
-            # Check wall-clock timeout after each event to allow early detection.
-            # process.poll() is non-blocking; None means still running.
-    except Exception:  # noqa: BLE001
-        pass
-    finally:
-        # Enforce hard timeout: if the process is still running after
-        # ``timeout_seconds`` the caller's wall-clock limit has been exceeded.
-        # We use communicate(timeout=...) only if the process hasn't exited yet
-        # so that we don't re-read stdout (already consumed above).
-        try:
-            process.wait(timeout=timeout_seconds)
-        except subprocess.TimeoutExpired:
-            timed_out = True
-            process.kill()
-            process.wait()
-
-    stderr_thread.join(timeout=5)
-    stderr_combined = "".join(stderr_lines)
-
-    if timed_out:
-        return {"status": "timeout", "events": events}
-
-    exit_code = process.returncode
-
-    # Locate the final result event (last event with type=="result")
-    result_event: dict | None = None
-    for event in reversed(events):
-        if event.get("type") == "result":
-            result_event = event
-            break
-
-    if exit_code == 0:
-        # Use the result event when present; fall back to the whole events list.
-        output: object = result_event if result_event is not None else events
-        return {"status": "success", "output": output, "exit_code": 0, "events": events}
-    else:
-        stdout_tail = "".join(
-            json.dumps(e) for e in events[-10:]
-        )[-2000:]
-        return {
-            "status": "error",
-            "exit_code": exit_code,
-            "stdout": stdout_tail,
-            "stderr": stderr_combined[-2000:],
-            "events": events,
-        }
