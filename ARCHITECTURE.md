@@ -73,14 +73,14 @@ clear ownership:
 │  │                validated | failed                         │  │
 │  │  • Checkpoints pipeline state mechanically                │  │
 │  │                                                            │  │
-│  │  Package: cobuilder/orchestration/pipeline_runner.py      │  │
+│  │  Active: .claude/scripts/attractor/pipeline_runner.py     │  │
 │  │  Cost: $0 (no LLM tokens)                                 │  │
 │  └───────────────────────────────────────────────────────────┘  │
 │                              │                                   │
 │                              │ Dispatches via AgentSDK           │
 │                              ▼                                   │
 ├─────────────────────────────────────────────────────────────────┤
-│  LAYER 2: WORKERS (Specialists via Native Agent Teams)          │
+│  LAYER 2: WORKERS (Standalone AgentSDK Queries)                 │
 │  ┌───────────────┬───────────────┬───────────────────────────┐  │
 │  │ Frontend Dev  │ Backend Eng   │ TDD Test Engineer        │  │
 │  │               │               │ + Validation Agent       │  │
@@ -89,6 +89,9 @@ clear ownership:
 │  │ • Tailwind    │ • Supabase    │ • Business validation    │  │
 │  │ • Edit/Write  │ • Edit/Write  │ • Signal result files    │  │
 │  └───────────────┴───────────────┴───────────────────────────┘  │
+│                              │                                   │
+│  Each worker = standalone claude_code_sdk.query() call           │
+│  (NOT Native Agent Teams — no TeamCreate/Teammate/SendMessage)  │
 │                              │                                   │
 │                              │ Write signal files                │
 │                              ▼                                   │
@@ -101,7 +104,7 @@ clear ownership:
 
 1. **Layer 0 (System 3)**: LLM-driven strategy, business judgment, independent validation
 2. **Layer 1 (Runner)**: Deterministic automation, zero LLM tokens, mechanical state transitions
-3. **Layer 2 (Workers)**: Focused implementation, reporting via signal files, never self-grading
+3. **Layer 2 (Workers)**: Focused implementation via standalone `claude_code_sdk.query()`, reporting via signal files, never self-grading
 
 **Key principle**: The implementer (Layer 2) never validates its own work.
 - Runner (Layer 1) detects completion via signals
@@ -116,19 +119,17 @@ pipeline engine** with pure Python state machine dispatch (Layer 1):
 
 ```
 cobuilder/
-├── orchestration/              ← Agent coordination layer (Layer 1 core)
-│   ├── pipeline_runner.py      ← State machine: pending→active→impl_complete→validated
-│   │                           ← AdvancedWorkerTracker: dead worker detection (Epic H)
-│   │                           ← AgentSDK dispatch (not subprocess)
-│   │                           ← Signal protocol: atomic writes, timeout handling
-│   │                           ← Validation agent auto-dispatch at impl_complete
+├── orchestration/              ← Agent coordination layer (older LLM-based runner)
+│   ├── pipeline_runner.py      ← LLM-based runner (anthropic.Anthropic().messages.create())
+│   │                           ← Plan-only + execute modes, 9 tool definitions
+│   │                           ← NOT the active dispatch path (see .claude/scripts/attractor/)
 │   ├── identity_registry.py    ← Tracks agent identities across sessions
-│   ├── spawn_orchestrator.py   ← Programmatic worker spawning (legacy: was for tmux)
+│   ├── spawn_orchestrator.py   ← Programmatic worker spawning (tmux mode)
 │   ├── runner_hooks.py         ← Hook lifecycle management
 │   ├── runner_models.py        ← Data models for pipeline state
 │   ├── runner_tools.py         ← Tool wrappers for workers
 │   └── adapters/
-│       ├── native_teams.py     ← Native Agent Teams adapter
+│       ├── native_teams.py     ← Native Agent Teams adapter (unused by active runner)
 │       └── stdout.py           ← Stdout capture adapter
 │
 ├── engine/                     ← **NEW (Epic E7.2)**: Observable pipeline engine
@@ -196,67 +197,105 @@ cobuilder/
 
 **Atomic writes**: tmp file → rename (prevents partial writes if process crashes)
 
-## Session Resilience System (Dead Worker Detection + Signal Protocol)
+## Session Resilience System (Pipeline Runner Hardening)
 
-**Epic H** (2026-03-10) introduced **AdvancedWorkerTracker** for dead worker detection:
+The pipeline runner (`pipeline_runner.py`) was hardened across 7 epics (G, H, A, B, C, J, D-partial)
+to survive worker crashes, signal corruption, validation timeouts, and forced restarts without
+human intervention.
+
+### Architecture
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
-│  Pipeline Runner (cobuilder/orchestration/pipeline_runner.py)    │
+│  Pipeline Runner (.claude/scripts/attractor/pipeline_runner.py)   │
 │                                                                   │
-│  AdvancedWorkerTracker ── Tracks futures, detects timeouts      │
+│  Epic H: AdvancedWorkerTracker ─ Tracks futures, detects death  │
 │         │                                                         │
-│         ├─ Main loop: check future.done() each iteration        │
-│         │                                                         │
-│         └─ Timeout logic: if elapsed > WORKER_SIGNAL_TIMEOUT    │
-│            (default 900s, uses time.monotonic() not time.time()) │
-│            → future.cancel()                                     │
-│            → process_handle.terminate() → kill()                │
+│         ├─ Main loop: _check_worker_liveness() each iteration   │
+│         ├─ WorkerState enum: SUBMITTED → RUNNING → COMPLETED    │
+│         │                    → FAILED / TIMED_OUT / CANCELLED   │
+│         └─ Timeout: if elapsed > default_timeout (900s)         │
+│            → future.cancel() → process_handle.terminate/kill()  │
 │            → Auto-generate fail signal file                      │
 │                                                                   │
-│  Signal File Watchdog ──── Monitors .claude/signals/{node}.json │
+│  Epic A: Atomic Signal Protocol ─ Crash-safe I/O                │
 │         │                                                         │
-│         ├─ Atomic writes: tmp → rename                           │
-│         ├─ Reads signal format: {status, result, message}        │
-│         └─ Transitions node state based on signal               │
+│         ├─ Writes: tmp file (PID+monotonic_ns suffix) → rename  │
+│         ├─ Metadata: _seq counter, _ts timestamp, _pid           │
+│         ├─ Corruption: invalid JSON → quarantine/ (not dropped) │
+│         └─ Ordering: _apply_signal() BEFORE os.rename() to      │
+│            processed/ (crash between = safe, signal re-applied)  │
 │                                                                   │
-│  Validation Agent Dispatch ─ Auto-invokes at impl_complete      │
+│  Epic B: force_status Persistence ─ Survives restarts           │
 │         │                                                         │
-│         └─ Technical + business gates run before node moves to   │
-│            validated or failed state                             │
+│         ├─ _force_status() calls _do_transition() (disk write)  │
+│         └─ Requeue guidance persists to signals/guidance/{id}.txt│
+│                                                                   │
+│  Epic C: Validation Error Handling ─ No silent hangs            │
+│         │                                                         │
+│         ├─ VALIDATION_TIMEOUT env var (default 600s)             │
+│         ├─ asyncio.TimeoutError → writes fail signal             │
+│         ├─ Generic Exception → writes fail signal with details   │
+│         └─ No silent auto-pass on validation errors              │
+│                                                                   │
+│  Epic J: Validation Spam Suppression ─ Cost savings             │
+│         │                                                         │
+│         ├─ _dispatch_validation_agent() checks _get_node_status()│
+│         └─ Skips dispatch for terminal nodes (validated/accepted/│
+│            failed) — prevents duplicate validation + API waste   │
+│                                                                   │
+│  Epic D (partial): Orphan Resume ─ All handlers resumable       │
+│         │                                                         │
+│         └─ Exponential backoff (5s, 10s, 20s, max 60s)          │
+│            Gate nodes emit escalation signals on repeated failure│
 └──────────────────────────────────────────────────────────────────┘
+```
 
-State Chain (Deterministic, No LLM):
-───────────────────────────────────────
+### State Chain (Deterministic, No LLM)
 
+```
 pending
     │
     ├─ Dispatch worker (via AgentSDK)
     ▼
 active
     │
-    ├─ Wait for signal file OR timeout
+    ├─ Wait for signal file OR timeout (Epic H: auto-detect dead workers)
     ├─ If signal: read {status, message, files_changed}
-    ├─ If timeout: auto-generate fail signal
+    ├─ If timeout: auto-generate fail signal (Epic H)
+    ├─ If corrupted signal: quarantine, retry (Epic A)
     ▼
 impl_complete (signal received: status=success)
     │
-    ├─ Auto-dispatch validation agent
+    ├─ Check if node already terminal → skip dispatch (Epic J)
+    ├─ Auto-dispatch validation agent (VALIDATION_TIMEOUT env var, Epic C)
     │  (--mode=technical --mode=business)
     │
     └─ Wait for validation signal {result: "pass"|"fail"|"requeue"}
-       ├─ pass → validated
-       ├─ fail → blocked (requires system3 intervention)
-       └─ requeue → predecessor back to pending
+       ├─ pass → validated (persisted to DOT on disk, Epic B)
+       ├─ fail → blocked (fail signal written, not silent, Epic C)
+       └─ requeue → predecessor back to pending + guidance file (Epic B)
 ```
 
-**Key improvements (E7.2 + Epic H)**:
+### Hardening Summary
 
-1. **Zero dead workers**: Timeout detection auto-kills stuck processes
-2. **Atomic signals**: Writers use tmp→rename to prevent partial writes
-3. **Clock consistency**: Uses `time.monotonic()` for all timeout calculations
-4. **Auto-validation**: Validation agents dispatched mechanically, not by LLM
-5. **Observable**: Signal files in `.claude/signals/` provide audit trail
+| Epic | Problem | Solution | E2E Tests |
+|------|---------|----------|-----------|
+| **H** | Workers die silently, runner waits forever | `AdvancedWorkerTracker` with `WorkerInfo` dataclass, `_check_worker_liveness()` in main loop | 10 tests |
+| **A** | Partial JSON writes = corrupted signals | Temp+rename atomic writes, `_seq` counter, quarantine dir, apply-before-consume ordering | 7 tests |
+| **B** | `_force_status()` only updated memory, lost on restart | Now calls `_do_transition()` (disk write), requeue guidance persisted to `signals/guidance/` | 4 tests |
+| **C** | Validation timeout/crash = silent hang | `VALIDATION_TIMEOUT` env var (600s), both TimeoutError and Exception write fail signals | 4 tests |
+| **J** | Validation dispatched for already-terminal nodes | `_get_node_status()` guard before dispatch, skips validated/accepted/failed | 8 tests |
+| **D** (partial) | Orphan nodes not resumable across all handler types | All handlers resumable with exponential backoff (5s→60s max) | - |
+
+**33 E2E tests** covering all hardening features pass in 3.62s (`tests/e2e/test_pipeline_hardening.py`).
+
+### Key Design Decisions
+
+1. **`time.time()` for worker tracking**: `AdvancedWorkerTracker.submitted_at` and `_check_worker_liveness()` both use `time.time()` (wall clock) for consistency. The cobuilder engine's `clock.py` uses `time.monotonic()` separately.
+2. **Quarantine over discard**: Corrupted signals are moved to `signals/quarantine/` rather than silently dropped, preserving forensic evidence.
+3. **Apply-before-consume**: Signal transitions are applied to the DOT file BEFORE the signal is moved to `processed/`. A crash between apply and move is safe — the signal will be re-applied on restart.
+4. **No silent auto-pass**: Prior to Epic C, validation errors could silently auto-pass. Now all errors write explicit fail signals with reason strings.
 
 ## SDK Pipeline Engine (Execution & Validation)
 
@@ -293,14 +332,14 @@ post-pipeline blind validation (Layer 0):
 │  └─ Node transitions: validated | failed (or requeue)          │
 │                                                                   │
 ├─────────────────────────────────────────────────────────────────┤
-│  Layer 2: WORKERS (Specialists via Native Agent Teams)          │
+│  Layer 2: WORKERS (Standalone claude_code_sdk.query() calls)    │
 │  ├─ Codergen: Implement features, write code                   │
 │  ├─ Research: Validate framework patterns pre-implementation   │
 │  ├─ Refine: Improve based on validation feedback               │
 │  └─ Validation: Independently gate work (dual-pass)            │
 │                                                                   │
-│  (Layer 2 workers never validate their own work;               │
-│   validation is a separate peer agent)                          │
+│  Each worker = isolated AgentSDK query with handler-specific   │
+│  allowed_tools list (no cross-worker communication)             │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -359,7 +398,7 @@ Layer 0 (S3 Guardian)               →  Post-pipeline blind validation:
 - `codergen` nodes now specify `worker_type` (backend-solutions-engineer, frontend-dev-expert, tdd-test-engineer)
 - `wait.system3` is the inline validation gate (auto-dispatches validation agents at impl_complete)
 - Validation agents signal result via `.claude/signals/{node}.json`
-- Validation agent NOT spawned as orchestrator; dispatched as peer worker in same team
+- Validation agent dispatched as separate standalone `claude_code_sdk.query()` (not in a team)
 
 ### Pipeline Dispatch: Pure Python (E7.2+)
 
@@ -368,13 +407,21 @@ Layer 0 (S3 Guardian)               →  Post-pipeline blind validation:
 ```
 System 3 (ccsystem3)
   │
-  └─ pipeline_runner.py --dot-file <path.dot>
+  └─ .claude/scripts/attractor/pipeline_runner.py --dot-file <path.dot>
      │
-     ├─ Parses DOT graph
-     ├─ Dispatches workers via AgentSDK (NOT subprocess, NOT tmux)
-     │  worker = AgentSDK.query(system_prompt=..., user_message=..., tools=[...])
+     ├─ Parses DOT graph (pure Python, zero LLM cost)
+     ├─ Dispatches workers via standalone claude_code_sdk.query() calls
+     │  async for msg in claude_code_sdk.query(
+     │      prompt=...,
+     │      options=ClaudeCodeOptions(
+     │          system_prompt=..., allowed_tools=[...],
+     │          permission_mode="bypassPermissions",
+     │          model=worker_model, cwd=target_dir, max_turns=50
+     │      )
+     │  )
+     │  (NOT Native Agent Teams, NOT subprocess, NOT tmux)
      │
-     ├─ Watches .claude/signals/{node}.json (atomic writes)
+     ├─ Watches .claude/signals/{node}.json via watchdog (atomic writes)
      │
      └─ Transitions state mechanically on signal arrival
         (pending → active → impl_complete → validated | failed)
@@ -469,8 +516,7 @@ Zustand store for the story-writer project:
 | Duration | ~20 minutes |
 | Self-healing events | 2 (worktree branch fix, deps-met workaround) |
 
-All 4 layers executed: `launch_guardian.py` → `guardian_agent.py` →
-`runner_agent.py` → orchestrator/workers in tmux.
+Full pipeline executed: System 3 → pipeline_runner.py → AgentSDK workers.
 
 ### Dogfood Validation: PRD-PYDANTICAI-WEBSEARCH-E2E
 
@@ -622,7 +668,8 @@ your-project/
 │   ├── output-styles/          ← Auto-loaded from harness
 │   ├── skills/                 ← All skills available
 │   ├── hooks/                  ← Lifecycle automation
-│   ├── scripts/attractor/      ← Session resilience scripts
+│   ├── scripts/attractor/      ← **Active pipeline runner** (Layer 1)
+│   │   └── pipeline_runner.py  ← Pure Python state machine + AgentSDK dispatch
 │   ├── scripts/                ← CLI utilities
 │   └── settings.json           ← Base configuration
 │
@@ -650,5 +697,6 @@ your-project/
 
 ---
 
-**Architecture Version**: 2.2.0
-**Last Updated**: March 2, 2026
+**Architecture Version**: 2.4.0
+**Last Updated**: March 10, 2026
+**Hardening**: SD-PIPELINE-RUNNER-HARDENING-001 (Epics G, H, A, B, C, J, D-partial)

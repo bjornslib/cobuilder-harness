@@ -389,7 +389,55 @@ See SD-HARNESS-UPGRADE-001-E7.2-python-runner.md for detailed class design. Key 
 - Changes to beads tracking (beads remain the primary work-tracking system)
 - Compliance researcher agent (Could-Have, deferred)
 
-## 9. Risks
+## 9. Implementation Status (Updated 2026-03-10)
+
+### Phase 1: Protocol Layer (E0-E3) — DONE
+
+All 4 epics completed via pipeline dispatch. Documentation-only changes to schema docs, workflow references, skills, and output styles.
+
+| Epic | Status | Key Commits |
+|------|--------|-------------|
+| E0: Pipeline Progress Monitor | **DONE** | s3-guardian SKILL.md + monitoring-patterns.md |
+| E1: Node Semantics Clarification | **DONE** | wait.system3/wait.human schemas, topology rules |
+| E2: PRD Contract + E2E Gate Protocol | **DONE** | prd-contract template, guardian-workflow.md |
+| E3: Workflow Protocol Enhancements | **DONE** | SD pinning, confidence baselines, concern queue |
+
+### Phase 2: Schema & Tooling (E4-E7) — DONE
+
+All epics completed via pipeline dispatch with AgentSDK workers.
+
+| Epic | Status | Key Commits |
+|------|--------|-------------|
+| E4: Sub-Agent Registry + Skill Injection | **DONE** | Agent definitions + skills_required frontmatter |
+| E5: Attractor Schema + Validate CLI | **DONE** | Topology validation, sd_path mandatory |
+| E6: Dispatch Worker Enhancements | **DONE** | bypassPermissions, SD wiring, skill injection |
+| E7.1: Worker Prompt Restructuring | **DONE** | System prompt 21K→3K, worker-tool-reference.md |
+| E7.2: Pure Python DOT Runner | **DONE** | pipeline_runner.py — $0 dispatch, AgentSDK workers |
+
+### Pipeline Runner Hardening (SD-PIPELINE-RUNNER-HARDENING-001)
+
+Post-E7.2 hardening addressing latent bugs discovered via stress testing and research pipeline failures.
+
+| Epic | Priority | Status | Evidence |
+|------|----------|--------|----------|
+| G: Worker Context & Handler Preambles | P0 | **DONE** | Handler-specific allowed_tools + preambles |
+| H: Dead Worker Detection | P0 | **DONE** | AdvancedWorkerTracker, 10 E2E tests (`878d0ed`) |
+| I: Environment Legibility | P0 | **DONE** (redesigned) | Agent Directory merged into root CLAUDE.md; standalone AGENTS.md removed |
+| A: Atomic Signal Writes | P1 | **DONE** | temp+rename, quarantine, apply-before-consume. 7 E2E tests (`5e826fc`) |
+| B: force_status Persistence | P1 | **DONE** | _do_transition disk write, guidance files. 4 E2E tests (`5e826fc`) |
+| C: Validation Error Handling | P1 | **DONE** | VALIDATION_TIMEOUT, crash→fail signal. 4 E2E tests (`5e826fc`) |
+| J: Validation Spam Suppression | P1 | **DONE** | Terminal state guard. 8 E2E tests (`5e826fc`) |
+| D: Orphan Resume Expansion | P2 | **PARTIAL** | All handlers resumable with exponential backoff |
+| E: Worker Prompt (remaining) | P2 | Remaining | |
+| F: Global Safeguards | P2 | Remaining | |
+
+**E2E Test Suite**: 33 tests in `tests/e2e/test_pipeline_hardening.py`, all passing (`cda90ed`).
+
+### Phase 3: Architecture Vision (E8-E12) — Future Work
+
+Not started. Strategic alignment documented; no immediate implementation planned.
+
+## 10. Risks
 
 | Risk | Likelihood | Impact | Mitigation |
 | --- | --- | --- | --- |

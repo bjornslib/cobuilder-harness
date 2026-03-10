@@ -141,8 +141,24 @@ See **[references/session-promise-template.md](references/session-promise-templa
 | **Phase 2** | Orchestrator spawning via `spawn_orchestrator.py`, headless/SDK/tmux dispatch, DOT-driven dispatch | [references/guardian-workflow.md](references/guardian-workflow.md) |
 | **Phase 3** | Monitoring cadence, pause-and-check pattern, intervention triggers, AskUserQuestion handling | [references/monitoring-patterns.md](references/monitoring-patterns.md) |
 | **Phase 4** | Independent validation, evidence gathering, DOT pipeline integration, regression detection. **Acceptance thresholds**: ACCEPT ≥ 0.70 (auto-create fix-it beads for minor gaps), INVESTIGATE 0.50-0.69, REJECT < 0.50. **Bead closure**: 6-step workflow for creating and tracking fix-it work. | [references/validation-scoring.md](references/validation-scoring.md), [references/guardian-workflow.md § 5.X](references/guardian-workflow.md), [references/guardian-workflow.md § 6.5](references/guardian-workflow.md) |
+| **Phase 5** | Session closing: update PRD and SD implementation status, close related beads, store Hindsight reflections, verify promises, commit. **MANDATORY**: PRD/SD status updates and bead closure must happen together — never close beads without updating implementation status in the source documents. | (inline — see Session Closing Protocol below) |
 
 **Load the relevant reference when entering each phase. Do not load all references at once.**
+
+---
+
+## Session Closing Protocol (Phase 5 — MANDATORY)
+
+Before ending any session that completed implementation or validation work:
+
+1. **Update PRD implementation status**: Add or update an "Implementation Status" section in the PRD with per-epic status (Done/In Progress/Deferred/Remaining), dates, and commit references.
+2. **Update SD implementation status**: Add or update the SD's implementation priority table with current status per epic and update the `last_verified` frontmatter date.
+3. **Close related beads**: Close all beads for completed epics with descriptive close reasons. Reference the commits.
+4. **Store Hindsight reflections**: Retain session summary to both private and project banks.
+5. **Verify promises**: Run `cs-verify --promise <id>` for all session promises.
+6. **Commit**: Stage and commit all status updates.
+
+**The Iron Rule**: Bead closure and PRD/SD status updates are a single atomic operation. Never close a bead without updating the corresponding PRD/SD status. Never update status without closing the bead. This ensures the source documents remain the single source of truth for implementation progress.
 
 ---
 
@@ -303,12 +319,13 @@ Load these reference files when entering each phase or when you need detailed gu
 
 ---
 
-**Version**: 0.8.0
+**Version**: 0.9.0
 **Dependencies**: cs-promise CLI (requires PATH setup — see Prerequisites section), pipeline_runner.py + claude_code_sdk (primary dispatch), tmux (tmux mode — interactive, lower API cost), Hindsight MCP, ccsystem3 shell function, Task Master MCP, ZeroRepo
 **Integration**: system3-orchestrator skill, completion-promise skill, acceptance-test-writer skill, parallel-solutioning skill, research-first skill
 **Theory**: Independent verification eliminates self-reporting bias in agentic systems
 
 **Changelog**:
+- v0.9.0: Added Phase 5 (Session Closing Protocol) as mandatory final phase. PRD/SD implementation status updates and bead closure are now an atomic operation — never one without the other. This ensures source documents remain the single source of truth for progress tracking.
 - v0.8.0: Added validation acceptance thresholds (ACCEPT ≥ 0.70, INVESTIGATE 0.50-0.69, REJECT < 0.50) and bead closure process references throughout. Updated `description` field with autonomous threshold-based accept/reject capability and new trigger keywords ("validation thresholds", "gradient scoring decision", "bead creation for gaps"). Expanded Phase 4 row in Guardian Workflow Phases table with threshold summary and references to guardian-workflow.md §§ 5.X and 6.5. Added Phase 4.6 Bead Closure row to Quick Reference table. Bumped `last_verified` to 2026-03-09.
 - v0.7.0: Removed headless mode (`--mode headless`, `spawn_orchestrator.py --mode headless`, `_build_headless_worker_cmd`, `run_headless_worker`). Headless mode is dead code — all dispatch now uses AgentSDK via `pipeline_runner.py`. Updated architecture diagram, mode table, SDK Mode Entry Points section, dependencies line. Deleted test_headless_dispatch.py and test_headless_worker.py. Two dispatch modes remain: Pipeline (PRIMARY) and tmux (interactive). Root cause: no API credits, headless = `claude -p` = API-billed, made it dead code.
 - v0.5.2: Corrected dispatch model throughout. `pipeline_runner.py --dot-file` is the PRIMARY dispatch path and uses **AgentSDK** (`claude_code_sdk`) — NOT `claude -p`. Seeing `claude` in `ps` when pipeline_runner runs is normal SDK behavior (SDK internally shells to the claude binary). `claude -p` is ONLY used by `spawn_orchestrator.py --mode headless` (legacy). Updated architecture diagram, mode table, anti-patterns, and dependencies line. Root cause: System 3 misread `ps` output and incorrectly concluded pipeline_runner uses `claude -p` — the process signature looks identical but the dispatch layer is entirely different.

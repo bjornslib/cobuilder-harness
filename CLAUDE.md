@@ -272,6 +272,49 @@ When running as an orchestrator (Level 2):
 
 This separation ensures proper testing, validation, and architectural consistency.
 
+## Agent Directory (Worker Selection Menu)
+
+When dispatching workers (via `subagent_type` in Agent Teams or `worker_type` in DOT pipelines), use this directory to select the right specialist.
+
+### Implementation Workers
+
+| Agent | Specialization | Use When |
+|-------|---------------|----------|
+| `frontend-dev-expert` | React, Next.js, TypeScript, Zustand, Tailwind | Any file in `*/frontend/*` or UI work |
+| `backend-solutions-engineer` | Python, FastAPI, PydanticAI, Supabase, databases | Any file in `*/agent/*` or API/backend work |
+| `tdd-test-engineer` | Pytest, Jest, Playwright, TDD methodology | Writing NEW tests or test architecture |
+| `solution-architect` | System design, architectural planning, PRDs | Solution design docs, technology decisions |
+| `ux-designer` | UX audits, design concepts, UI mockups | UX analysis, design briefs, user journey mapping |
+
+### Validation Workers
+
+| Agent | Specialization | Use When |
+|-------|---------------|----------|
+| `validation-test-agent` | PRD acceptance validation, compliance checking | CHECKING existing work against requirements |
+| `code-reviewer` | Code quality, security review, best practices | Code review, quality assurance |
+
+### Coordination (Not Workers)
+
+| Agent | Role |
+|-------|------|
+| `orchestrator` (Level 2) | Multi-agent task coordination, delegates to workers above |
+| `system3-meta-orchestrator` (Level 1) | Strategic planning, business validation, pipeline oversight |
+
+### Agent Selection Decision Tree
+
+1. **Strategic/business-level?** → System 3
+2. **Coordinating multiple agents?** → Orchestrator
+3. **Design/planning/architecture?** → `solution-architect`
+4. **Validation/compliance/checking?** → `validation-test-agent` or `code-reviewer`
+5. **Frontend/UI?** → `frontend-dev-expert`
+6. **Backend/server-side?** → `backend-solutions-engineer`
+7. **Writing tests?** → `tdd-test-engineer`
+8. **None of the above** → `general-purpose`
+
+### Selection Guard
+
+When reasoning includes "test" or "testing", STOP and ask: "Am I writing NEW tests (TDD) or CHECKING existing work?" Writing new → `tdd-test-engineer`. Checking → `validation-test-agent`.
+
 ## Documentation Standards
 
 All markdown files in `.claude/` must follow these standards, enforced by the **doc-gardener** linter (`scripts/doc-gardener/lint.py`).

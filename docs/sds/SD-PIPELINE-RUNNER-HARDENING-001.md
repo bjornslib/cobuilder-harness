@@ -1,8 +1,8 @@
 ---
 title: "SD-PIPELINE-RUNNER-HARDENING-001: Pipeline Runner & Worker Hardening"
-status: draft
+status: active
 type: architecture
-last_verified: 2026-03-09
+last_verified: 2026-03-10
 grade: authoritative
 prd_ref: PRD-HARNESS-UPGRADE-001
 ---
@@ -1161,22 +1161,24 @@ def _dispatch_validation_agent(self, node_id, target_node_id):
 
 ---
 
-## 3. Implementation Priority (Rebalanced Post-Research)
+## 3. Implementation Priority & Status (Updated 2026-03-10)
 
-| Priority | Epic | Effort | Impact | Evidence |
-|----------|------|--------|--------|----------|
-| **P0** | G: Worker Context & Handler Preambles | 3h | CRITICAL | research_worker_context failed 3/3 — workers don't know their role |
-| **P0** | H: Dead Worker Detection | 2h | CRITICAL | research_signal_atomicity crashed — node stuck active forever |
-| **P0** | I: AGENTS.md & Environment Legibility | 2h | CRITICAL | Gap analysis: discoverability 5/10, failure handling 3/10 |
-| **P1** | A: Atomic Signals | 2h | HIGH | Code analysis: race condition under parallel writes |
-| **P1** | B: force_status Fix | 1h | HIGH | Code analysis: in-memory edits lost on reload |
-| **P1** | C: Validation Error Handling | 2h | HIGH | Code analysis: invisible validation failures |
-| **P1** | J: Validation Spam Suppression | 1h | MEDIUM | Research pipeline: ~6 extra signals per accepted node |
-| **P2** | D: Orphan Resume Expansion | 2h | MEDIUM | Partially addressed by Epic H |
-| **P2** | E: Worker Prompt (remaining sub-items) | 1h | MEDIUM | Partially addressed by Epic G |
-| **P2** | F: Global Safeguards | 3h | LOW | Nice-to-have (timeout, cost tracking) |
+| Priority | Epic | Effort | Impact | Status | Commit / Notes |
+|----------|------|--------|--------|--------|----------------|
+| **P0** | G: Worker Context & Handler Preambles | 3h | CRITICAL | **DONE** | Pre-session; handler-specific allowed_tools + preambles |
+| **P0** | H: Dead Worker Detection | 2h | CRITICAL | **DONE** | `878d0ed` — AdvancedWorkerTracker, _check_worker_liveness, 10 E2E tests |
+| **P0** | I: AGENTS.md & Environment Legibility | 2h | CRITICAL | **DONE** (redesigned) | Agent Directory merged into root CLAUDE.md for 100% auto-load. Standalone AGENTS.md removed. |
+| **P1** | A: Atomic Signals | 2h | HIGH | **DONE** | `5e826fc` — temp+rename, _seq counter, quarantine, apply-before-consume. 7 E2E tests |
+| **P1** | B: force_status Fix | 1h | HIGH | **DONE** | `5e826fc` — _force_status calls _do_transition (disk write), requeue guidance persisted. 4 E2E tests |
+| **P1** | C: Validation Error Handling | 2h | HIGH | **DONE** | `5e826fc` — VALIDATION_TIMEOUT env var, crash→fail signal, no silent auto-pass. 4 E2E tests |
+| **P1** | J: Validation Spam Suppression | 1h | MEDIUM | **DONE** | `5e826fc` — _get_node_status guard before dispatch. 8 E2E tests |
+| **P2** | D: Orphan Resume Expansion | 2h | MEDIUM | **PARTIAL** | All handler types resumable with exponential backoff (5s→60s). Remaining: crash-recovery stress test |
+| **P2** | E: Worker Prompt (remaining sub-items) | 1h | MEDIUM | Remaining | Partially addressed by Epic G |
+| **P2** | F: Global Safeguards | 3h | LOW | Remaining | Nice-to-have (timeout, cost tracking) |
 
-**Total estimated effort**: ~19h (6 new hours from research-discovered epics)
+**Total estimated effort**: ~19h | **Completed**: ~13h (7 of 10 epics done, 1 partial) | **Remaining**: ~6h (D remainder, E, F)
+
+**E2E Test Suite**: 33 tests in `tests/e2e/test_pipeline_hardening.py`, all passing in 3.62s. Commit `cda90ed`.
 
 ---
 
