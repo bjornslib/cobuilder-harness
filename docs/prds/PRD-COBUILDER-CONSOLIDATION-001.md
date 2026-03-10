@@ -311,7 +311,7 @@ The following remaining hardening epics from PRD-HARNESS-UPGRADE-001 / SD-PIPELI
 | **Bugfix: Liveness Race** | **DONE** | 2026-03-10 | `6337153` | Liveness checker now checks node status before writing error signals. Prevents spurious failures from overwriting processed signals. |
 | **Bugfix: Monitor Cycles** | **DONE** | 2026-03-10 | `6337153` | Monitor pattern updated to blocking 10min cycles in s3-guardian SKILL.md and system3-meta-orchestrator.md. |
 | E1: dirs.py | Pending | — | — | — |
-| E2: Fix Divergences (+D, E.3) | **Next** | — | — | Includes absorbed hardening D + E.3 |
+| **E2: Fix Divergences (+D, E.3)** | **DONE** | 2026-03-10 | `bb5b60e` | Added validated→accepted, failed→pending to cobuilder transition.py. check_finalize_gate accepts both states. Persistent requeue guidance loader. 18 new tests. |
 | E3: State Migration | Pending | — | — | Depends on E1 |
 | E4: Code Migration (+F) | Pending | — | — | Includes absorbed hardening F |
 | E5: Import Surgery | Pending | — | — | Depends on E4 |
