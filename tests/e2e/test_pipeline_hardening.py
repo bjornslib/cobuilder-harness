@@ -268,6 +268,65 @@ class TestEpicH:
         assert signal["result"] == "fail"
         assert "timed out" in signal["reason"].lower()
 
+    def test_check_worker_liveness_skips_if_node_not_active(self, tmp_path):
+        """Liveness checker should skip nodes that have progressed past 'active' status.
+
+        This test simulates a scenario where a worker has completed and its signal
+        has been processed (moving node status from 'active' to 'impl_complete'),
+        then the liveness checker runs but should NOT overwrite the success signal
+        with an error.
+        """
+        # Create runner with node already in impl_complete status (past active)
+        runner = _make_runner(tmp_path, IMPL_COMPLETE_DOT)
+
+        # Simulate a worker that has completed but was tracked
+        future = Future()
+        future.set_result(None)  # Completed successfully
+        runner.worker_tracker.track_worker("node1", future)
+        runner.worker_tracker.workers["node1"].state = WorkerState.COMPLETED
+
+        # Create a legitimate signal file that was written by the worker
+        os.makedirs(runner.signal_dir, exist_ok=True)
+        original_signal = {"status": "success", "message": "completed successfully", "files_changed": ["test.py"]}
+        signal_path = os.path.join(runner.signal_dir, "node1.json")
+        with open(signal_path, "w") as fh:
+            json.dump(original_signal, fh)
+
+        # Run liveness checker - it should detect that node is not active and skip it
+        runner._check_worker_liveness()
+
+        # Verify the original signal was preserved (not overwritten with error)
+        with open(signal_path) as fh:
+            preserved_signal = json.load(fh)
+
+        assert preserved_signal["status"] == "success"
+        assert preserved_signal["message"] == "completed successfully"
+        assert preserved_signal["files_changed"] == ["test.py"]
+
+    def test_check_worker_liveness_skips_dead_workers_if_node_not_active(self, tmp_path):
+        """Liveness checker should skip dead workers for nodes that have progressed past 'active' status."""
+        # Create runner with node in 'accepted' status (terminal state)
+        runner = _make_runner(tmp_path, ACCEPTED_DOT)
+
+        # Use a MagicMock future that represents a timed-out worker
+        mock_future = MagicMock(spec=Future)
+        mock_future.done.return_value = False
+        mock_future.cancel.return_value = False  # Cannot cancel -> TIMED_OUT state
+
+        # Add a dead worker to tracker
+        info = runner.worker_tracker.track_worker("node1", mock_future)
+        info.submitted_at = time.time() - 1000  # Way in the past
+        # Manually mark it as timed out for the test
+        info.state = WorkerState.TIMED_OUT
+
+        # Run liveness checker - it should skip this node since status is not 'active'
+        runner._check_worker_liveness()
+
+        # Verify no error signal was written for the dead worker
+        signal_path = os.path.join(runner.signal_dir, "node1.json")
+        assert not os.path.exists(signal_path), "Should not write error signal for node not in active status"
+
+
 
 # =========================================================================
 # Epic A: Atomic Signal Writes
