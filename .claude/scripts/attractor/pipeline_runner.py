@@ -42,7 +42,11 @@ import subprocess
 import sys
 import threading
 import time
-from typing import Any
+from concurrent.futures import ThreadPoolExecutor, Future
+from dataclasses import dataclass
+from enum import Enum
+from pathlib import Path
+from typing import Any, Dict, Optional, Set
 
 # Ensure local module imports work regardless of invocation directory
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -95,6 +99,99 @@ try:
     _CONTEXT_COPY_AVAILABLE = True
 except ImportError:
     _CONTEXT_COPY_AVAILABLE = False
+
+# Worker state tracking for dead worker detection
+class WorkerState(Enum):
+    SUBMITTED = "submitted"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    TIMED_OUT = "timed_out"
+    CANCELLED = "cancelled"
+
+@dataclass
+class WorkerInfo:
+    node_id: str
+    future: Future
+    submitted_at: float
+    state: WorkerState = WorkerState.SUBMITTED
+    result: Optional[Any] = None
+    exception: Optional[Exception] = None
+    process_handle: Optional[subprocess.Popen] = None
+
+class AdvancedWorkerTracker:
+    """Advanced worker tracking with comprehensive liveness monitoring."""
+
+    def __init__(self, default_timeout: int = 900):  # 15 min default
+        self.default_timeout = default_timeout
+        self.workers: Dict[str, WorkerInfo] = {}
+        self.lock = threading.RLock()
+
+    def track_worker(self, node_id: str, future: Future, process_handle: Optional[subprocess.Popen] = None) -> WorkerInfo:
+        """Track a new worker future with process handle."""
+        with self.lock:
+            worker_info = WorkerInfo(
+                node_id=node_id,
+                future=future,
+                submitted_at=time.time(),
+                process_handle=process_handle
+            )
+            self.workers[node_id] = worker_info
+            return worker_info
+
+    def update_worker_states(self) -> None:
+        """Update states of all tracked workers with comprehensive monitoring."""
+        current_time = time.time()
+        timeout_threshold = self.default_timeout
+
+        with self.lock:
+            for node_id, worker_info in self.workers.items():
+                if worker_info.state in [WorkerState.COMPLETED, WorkerState.FAILED, WorkerState.CANCELLED]:
+                    continue
+
+                # Check if future is done
+                if worker_info.future.done():
+                    try:
+                        worker_info.result = worker_info.future.result(timeout=0.01)
+                        worker_info.state = WorkerState.COMPLETED
+                    except Exception as e:
+                        worker_info.exception = e
+                        worker_info.state = WorkerState.FAILED
+                    continue
+
+                # Check for timeout
+                elapsed = current_time - worker_info.submitted_at
+                if elapsed > timeout_threshold:
+                    # Attempt to cancel the future
+                    if worker_info.future.cancel():
+                        worker_info.state = WorkerState.CANCELLED
+                    else:
+                        worker_info.state = WorkerState.TIMED_OUT
+
+                    # If there's a process handle, attempt to terminate it
+                    if worker_info.process_handle:
+                        try:
+                            worker_info.process_handle.terminate()
+                            worker_info.process_handle.wait(timeout=5)
+                        except subprocess.TimeoutExpired:
+                            worker_info.process_handle.kill()
+
+    def get_dead_workers(self) -> list:
+        """Get list of workers that are in failed, timed_out, or cancelled states."""
+        with self.lock:
+            dead_workers = []
+            for node_id, worker_info in self.workers.items():
+                if worker_info.state in [WorkerState.FAILED, WorkerState.TIMED_OUT, WorkerState.CANCELLED]:
+                    dead_workers.append((node_id, worker_info))
+            return dead_workers
+
+    def remove_worker(self, node_id: str) -> bool:
+        """Remove a worker from tracking."""
+        with self.lock:
+            if node_id in self.workers:
+                del self.workers[node_id]
+                return True
+            return False
 
 # ---------------------------------------------------------------------------
 # Logging
@@ -222,6 +319,11 @@ class PipelineRunner:
 
         # Active workers: node_id -> worker metadata dict
         self.active_workers: dict[str, dict[str, Any]] = {}
+
+        # Initialize advanced worker tracker for dead worker detection
+        self.worker_tracker = AdvancedWorkerTracker(
+            default_timeout=int(os.environ.get("WORKER_SIGNAL_TIMEOUT", "900"))
+        )
 
         # Retry counters: node_id -> int
         self.retry_counts: dict[str, int] = {}
@@ -352,6 +454,9 @@ class PipelineRunner:
 
             # Process any pending signal files first
             self._process_signals()
+
+            # Check for dead workers (futures completed but no signal written)
+            self._check_worker_liveness()
 
             # Reload content after signal processing (transitions may have been written)
             try:
@@ -668,7 +773,12 @@ class PipelineRunner:
             from concurrent.futures import ThreadPoolExecutor
             self._executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix="worker")
         handler = attrs.get("handler", "codergen")
-        self._executor.submit(self._dispatch_agent_sdk, nid, worker_type, prompt, handler)
+
+        # Submit the task and track the future for liveness monitoring
+        future = self._executor.submit(self._dispatch_agent_sdk, nid, worker_type, prompt, handler)
+
+        # Track the worker future using the advanced worker tracker
+        self.worker_tracker.track_worker(nid, future)
 
     def _handle_tool(self, node: dict, data: dict) -> None:  # noqa: ARG002
         """Tool nodes: run subprocess.run() with the command from node attrs."""
@@ -1322,6 +1432,63 @@ class PipelineRunner:
 
             self._apply_signal(node_id, signal)
 
+    def _check_worker_liveness(self) -> None:
+        """Enhanced dead worker detection using comprehensive tracking."""
+        # Use the AdvancedWorkerTracker pattern from research
+        for node_id, worker_info in list(self.worker_tracker.workers.items()):
+            # Check if future completed without writing signal
+            if worker_info.future.done() and worker_info.state in [WorkerState.FAILED, WorkerState.COMPLETED]:
+                signal_path = os.path.join(self.signal_dir, f"{node_id}.json")
+                if not os.path.exists(signal_path):
+                    exc = worker_info.exception
+                    if exc:
+                        log.error("[liveness] Worker %s died with exception: %s", node_id, exc)
+                        self._write_node_signal(node_id, {
+                            "status": "error",
+                            "result": "fail",
+                            "reason": f"Worker process died: {str(exc)[:300]}",
+                            "worker_crash": True,
+                        })
+                    else:
+                        # Completed without exception but no signal — worker forgot to write
+                        elapsed = time.time() - worker_info.submitted_at
+                        log.warning("[liveness] Worker %s completed silently after %.0fs", node_id, elapsed)
+                        self._write_node_signal(node_id, {
+                            "status": "error",
+                            "result": "fail",
+                            "reason": f"Worker completed without writing signal after {elapsed:.0f}s",
+                        })
+
+                # Clean up from tracker
+                self.worker_tracker.remove_worker(node_id)
+
+        # Also check for signal timeout using the AdvancedWorkerTracker
+        self.worker_tracker.update_worker_states()
+
+        # Process any detected dead workers
+        dead_workers = self.worker_tracker.get_dead_workers()
+        for node_id, worker_info in dead_workers:
+            if worker_info.state in [WorkerState.TIMED_OUT, WorkerState.FAILED]:
+                elapsed = time.time() - worker_info.submitted_at
+                timeout = int(os.environ.get("WORKER_SIGNAL_TIMEOUT", "900"))
+
+                error_msg = f"Worker "
+                if worker_info.state == WorkerState.TIMED_OUT:
+                    error_msg += f"timed out after {elapsed:.0f}s (limit: {timeout}s)"
+                else:
+                    error_msg += f"failed: {str(worker_info.exception)[:300] if worker_info.exception else 'Unknown error'}"
+
+                self._write_node_signal(node_id, {
+                    "status": "error",
+                    "result": "fail",
+                    "reason": error_msg,
+                    "worker_crash": True,
+                    "state": worker_info.state.value
+                })
+
+                # Remove from tracking
+                self.worker_tracker.remove_worker(node_id)
+
     def _apply_signal(self, node_id: str, signal: dict) -> None:
         """Mechanically apply a signal to the pipeline graph. No LLM involved."""
         sig_status = signal.get("status") or signal.get("result", "unknown")
@@ -1506,16 +1673,24 @@ class PipelineRunner:
     # ------------------------------------------------------------------
 
     def _write_node_signal(self, node_id: str, payload: dict) -> str:
-        """Write a signal file for node_id at {signal_dir}/{node_id}.json.
+        """Atomically write a signal file using the temp file + rename pattern from research.
 
-        Uses atomic write-then-rename to ensure watchdog sees a complete file.
-
-        Implements GAP-6.3: Add sd_hash to signal evidence when available.
+        Implements atomic signal writes with additional metadata for ordering and debugging.
         """
         os.makedirs(self.signal_dir, exist_ok=True)
 
-        # Implement GAP-6.3: Include sd_hash in signal evidence
-        # Look up node to check if it has an sd_path attribute
+        # Add metadata for ordering and debugging as per research findings
+        payload["_seq"] = getattr(self, '_signal_seq', {}).get(node_id, 0) + 1
+        self._signal_seq = getattr(self, '_signal_seq', {})
+        self._signal_seq[node_id] = payload["_seq"]
+        payload["_ts"] = datetime.datetime.utcnow().isoformat() + "Z"
+        payload["_pid"] = os.getpid()
+
+        # Create temporary file with unique name
+        signal_path = os.path.join(self.signal_dir, f"{node_id}.json")
+        tmp_path = Path(signal_path).with_suffix(f'.tmp.{os.getpid()}.{int(time.monotonic_ns())}')
+
+        # Implement GAP-6.3: Include sd_hash in signal evidence (preserved from original)
         try:
             # Reload current DOT content to get node attributes
             with open(self.dot_path) as fh:
@@ -1549,15 +1724,27 @@ class PipelineRunner:
             # If there's any error looking up node attributes, continue without sd_hash
             pass
 
-        final_path = os.path.join(self.signal_dir, f"{node_id}.json")
-        tmp_path = final_path + ".tmp"
-        with open(tmp_path, "w") as fh:
-            json.dump(payload, fh, indent=2)
-            fh.flush()
-            os.fsync(fh.fileno())
-        os.replace(tmp_path, final_path)
-        log.debug("Signal written: %s = %s", final_path, payload)
-        return final_path
+        try:
+            # Write to temporary file
+            with open(tmp_path, 'w') as fh:
+                json.dump(payload, fh, indent=2)
+                fh.flush()  # Flush to OS buffer
+                os.fsync(fh.fileno())  # Force OS to write to disk
+
+            # Atomically rename (POSIX atomic operation)
+            os.rename(str(tmp_path), str(signal_path))
+
+            log.debug("Signal written: %s = %s", signal_path, payload)
+            return str(signal_path)
+
+        except Exception as e:
+            # Clean up temp file if something went wrong
+            if os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except:
+                    pass  # Ignore cleanup errors
+            raise e
 
     # ------------------------------------------------------------------
     # Checkpoint
