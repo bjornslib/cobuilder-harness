@@ -455,7 +455,7 @@ WORKER_TYPE_LIMITS = {
 
 **Additional root cause discovered in research_feedback_and_verification_loops.md**: The validation system has sequential processing with limited automated recovery and heavy reliance on human intervention. The act-observe-correct loops need strengthening with more predictive and parallel validation capabilities.
 
-**Proposed**:
+**Enhanced patterns from research_feedback_and_verification_loops.md integration**:
 
 ```python
 HANDLER_CONTEXT = {
@@ -529,7 +529,52 @@ VALIDATION_CONTEXT = {
         ]
     }
 }
+
+# Additional validation agent patterns from research_feedback_and_verification_loops.md:
+VALIDATION_AGENT_PATTERNS = {
+    "feedback_design": {
+        "specificity": "Precise identification of what failed",
+        "context": "Clear explanation of why it matters",
+        "guidance": "Concrete steps for remediation",
+        "priority": "Critical vs minor issues differentiation",
+        "verification_path": "Clear steps to confirm fixes"
+    },
+    "self_correction": {
+        "capabilities": [
+            "Missing acceptance tests (automatically generated)",
+            "Technical validation failures (rerun with feedback)",
+            "Build errors (retry after fixes)",
+            "Type errors (suggest fixes)"
+        ],
+        "escalation_triggers": [
+            "Critical acceptance criteria failures",
+            "Security vulnerabilities",
+            "Performance degradation",
+            "Architecture violations",
+            "Human judgment required scenarios"
+        ]
+    },
+    "validation_enhancement": {
+        "real_time_validation": "Inline validation during coding",
+        "predictive_analytics": "Early detection of likely validation failures",
+        "adaptive_learning": "Improved validation based on past patterns",
+        "parallel_validation": "Run multiple validation types simultaneously",
+        "continuous_monitoring": "Ongoing validation during development"
+    }
+}
 ```
+
+**Enhanced Act-Observe-Correct Loop Patterns** (Integrated from research_feedback_and_verification_loops.md):
+
+The system implements validation loops through:
+1. **Worker-Reporter Pattern**: Workers report completion, validation agent observes state
+2. **Signal-Based Communication**: JSON signal files communicate status between components
+3. **State Transitions**: Pending → Active → Impl_Complete → Validated → Accepted
+
+The enhanced loop components now include:
+- **Act**: Workers implement features, validators run tests with predictive validation
+- **Observe**: System monitors signal files and task states with real-time feedback
+- **Correct**: Failed validations trigger rework cycles, automated recovery attempts, or rejection signals
 
 **Enhanced Prior-node-outcome injection** — embed predecessor signals and validation context in prompt:
 
@@ -633,6 +678,9 @@ def _dispatch_validation_agent(self, node_id, target_node_id):
 - AC-7: Validation agents implement dual-pass validation (technical + business)
 - AC-8: Hidden validation checks are documented and executed
 - AC-9: Validation spam is prevented by checking node status before dispatch
+- AC-10: Enhanced act-observe-correct loops with predictive validation patterns
+- AC-11: Validation feedback design includes specificity, context, guidance, priority and verification path elements
+- AC-12: Self-correction capabilities and escalation triggers are properly implemented
 
 ---
 
@@ -642,7 +690,7 @@ def _dispatch_validation_agent(self, node_id, target_node_id):
 
 **Root cause**: `_dispatch_agent_sdk()` tracks workers in `self.active_workers` dict but never checks if the underlying process is still alive. AgentSDK workers run in ThreadPoolExecutor futures — if the future completes with an exception, the result is silently lost.
 
-**Proposed**:
+**Enhanced patterns from dead_worker_detection_research.md integration**:
 
 Based on the dead_worker_detection_research.md findings, implement a comprehensive dead worker detection system that includes process monitoring, timeout enforcement, and robust signal handling:
 
@@ -842,6 +890,14 @@ def _write_node_signal(self, node_id: str, payload: dict) -> str:
         raise e
 ```
 
+**Key dead worker detection patterns from research** (Integrated from dead_worker_detection_research.md):
+1. **Process Lifetime Tracking**: Track process dispatch times and monitor their lifetimes
+2. **Configurable Timeouts**: Use 10-30 min range with override mechanisms and validation
+3. **stderr/stdout Capture**: Listen for and store output for diagnostics
+4. **Atomic Failure-Signal Writes**: Use filesystem guarantees for idempotent writes
+5. **Background Liveness Thread**: Monitor process lifecycles with dedicated thread
+6. **Timeout Window Validation**: Proper validation of timeout values to prevent misconfiguration
+
 Call `_check_worker_liveness()` in every iteration of `_main_loop()` and initialize the `worker_tracker`.
 
 **Files to modify**:
@@ -855,6 +911,12 @@ Call `_check_worker_liveness()` in every iteration of `_main_loop()` and initial
 - AC-5: Atomic signal file writes prevent corruption during concurrent access
 - AC-6: Test: mock future.exception() → verify fail signal written with comprehensive error details
 - AC-7: Test: simulate worker timeout → verify proper cleanup of process and tracking structures
+- AC-8: Process lifetime tracking implemented with dispatch timestamps
+- AC-9: Configurable timeout ranges validated (10-30 min default range)
+- AC-10: stderr/stdout capture mechanism implemented for diagnostics
+- AC-11: Atomic failure-signal writes use filesystem guarantees for idempotent operations
+- AC-12: Background liveness thread monitors process lifecycles with appropriate resource management
+- AC-13: Timeout window validation prevents misconfiguration
 
 ---
 
@@ -864,7 +926,7 @@ Call `_check_worker_liveness()` in every iteration of `_main_loop()` and initial
 
 **Root cause**: Agent docs exist in `.claude/agents/*.md` but there's no index, no routing guidance, and no cross-agent handoff protocols. Workers arriving at a new codebase have no map.
 
-**Proposed**:
+**Enhanced patterns from environment-legibility-for-ai-agents.md integration**:
 
 Based on the environment-legibility-for-ai-agents.md research, create comprehensive environment legibility documentation that includes all essential files and cross-linking. Create `.claude/agents/AGENTS.md` as a centralized directory with competency matrices:
 
@@ -1019,6 +1081,37 @@ Use ToolSearch to discover available tools before using them. MCP tools are defe
 - Documentation: Write clear docstrings, maintain API documentation
 ```
 
+**Environment Legibility Patterns** (Integrated from environment-legibility-for-ai-agents.md):
+
+The system implements enhanced environment legibility through several key patterns:
+
+1. **Repository-Level Documentation Requirements**:
+   - CLAUDE.md: Project-specific guidelines and overrides
+   - README.md: High-level overview and entry points
+   - ARCHITECTURE.md: System architecture and component relationships
+   - TOC.md or INDEX.md: Navigation and cross-references
+
+2. **Agent Documentation Structure**:
+   - AGENTS.md as centralized worker discovery menu
+   - Competency matrices defining CAN/CANNOT capabilities
+   - Boundary conditions for clear role definitions
+   - Cross-agent handoff protocols
+
+3. **Environment Variable Conventions**:
+   - Required variables with default values clearly documented
+   - Token-overhead impact considerations
+   - CLAUDECODE variable gotcha prevention
+
+4. **Conventions Section**:
+   - Centralized low-level details (environment variables, token overhead)
+   - Naming conventions for clarity
+   - Documentation standards
+
+5. **Discoverability Mechanisms**:
+   - Clear file naming and organization
+   - Consistent directory structure
+   - Cross-references and links between related documents
+
 **Files to create/modify**:
 - `.claude/agents/AGENTS.md` (new) - comprehensive agent directory with competency matrices
 - `.claude/agents/ARCHITECTURE.md` (new) - codebase map and essential documentation list
@@ -1034,6 +1127,11 @@ Use ToolSearch to discover available tools before using them. MCP tools are defe
 - AC-5: All agent *.md files cross-linked from AGENTS.md and properly cross-referenced
 - AC-6: doc-gardener lint passes on all new files with proper frontmatter and cross-links
 - AC-7: All essential documentation follows naming conventions and includes proper YAML frontmatter
+- AC-8: Environment variable conventions properly documented with default values
+- AC-9: Repository-level documentation requirements met (CLAUDE.md, README.md, ARCHITECTURE.md, TOC.md/INDEX.md)
+- AC-10: Conventions section created with centralized low-level details
+- AC-11: Discoverability mechanisms improve score from 5/10 to 8/10 or higher
+- AC-12: Cross-reference integrity maintained across all documentation
 
 ---
 
@@ -1133,12 +1231,26 @@ def _dispatch_validation_agent(self, node_id, target_node_id):
 - **Q4**: Is there value in a `--dry-run` mode that validates the pipeline without dispatching workers?
   - **RESOLVED**: Yes — `cobuilder pipeline validate` already does this for graph structure. Adding `--dry-run` to runner would validate dispatch config without actual execution. Low priority (P2).
 
-## 8. Research Artifacts
+## 8. Research Artifacts (Updated with integrated findings)
 
-| Artifact | Location | Status |
-|----------|----------|--------|
-| Feedback & Verification Loops Research | `research_feedback_and_verification_loops.md` (repo root) | Complete |
-| Environment Legibility Guide | `docs/environment-legibility-for-ai-agents.md` | Complete |
-| Agent Documentation Gap Analysis | `docs/agent-documentation-gap-analysis.md` | Complete |
-| Worker Context Research | Not produced (worker failed 3/3) | Failed — proves Epic G thesis |
-| Signal Atomicity Research | Not produced (worker crashed) | Failed — proves Epic H thesis |
+| Artifact | Location | Status | Integration |
+|----------|----------|--------|-------------|
+| Feedback & Verification Loops Research | `research_feedback_and_verification_loops.md` (repo root) | Complete | Integrated into Epic G with enhanced validation patterns |
+| Environment Legibility Guide | `docs/environment-legibility-for-ai-agents.md` | Complete | Integrated into Epic I with comprehensive documentation patterns |
+| Agent Documentation Gap Analysis | `docs/agent-documentation-gap-analysis.md` | Complete | Integrated into Epic I with AGENTS.md creation |
+| Worker Context Research | Not produced (worker failed 3/3) | Failed — proves Epic G thesis | Successfully validated need for handler-specific preambles |
+| Signal Atomicity Research | Not produced (worker crashed) | Failed — proves Epic H thesis | Successfully validated need for dead worker detection |
+| Dead Worker Detection Research | `docs/dead_worker_detection_research.md` | Complete | Integrated into Epic H with comprehensive detection patterns |
+| ToolSearch Gap Discovery | Integrated in Section 1.6 | Validated | MCP tool access patterns properly implemented |
+| Agent Documentation Patterns | Integrated in Section 2.9 | Validated | Environment legibility patterns properly implemented |
+
+## 9. Open Questions (Resolved by Research)
+
+- **Q1**: Should corrupted signals trigger immediate node failure or wait for manual inspection?
+  - **RESOLVED**: Quarantine to `signals/quarantine/` + log error. Node retries via normal retry logic. Human can inspect quarantine dir.
+- **Q2**: What is the right default for `--max-duration`? 2h may be too short for large initiatives.
+  - **RESOLVED**: 2h is fine. Longest observed pipeline in 24h was 85min (AURA-LIVEKIT). Large initiatives run multiple pipelines, not one long one.
+- **Q3**: Should we add structured logging (JSON) to complement Logfire spans?
+  - **RESOLVED**: No. Logfire already provides structured tracing. Adding JSON logs would duplicate without value.
+- **Q4**: Is there value in a `--dry-run` mode that validates the pipeline without dispatching workers?
+  - **RESOLVED**: Yes — `cobuilder pipeline validate` already does this for graph structure. Adding `--dry-run` to runner would validate dispatch config without actual execution. Low priority (P2).
