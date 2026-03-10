@@ -1531,11 +1531,24 @@ class PipelineRunner:
                 pass  # Signal may have already been moved by another process
 
     def _check_worker_liveness(self) -> None:
-        """Enhanced dead worker detection using comprehensive tracking."""
+        """Enhanced dead worker detection using comprehensive tracking.
+
+        IMPORTANT: Before writing any liveness error signal, check the node's
+        current status in the DOT graph. If the node has already progressed past
+        'active' (e.g., impl_complete, validated, accepted), the signal was already
+        processed and moved to processed/ — writing an error would be a false positive.
+        """
         # Use the AdvancedWorkerTracker pattern from research
         for node_id, worker_info in list(self.worker_tracker.workers.items()):
             # Check if future completed without writing signal
             if worker_info.future.done() and worker_info.state in [WorkerState.FAILED, WorkerState.COMPLETED]:
+                # Guard: skip if node already progressed past active (signal was already processed)
+                current_status = self._get_node_status(node_id)
+                if current_status != "active":
+                    log.info("[liveness] Skipping %s — node already at '%s' (signal was processed)", node_id, current_status)
+                    self.worker_tracker.remove_worker(node_id)
+                    continue
+
                 signal_path = os.path.join(self.signal_dir, f"{node_id}.json")
                 if not os.path.exists(signal_path):
                     exc = worker_info.exception
@@ -1567,6 +1580,13 @@ class PipelineRunner:
         dead_workers = self.worker_tracker.get_dead_workers()
         for node_id, worker_info in dead_workers:
             if worker_info.state in [WorkerState.TIMED_OUT, WorkerState.FAILED]:
+                # Guard: skip if node already progressed past active
+                current_status = self._get_node_status(node_id)
+                if current_status != "active":
+                    log.info("[liveness] Skipping dead worker %s — node already at '%s'", node_id, current_status)
+                    self.worker_tracker.remove_worker(node_id)
+                    continue
+
                 elapsed = time.time() - worker_info.submitted_at
                 timeout = int(os.environ.get("WORKER_SIGNAL_TIMEOUT", "900"))
 

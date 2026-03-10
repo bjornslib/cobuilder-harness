@@ -220,20 +220,21 @@ Each level adds independent verification. The key constraint: each guardian stor
 
 ### Pipeline Progress Monitor Pattern
 
-System 3 spawns a lightweight Haiku 4.5 sub-agent to monitor pipeline progress after launching a pipeline. This monitor sub-agent completes (waking System 3) only when attention is needed.
+System 3 spawns a lightweight Haiku 4.5 sub-agent to monitor pipeline progress after launching a pipeline. This **blocking** monitor sub-agent completes (waking System 3) only when attention is needed or after 10 minutes maximum. The monitor runs with `run_in_background=False` to ensure System 3 waits for the results before continuing.
 
 **Spawning Template**:
 ```python
 Task(
     subagent_type="monitor",
     model="haiku",
-    run_in_background=True,
-    prompt=f"""Monitor pipeline progress for {pipeline_id}.
+    run_in_background=False,  # Blocking monitor (NOT background) - System 3 waits for result
+    prompt=f"""Monitor pipeline progress for {pipeline_id} for a maximum of 10 minutes.
 
     Signal directory: {signal_dir}
     DOT file: {dot_file}
     Poll interval: 30 seconds
     Stall threshold: 5 minutes
+    MAX_DURATION: 10 minutes - return status report regardless of state after 10 minutes
 
     Check signal files for new completions or failures.
     Check DOT file mtime for state transitions.
@@ -242,11 +243,22 @@ Task(
     - No state change for >5 minutes (report last known state)
     - All nodes reach terminal state (report completion)
     - Any anomaly detected (unexpected state, missing signal files)
+    - 10 minutes have elapsed (report current state and continue cycling)
 
     Do NOT attempt to fix issues. Just report what you observe.
     """
 )
 ```
+
+**Cyclic Monitoring Pattern**:
+After each monitor completes, System 3 analyzes the result and relaunches a new **blocking** monitor in a continuous cycle:
+1. System 3 launches **blocking** monitor (`run_in_background=False`) - System 3 waits for results
+2. Monitor runs for up to 10 minutes max or until event occurs (whichever comes first)
+3. Monitor returns status report to System 3 and **completes**
+4. System 3 evaluates the report and decides next action
+5. System 3 relaunches a new **blocking** monitor to continue watching
+
+This creates a continuous monitoring cycle with predictable wake-up intervals and prevents monitors from running indefinitely. Each cycle has a maximum duration of 10 minutes, ensuring System 3 remains responsive.
 
 **Monitor Output Statuses**:
 - `MONITOR_COMPLETE`: All nodes validated → Run final E2E, close initiative

@@ -599,14 +599,15 @@ System 3 uses Attractor DOT pipelines to model initiative execution as directed 
 # Step 1: Launch the runner (runs in background — System 3 continues)
 python3 .claude/scripts/attractor/pipeline_runner.py --dot-file <path.dot> &
 
-# Step 2: IMMEDIATELY spawn cyclic Haiku monitor
+# Step 2: IMMEDIATELY spawn cyclic Haiku monitor (blocking, 10-min max)
 Task(
     subagent_type="general-purpose",
     model="haiku",
-    run_in_background=True,
-    prompt="""Monitor DOT pipeline at <path.dot>.
+    run_in_background=False,  # BLOCKING monitor (not background) - System 3 waits for result
+    prompt="""Monitor DOT pipeline at <path.dot> for maximum 10 minutes.
     Signal dir: <signal_dir>
     Poll interval: 30 seconds. Stall threshold: 5 minutes.
+    MAX_DURATION: 10 minutes - return status regardless after 10 min
 
     COMPLETE (wake System 3) when ANY of:
     - A node reaches 'failed' → report which node, error message
@@ -615,6 +616,7 @@ Task(
     - A .gate-wait marker appears in signal dir → report gate type and node_id
       (wait.system3 = System 3 must run validation)
       (wait.human = System 3 must use AskUserQuestion to consult user)
+    - 10 minutes have elapsed → report current state and continue cycling
 
     On FAIL states: Check if runner redispatched (retry_count < 3, node reset to pending).
     If runner correctly redispatched, note it but do NOT complete — keep monitoring.
@@ -632,6 +634,9 @@ Task(
 4. **If node failed permanently**: Investigate root cause → decide to fix or abandon
 5. **If all nodes terminal**: Pipeline complete → proceed to final validation
 6. **If stall**: Check runner process is alive → investigate → relaunch monitor
+7. **If 10 minutes elapsed**: Evaluate progress → continue monitoring or take action → relaunch monitor
+
+**Cyclic Pattern**: After each **blocking** monitor completes (either due to event or 10-minute timeout), System 3 evaluates the status report and immediately relaunches a new **blocking** monitor to continue watching the pipeline. This creates a continuous monitoring cycle with predictable wake-up intervals. Each cycle has a maximum duration of 10 minutes, ensuring System 3 remains responsive.
 
 ### Responding to Gates
 
