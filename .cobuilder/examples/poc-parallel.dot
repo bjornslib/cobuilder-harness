@@ -1,0 +1,126 @@
+// poc-parallel.dot — POC test scenario 6: Parallel pipeline
+//
+// State: start is validated; backend AND frontend are both ready (parallel fan-out).
+// Expected runner action: spawn_orchestrator for BOTH impl_backend AND impl_frontend
+//
+// Schema: .claude/attractor/schema.md
+
+digraph "poc-parallel" {
+    graph [
+        label="POC Test: Parallel Pipeline"
+        labelloc="t"
+        fontsize=16
+        rankdir="TB"
+        prd_ref="PRD-POC-006"
+        promise_id=""
+    ];
+
+    node [fontname="Helvetica" fontsize=11];
+    edge [fontname="Helvetica" fontsize=9];
+
+    // Entry — validated
+    start [
+        shape=Mdiamond
+        label="PARSE\nPRD-POC-006"
+        handler="start"
+        status="validated"
+    ];
+
+    // Fan-out gate — validated (parallel work can begin)
+    parallel_start [
+        shape=parallelogram
+        label="Parallel:\nBackend + Frontend"
+        handler="parallel"
+        status="validated"
+        style=filled
+        fillcolor=lightgreen
+    ];
+
+    start -> parallel_start [label="begin"];
+
+    // --- Branch 1: Backend (ready) ---
+
+    impl_backend [
+        shape=box
+        label="Implement\nBackend API"
+        handler="codergen"
+        bead_id="TASK-10"
+        worker_type="backend-solutions-engineer"
+        acceptance="POST /api/items returns 200 with JSON body"
+        promise_ac="AC-1"
+        status="pending"
+        style=filled
+        fillcolor=lightyellow
+    ];
+
+    validate_backend [
+        shape=hexagon
+        label="Backend\nValidation"
+        handler="wait.human"
+        gate="technical"
+        mode="technical"
+        bead_id="AT-10-TECH"
+        promise_ac="AC-1"
+        status="pending"
+        style=filled
+        fillcolor=lightyellow
+    ];
+
+    parallel_start -> impl_backend [color=blue style=bold label="branch-1"];
+    impl_backend -> validate_backend [label="impl_complete"];
+
+    // --- Branch 2: Frontend (ready) ---
+
+    impl_frontend [
+        shape=box
+        label="Implement\nLogin UI"
+        handler="codergen"
+        bead_id="TASK-11"
+        worker_type="frontend-dev-expert"
+        acceptance="Login form renders; client-side validation"
+        promise_ac="AC-2"
+        status="pending"
+        style=filled
+        fillcolor=lightyellow
+    ];
+
+    validate_frontend [
+        shape=hexagon
+        label="Frontend\nValidation"
+        handler="wait.human"
+        gate="technical"
+        mode="technical"
+        bead_id="AT-11-TECH"
+        promise_ac="AC-2"
+        status="pending"
+        style=filled
+        fillcolor=lightyellow
+    ];
+
+    parallel_start -> impl_frontend [color=blue style=bold label="branch-2"];
+    impl_frontend -> validate_frontend [label="impl_complete"];
+
+    // --- Fan-in ---
+
+    join_validation [
+        shape=parallelogram
+        label="Join:\nAll Streams\nValidated"
+        handler="parallel"
+        status="pending"
+        style=filled
+        fillcolor=lightyellow
+    ];
+
+    validate_backend -> join_validation [label="backend done"];
+    validate_frontend -> join_validation [label="frontend done"];
+
+    // Exit
+    finalize [
+        shape=Msquare
+        label="FINALIZE"
+        handler="exit"
+        status="pending"
+    ];
+
+    join_validation -> finalize [label="all validated"];
+}

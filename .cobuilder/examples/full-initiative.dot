@@ -1,0 +1,329 @@
+// full-initiative.dot — Complete Attractor pipeline for a login feature
+//
+// Demonstrates all 5 lifecycle stages, AT pairing, dual-mode validation,
+// conditional routing on pass/fail, parallel execution, and completion
+// promise integration.
+//
+// Validates with: dot -Tpng full-initiative.dot -o full-initiative.png
+//
+// Schema: .claude/attractor/schema.md
+// PRD: PRD-AUTH-001 (Login Feature)
+
+digraph "PRD-AUTH-001" {
+    graph [
+        label="Initiative: Login Feature (PRD-AUTH-001)"
+        labelloc="t"
+        fontsize=16
+        rankdir="TB"
+        prd_ref="PRD-AUTH-001"
+        promise_id="promise-a1b2c3d4"
+    ];
+
+    node [fontname="Helvetica" fontsize=11];
+    edge [fontname="Helvetica" fontsize=9];
+
+    // =========================================================================
+    // STAGE 1: PARSE — Pipeline entry, PRD parsed, promise created
+    // cs-init + cs-promise --create "Login Feature" --ac "..." --ac "..." --ac "..."
+    // =========================================================================
+
+    start [
+        shape=Mdiamond
+        label="PARSE\nPRD-AUTH-001"
+        handler="start"
+        status="pending"
+        style=filled
+        fillcolor=lightyellow
+    ];
+
+    // =========================================================================
+    // STAGE 2: VALIDATE — Structural graph validation
+    // attractor validate pipeline.dot
+    // =========================================================================
+
+    validate_graph [
+        shape=box
+        label="Validate Graph\nStructure"
+        handler="tool"
+        command="attractor validate pipeline.dot"
+        status="pending"
+        style=filled
+        fillcolor=lightyellow
+    ];
+
+    start -> validate_graph [label="parse complete"];
+
+    // =========================================================================
+    // STAGE 3: INITIALIZE — Environment setup
+    // launchorchestrator login-feature
+    // =========================================================================
+
+    init_env [
+        shape=box
+        label="Initialize\nEnvironment"
+        handler="tool"
+        command="launchorchestrator login-feature"
+        status="pending"
+        style=filled
+        fillcolor=lightyellow
+    ];
+
+    validate_graph -> init_env [label="graph valid"];
+
+    // =========================================================================
+    // STAGE 4: EXECUTE — Parallel backend + frontend implementation
+    // =========================================================================
+
+    // --- Parallel fan-out ---
+
+    parallel_start [
+        shape=parallelogram
+        label="Parallel:\nBackend + Frontend"
+        handler="parallel"
+        status="pending"
+        style=filled
+        fillcolor=lightyellow
+    ];
+
+    init_env -> parallel_start [label="env ready"];
+
+    // --- Backend implementation ---
+
+    impl_backend [
+        shape=box
+        label="Implement\nBackend Auth API"
+        handler="codergen"
+        bead_id="TASK-10"
+        worker_type="backend-solutions-engineer"
+        acceptance="POST /auth/login returns JWT; POST /auth/refresh rotates token"
+        promise_ac="AC-1"
+        prd_ref="PRD-AUTH-001"
+        files="src/auth/routes.py,src/auth/jwt.py,src/auth/models.py"
+        status="pending"
+        style=filled
+        fillcolor=lightyellow
+    ];
+
+    parallel_start -> impl_backend [color=blue style=bold];
+
+    // Backend technical validation (mode=technical)
+    validate_backend_tech [
+        shape=hexagon
+        label="Backend\nTechnical\nValidation"
+        handler="wait.human"
+        gate="technical"
+        mode="technical"
+        bead_id="AT-10-TECH"
+        promise_ac="AC-1"
+        status="pending"
+        style=filled
+        fillcolor=lightyellow
+    ];
+
+    impl_backend -> validate_backend_tech [label="impl_complete"];
+
+    // Backend business validation (mode=business)
+    validate_backend_biz [
+        shape=hexagon
+        label="Backend\nBusiness\nValidation"
+        handler="wait.human"
+        gate="business"
+        mode="business"
+        bead_id="AT-10-BIZ"
+        promise_ac="AC-1"
+        status="pending"
+        style=filled
+        fillcolor=lightyellow
+    ];
+
+    validate_backend_tech -> validate_backend_biz [label="tech pass"];
+
+    // Backend routing decision
+    decision_backend [
+        shape=diamond
+        label="Backend\nResult?"
+        handler="conditional"
+    ];
+
+    validate_backend_biz -> decision_backend;
+
+    // --- Frontend implementation ---
+
+    impl_frontend [
+        shape=box
+        label="Implement\nLogin UI"
+        handler="codergen"
+        bead_id="TASK-11"
+        worker_type="frontend-dev-expert"
+        acceptance="Login form renders; client-side validation; JWT stored in httpOnly cookie"
+        promise_ac="AC-2"
+        prd_ref="PRD-AUTH-001"
+        files="src/app/login/page.tsx,src/components/LoginForm.tsx,src/stores/authSlice.ts"
+        status="pending"
+        style=filled
+        fillcolor=lightyellow
+    ];
+
+    parallel_start -> impl_frontend [color=blue style=bold];
+
+    // Frontend technical validation
+    validate_frontend_tech [
+        shape=hexagon
+        label="Frontend\nTechnical\nValidation"
+        handler="wait.human"
+        gate="technical"
+        mode="technical"
+        bead_id="AT-11-TECH"
+        promise_ac="AC-2"
+        status="pending"
+        style=filled
+        fillcolor=lightyellow
+    ];
+
+    impl_frontend -> validate_frontend_tech [label="impl_complete"];
+
+    // Frontend business validation
+    validate_frontend_biz [
+        shape=hexagon
+        label="Frontend\nBusiness\nValidation"
+        handler="wait.human"
+        gate="business"
+        mode="business"
+        bead_id="AT-11-BIZ"
+        promise_ac="AC-2"
+        status="pending"
+        style=filled
+        fillcolor=lightyellow
+    ];
+
+    validate_frontend_tech -> validate_frontend_biz [label="tech pass"];
+
+    // Frontend routing decision
+    decision_frontend [
+        shape=diamond
+        label="Frontend\nResult?"
+        handler="conditional"
+    ];
+
+    validate_frontend_biz -> decision_frontend;
+
+    // --- Conditional routing: pass and fail paths ---
+
+    // Backend pass -> join
+    decision_backend -> join_validation [
+        label="pass"
+        condition="pass"
+        color=green
+    ];
+
+    // Backend fail -> retry backend
+    decision_backend -> impl_backend [
+        label="fail\nretry"
+        condition="fail"
+        color=red
+        style=dashed
+    ];
+
+    // Frontend pass -> join
+    decision_frontend -> join_validation [
+        label="pass"
+        condition="pass"
+        color=green
+    ];
+
+    // Frontend fail -> retry frontend
+    decision_frontend -> impl_frontend [
+        label="fail\nretry"
+        condition="fail"
+        color=red
+        style=dashed
+    ];
+
+    // --- Parallel fan-in ---
+
+    join_validation [
+        shape=parallelogram
+        label="Join:\nAll Streams\nValidated"
+        handler="parallel"
+        status="pending"
+        style=filled
+        fillcolor=lightyellow
+    ];
+
+    // =========================================================================
+    // STAGE 4 continued: E2E integration validation
+    // cs-promise --meet <id> --ac-id AC-3 --evidence "E2E login flow passes"
+    // =========================================================================
+
+    impl_e2e [
+        shape=box
+        label="E2E Integration\nTest Suite"
+        handler="codergen"
+        bead_id="TASK-12"
+        worker_type="tdd-test-engineer"
+        acceptance="Full login flow: form submit -> API call -> JWT stored -> redirect to dashboard"
+        promise_ac="AC-3"
+        status="pending"
+        style=filled
+        fillcolor=lightyellow
+    ];
+
+    join_validation -> impl_e2e [label="both pass"];
+
+    // E2E validation gate (business mode — real services only)
+    validate_e2e [
+        shape=hexagon
+        label="E2E\nBusiness\nValidation"
+        handler="wait.human"
+        gate="e2e"
+        mode="business"
+        bead_id="AT-12-BIZ"
+        promise_ac="AC-3"
+        status="pending"
+        style=filled
+        fillcolor=lightyellow
+    ];
+
+    impl_e2e -> validate_e2e [label="impl_complete"];
+
+    // E2E routing decision
+    decision_e2e [
+        shape=diamond
+        label="E2E\nResult?"
+        handler="conditional"
+    ];
+
+    validate_e2e -> decision_e2e;
+
+    // E2E pass -> finalize
+    decision_e2e -> finalize [
+        label="pass"
+        condition="pass"
+        color=green
+        style=bold
+    ];
+
+    // E2E fail -> retry E2E
+    decision_e2e -> impl_e2e [
+        label="fail\nretry"
+        condition="fail"
+        color=red
+        style=dashed
+    ];
+
+    // =========================================================================
+    // STAGE 5: FINALIZE — Triple-gate verification
+    // cs-verify --promise promise-a1b2c3d4 --type e2e
+    // =========================================================================
+
+    finalize [
+        shape=Msquare
+        label="FINALIZE\nTriple Gate\ncs-verify"
+        handler="exit"
+        promise_id="promise-a1b2c3d4"
+        promise_ac="AC-3"
+        status="pending"
+        style=filled
+        fillcolor=lightyellow
+    ];
+}

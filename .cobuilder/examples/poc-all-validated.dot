@@ -1,0 +1,63 @@
+// poc-all-validated.dot — POC test scenario 4: All nodes validated, ready to finalize
+//
+// Expected runner action: signal_finalize for finalize node
+//
+// Schema: .claude/attractor/schema.md
+
+digraph "poc-all-validated" {
+    graph [
+        label="POC Test: All Validated"
+        labelloc="t"
+        fontsize=16
+        rankdir="TB"
+        prd_ref="PRD-POC-004"
+        promise_id=""
+    ];
+
+    node [fontname="Helvetica" fontsize=11];
+    edge [fontname="Helvetica" fontsize=9];
+
+    start [
+        shape=Mdiamond
+        label="PARSE\nPRD-POC-004"
+        handler="start"
+        status="validated"
+    ];
+
+    impl_backend [
+        shape=box
+        label="Implement\nBackend API"
+        handler="codergen"
+        bead_id="TASK-10"
+        worker_type="backend-solutions-engineer"
+        acceptance="POST /api/items returns 200 with JSON body"
+        promise_ac="AC-1"
+        status="validated"
+        style=filled
+        fillcolor=lightgreen
+    ];
+
+    validate_backend [
+        shape=hexagon
+        label="Backend\nValidation"
+        handler="wait.human"
+        gate="technical"
+        mode="technical"
+        bead_id="AT-10-TECH"
+        promise_ac="AC-1"
+        status="validated"
+        style=filled
+        fillcolor=lightgreen
+    ];
+
+    finalize [
+        shape=Msquare
+        label="FINALIZE"
+        handler="exit"
+        status="pending"
+    ];
+
+    start -> impl_backend [label="begin"];
+    impl_backend -> validate_backend [label="impl_complete"];
+    validate_backend -> finalize [label="validated"];
+}

@@ -193,9 +193,10 @@ claude-harness-setup/
 - Move `.claude/attractor/checkpoints/` → `.cobuilder/checkpoints/`
 - Move `.claude/attractor/runner-state/` → `.cobuilder/runner-state/`
 - Move `.claude/attractor/examples/` → `.cobuilder/examples/` (committed subset)
-- Update all path constants to use `dirs.py`
+- Move `.claude/attractor/.env` → `.cobuilder/.env` (SDK worker model config: ANTHROPIC_BASE_URL, ANTHROPIC_MODEL, ANTHROPIC_API_KEY)
 - Add `.cobuilder/` to `.gitignore` (except examples/)
-- 30-day fallback: check old paths if new paths empty
+- Update `pipeline_runner.py` to load `.env` from `.cobuilder/.env` (with fallback to old path)
+- ~~`dirs.py`~~: Dropped — a simple `COBUILDER_STATE_DIR` env var in `.cobuilder/.env` replaces the walk-up discovery logic. The pipeline runner already computes signal/checkpoint paths relative to the DOT file location; no centralized resolver needed.
 
 ### E4: Attractor Code Migration
 **Effort**: 2 days | **Risk**: Medium-High
@@ -242,13 +243,13 @@ claude-harness-setup/
 ## 9. Dependencies
 
 ```
-E0 (Dead Code) ─────────────────────────────────┐
-E1 (dirs.py) ──────┬──→ E3 (State Migration) ───┤
-E2 (Fix Diverge) ──┘                             ├──→ E7 (Docs)
-                    E4 (Code Migration) ──────────┤
-                    E5 (Import Surgery) ──────────┤
-                    E6 (CLI Unification) ─────────┘
-E8 (Security) ── independent, can run anytime
+E0 (Dead Code) ✅ ──────────────────────────────┐
+E2 (Fix Diverge) ✅                              │
+E3 (State Migration + .env) ────────────────────┤
+                    E4+E5 (Code + Imports) ──────├──→ E7 (Docs)
+                    E6 (CLI Unification) ────────┘
+E8 (Security) ✅ ── independent
+~~E1 (dirs.py)~~ ── dropped, replaced by env var
 ```
 
 - E0 has no dependencies (safe first)
@@ -310,10 +311,9 @@ The following remaining hardening epics from PRD-HARNESS-UPGRADE-001 / SD-PIPELI
 | **E8: Security Remediation** | **DONE** | 2026-03-10 | `5333115` | private.pem deleted, *.pem added to .gitignore, worktree copies cleaned. |
 | **Bugfix: Liveness Race** | **DONE** | 2026-03-10 | `6337153` | Liveness checker now checks node status before writing error signals. Prevents spurious failures from overwriting processed signals. |
 | **Bugfix: Monitor Cycles** | **DONE** | 2026-03-10 | `6337153` | Monitor pattern updated to blocking 10min cycles in s3-guardian SKILL.md and system3-meta-orchestrator.md. |
-| E1: dirs.py | Pending | — | — | — |
+| ~~E1: dirs.py~~ | **Dropped** | 2026-03-11 | — | Replaced by `COBUILDER_STATE_DIR` env var in `.cobuilder/.env`. Pipeline runner computes paths relative to DOT files — no centralized resolver needed. |
 | **E2: Fix Divergences (+D, E.3)** | **DONE** | 2026-03-10 | `bb5b60e` | Added validated→accepted, failed→pending to cobuilder transition.py. check_finalize_gate accepts both states. Persistent requeue guidance loader. 18 new tests. |
-| E3: State Migration | Pending | — | — | Depends on E1 |
-| E4: Code Migration (+F) | Pending | — | — | Includes absorbed hardening F |
-| E5: Import Surgery | Pending | — | — | Depends on E4 |
+| E3: State Migration (+.env) | **Next** | — | — | Includes .env move from .claude/attractor/ to .cobuilder/. No longer depends on E1. |
+| E4+E5: Code Migration + Import Surgery | Pending | — | — | Combined. Worktree isolation. Includes absorbed hardening F. |
 | E6: CLI Unification | Pending | — | — | Depends on E4+E5 |
 | E7: Documentation Updates | Pending | — | — | Depends on E4+E5+E6 |

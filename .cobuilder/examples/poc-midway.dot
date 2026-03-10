@@ -1,0 +1,100 @@
+// poc-midway.dot — POC test scenario 2: Mid-execution pipeline
+//
+// State: First codergen node (impl_backend) is validated.
+// Expected runner action: spawn_orchestrator for impl_frontend
+// (the next codergen node whose dependency, impl_backend, is now validated)
+//
+// Schema: .claude/attractor/schema.md
+
+digraph "poc-midway" {
+    graph [
+        label="POC Test: Mid-Execution Pipeline"
+        labelloc="t"
+        fontsize=16
+        rankdir="TB"
+        prd_ref="PRD-POC-002"
+        promise_id=""
+    ];
+
+    node [fontname="Helvetica" fontsize=11];
+    edge [fontname="Helvetica" fontsize=9];
+
+    // Entry — validated
+    start [
+        shape=Mdiamond
+        label="PARSE\nPRD-POC-002"
+        handler="start"
+        status="validated"
+    ];
+
+    // Backend — completed and validated
+    impl_backend [
+        shape=box
+        label="Implement\nBackend API"
+        handler="codergen"
+        bead_id="TASK-10"
+        worker_type="backend-solutions-engineer"
+        acceptance="POST /api/items returns 200"
+        promise_ac="AC-1"
+        status="validated"
+        style=filled
+        fillcolor=lightgreen
+    ];
+
+    // Backend validation gate — validated
+    validate_backend [
+        shape=hexagon
+        label="Backend\nValidation"
+        handler="wait.human"
+        gate="technical"
+        mode="technical"
+        bead_id="AT-10-TECH"
+        promise_ac="AC-1"
+        status="validated"
+        style=filled
+        fillcolor=lightgreen
+    ];
+
+    // Frontend — pending (ready: validate_backend is validated)
+    impl_frontend [
+        shape=box
+        label="Implement\nLogin UI"
+        handler="codergen"
+        bead_id="TASK-11"
+        worker_type="frontend-dev-expert"
+        acceptance="Login form renders with validation"
+        promise_ac="AC-2"
+        status="pending"
+        style=filled
+        fillcolor=lightyellow
+    ];
+
+    // Frontend validation gate — pending (blocked: impl_frontend not complete)
+    validate_frontend [
+        shape=hexagon
+        label="Frontend\nValidation"
+        handler="wait.human"
+        gate="technical"
+        mode="technical"
+        bead_id="AT-11-TECH"
+        promise_ac="AC-2"
+        status="pending"
+        style=filled
+        fillcolor=lightyellow
+    ];
+
+    // Exit — pending
+    finalize [
+        shape=Msquare
+        label="FINALIZE"
+        handler="exit"
+        status="pending"
+    ];
+
+    // Edges
+    start -> impl_backend [label="begin"];
+    impl_backend -> validate_backend [label="impl_complete"];
+    validate_backend -> impl_frontend [label="backend done"];
+    impl_frontend -> validate_frontend [label="impl_complete"];
+    validate_frontend -> finalize [label="validated"];
+}
