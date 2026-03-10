@@ -2,8 +2,9 @@
 """Attractor DOT Pipeline State Transition.
 
 Advance a node's status through the defined lifecycle:
-    pending -> active -> impl_complete -> validated
+    pending -> active -> impl_complete -> validated -> accepted
                                        -> failed -> active (retry)
+                                       -> failed -> pending (gate restart)
 
 Hexagon (validation gate) nodes use a shorter path:
     pending -> active -> validated (pass)
@@ -36,8 +37,9 @@ VALID_TRANSITIONS: dict[str, set[str]] = {
     "pending": {"active"},
     "active": {"impl_complete", "validated", "failed"},  # hexagons go active→validated/failed directly
     "impl_complete": {"validated", "failed", "active"},  # active for retry after fail
-    "failed": {"active"},
-    "validated": set(),  # terminal
+    "failed": {"active", "pending"},  # pending: gate nodes reset to pending on runner restart
+    "validated": {"accepted"},  # validated -> accepted (pipeline runner final step)
+    "accepted": set(),  # terminal
 }
 
 # Status -> fillcolor mapping from schema
@@ -46,6 +48,7 @@ STATUS_COLORS: dict[str, str] = {
     "active": "lightblue",
     "impl_complete": "lightsalmon",
     "validated": "lightgreen",
+    "accepted": "palegreen",
     "failed": "lightcoral",
 }
 
@@ -299,7 +302,7 @@ def check_finalize_gate(dot_content: str) -> tuple[bool, list[str]]:
     for node in data["nodes"]:
         if node["attrs"].get("shape") == "hexagon":
             status = node["attrs"].get("status", "pending")
-            if status != "validated":
+            if status not in ("validated", "accepted"):
                 not_validated.append(node["id"])
     return len(not_validated) == 0, not_validated
 
@@ -627,7 +630,7 @@ def main() -> None:
         leg.add_argument("node_id")
         leg.add_argument(
             "new_status",
-            choices=["pending", "active", "impl_complete", "validated", "failed"],
+            choices=["pending", "active", "impl_complete", "validated", "accepted", "failed"],
         )
         leg.add_argument("--dry-run", action="store_true")
         leg.add_argument("--output", choices=["json", "text"], default="text")
@@ -662,7 +665,7 @@ def main() -> None:
     trans_p.add_argument("node_id", help="Node ID to transition")
     trans_p.add_argument(
         "new_status",
-        choices=["pending", "active", "impl_complete", "validated", "failed"],
+        choices=["pending", "active", "impl_complete", "validated", "accepted", "failed"],
         help="Target status",
     )
     trans_p.add_argument(

@@ -719,6 +719,23 @@ class PipelineRunner:
         except OSError as exc:
             log.error("[persist-guidance] Failed to write guidance for %s: %s", node_id, exc)
 
+    def _load_persisted_guidance(self, node_id: str) -> str | None:
+        """Load persisted requeue guidance from file (survives runner restarts).
+
+        Returns the guidance text if found, else None. Does NOT delete the file
+        so guidance persists across multiple retry attempts.
+        """
+        guidance_dir = os.path.join(self.signal_dir, "guidance")
+        guidance_path = os.path.join(guidance_dir, f"{node_id}.txt")
+        try:
+            with open(guidance_path, "r") as fh:
+                return fh.read().strip() or None
+        except FileNotFoundError:
+            return None
+        except OSError as exc:
+            log.error("[load-guidance] Failed to read guidance for %s: %s", node_id, exc)
+            return None
+
     # ------------------------------------------------------------------
     # Node dispatch
     # ------------------------------------------------------------------
@@ -2028,7 +2045,10 @@ class PipelineRunner:
             lines.append(f"\n## Solution Design Path\n{solution_design_path or '(none)'}")
 
         # Inject failure guidance if this is a requeued node
+        # First check in-memory dict, then fall back to persisted file (survives restarts)
         guidance = self.requeue_guidance.pop(nid, None)
+        if not guidance:
+            guidance = self._load_persisted_guidance(nid)
         if guidance:
             lines.append(
                 f"\n## IMPORTANT: Previous Attempt Failed\n"
