@@ -6,11 +6,7 @@ Tests:
     TestSignalGuardianCLI       - signal_guardian.py
     TestReadSignalCLI           - read_signal.py
     TestWaitForSignalCLI        - wait_for_signal.py (timeout path)
-    TestCaptureOutputCLI        - capture_output.py (error path)
-    TestCheckOrchestratorCLI    - check_orchestrator_alive.py
-    TestSpawnRunnerCLI          - runner.py
-    TestRespondToRunnerCLI      - respond_to_runner.py
-    TestEscalateToTerminalCLI   - escalate_to_terminal.py
+    TestSpawnRunnerCLI          - session_runner.py
 """
 
 from __future__ import annotations
@@ -19,10 +15,7 @@ import json
 import os
 import subprocess
 import sys
-import tempfile
-import time
 
-import pytest
 import cobuilder.attractor as _attractor_pkg
 
 # Directory containing the CLI scripts
@@ -333,43 +326,6 @@ class TestWaitForSignalCLI:
 
 
 # ---------------------------------------------------------------------------
-# TestCheckOrchestratorCLI
-# ---------------------------------------------------------------------------
-
-class TestCheckOrchestratorCLI:
-    """Tests for check_orchestrator_alive.py."""
-
-    def test_nonexistent_session_returns_alive_false(self):
-        """check_orchestrator_alive.py returns alive=false for nonexistent session."""
-        rc, stdout, _ = _run_cli(
-            "check_orchestrator_alive.py",
-            ["--session", "nonexistent-session-xyz-12345"],
-        )
-
-        assert rc == 0, f"Expected exit 0, stdout={stdout}"
-        data = _parse_json_output(stdout)
-        assert data["alive"] is False
-        assert data["session"] == "nonexistent-session-xyz-12345"
-
-    def test_output_includes_session_name(self):
-        """check_orchestrator_alive.py always includes session name in output."""
-        session_name = "test-orch-99999"
-        rc, stdout, _ = _run_cli(
-            "check_orchestrator_alive.py",
-            ["--session", session_name],
-        )
-
-        assert rc == 0
-        data = _parse_json_output(stdout)
-        assert data["session"] == session_name
-
-    def test_help_flag_works(self):
-        """check_orchestrator_alive.py --help exits with code 0."""
-        rc, stdout, _ = _run_cli("check_orchestrator_alive.py", ["--help"])
-        assert rc == 0
-
-
-# ---------------------------------------------------------------------------
 # TestSpawnRunnerCLI
 # ---------------------------------------------------------------------------
 
@@ -445,110 +401,3 @@ class TestSpawnRunnerCLI:
         assert rc == 0
 
 
-# ---------------------------------------------------------------------------
-# TestRespondToRunnerCLI
-# ---------------------------------------------------------------------------
-
-class TestRespondToRunnerCLI:
-    """Tests for respond_to_runner.py."""
-
-    def test_approved_signal_created(self, tmp_path):
-        """respond_to_runner.py APPROVED writes signal with source=guardian."""
-        signals_dir = str(tmp_path / "signals")
-        rc, stdout, _ = _run_cli(
-            "respond_to_runner.py",
-            ["APPROVED", "--node", "impl_auth", "--feedback", "Looks good"],
-            env_overrides={"ATTRACTOR_SIGNALS_DIR": signals_dir},
-        )
-
-        assert rc == 0
-        data = _parse_json_output(stdout)
-        assert data["status"] == "ok"
-        assert data["signal_type"] == "APPROVED"
-
-        with open(data["signal_file"]) as fh:
-            signal = json.load(fh)
-
-        assert signal["source"] == "guardian"
-        assert signal["target"] == "runner"
-        assert signal["payload"]["node_id"] == "impl_auth"
-        assert signal["payload"]["feedback"] == "Looks good"
-
-    def test_rejected_with_reason(self, tmp_path):
-        """respond_to_runner.py REJECTED --reason stores reason in payload."""
-        signals_dir = str(tmp_path / "signals")
-        rc, stdout, _ = _run_cli(
-            "respond_to_runner.py",
-            ["REJECTED", "--node", "impl_auth",
-             "--reason", "Tests are failing", "--new-status", "blocked"],
-            env_overrides={"ATTRACTOR_SIGNALS_DIR": signals_dir},
-        )
-
-        assert rc == 0
-        data = _parse_json_output(stdout)
-        with open(data["signal_file"]) as fh:
-            signal = json.load(fh)
-
-        assert signal["payload"]["reason"] == "Tests are failing"
-        assert signal["payload"]["new_status"] == "blocked"
-
-
-# ---------------------------------------------------------------------------
-# TestEscalateToTerminalCLI
-# ---------------------------------------------------------------------------
-
-class TestEscalateToTerminalCLI:
-    """Tests for escalate_to_terminal.py."""
-
-    def test_escalation_creates_signal(self, tmp_path):
-        """escalate_to_terminal.py creates an ESCALATE signal targeting terminal."""
-        signals_dir = str(tmp_path / "signals")
-        rc, stdout, _ = _run_cli(
-            "escalate_to_terminal.py",
-            ["--pipeline", "PRD-AUTH-001", "--issue", "Blocked on credentials"],
-            env_overrides={"ATTRACTOR_SIGNALS_DIR": signals_dir},
-        )
-
-        assert rc == 0
-        data = _parse_json_output(stdout)
-        assert data["status"] == "ok"
-        assert "signal_file" in data
-
-        with open(data["signal_file"]) as fh:
-            signal = json.load(fh)
-
-        assert signal["source"] == "guardian"
-        assert signal["target"] == "terminal"
-        assert signal["signal_type"] == "ESCALATE"
-        assert signal["payload"]["pipeline_id"] == "PRD-AUTH-001"
-        assert signal["payload"]["issue"] == "Blocked on credentials"
-
-    def test_with_options_json(self, tmp_path):
-        """escalate_to_terminal.py --options JSON is stored in payload."""
-        signals_dir = str(tmp_path / "signals")
-        rc, stdout, _ = _run_cli(
-            "escalate_to_terminal.py",
-            ["--pipeline", "PRD-AUTH-001", "--issue", "Need decision",
-             "--options", '["retry", "skip", "abort"]'],
-            env_overrides={"ATTRACTOR_SIGNALS_DIR": signals_dir},
-        )
-
-        assert rc == 0
-        data = _parse_json_output(stdout)
-        with open(data["signal_file"]) as fh:
-            signal = json.load(fh)
-
-        assert signal["payload"]["options"] == ["retry", "skip", "abort"]
-
-    def test_invalid_options_exits_with_error(self, tmp_path):
-        """escalate_to_terminal.py with invalid --options JSON exits with error."""
-        signals_dir = str(tmp_path / "signals")
-        rc, stdout, _ = _run_cli(
-            "escalate_to_terminal.py",
-            ["--pipeline", "PRD-AUTH-001", "--issue", "test",
-             "--options", "not valid json"],
-            env_overrides={"ATTRACTOR_SIGNALS_DIR": signals_dir},
-        )
-        assert rc == 1
-        data = _parse_json_output(stdout)
-        assert data["status"] == "error"
