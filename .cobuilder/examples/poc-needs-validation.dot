@@ -1,0 +1,69 @@
+// poc-needs-validation.dot — POC test scenario 3: Validation needed
+//
+// State: impl_backend is at impl_complete (done, awaiting validation).
+// Expected runner action: dispatch_validation for validate_backend
+//
+// Schema: .claude/attractor/schema.md
+
+digraph "poc-needs-validation" {
+    graph [
+        label="POC Test: Validation Needed"
+        labelloc="t"
+        fontsize=16
+        rankdir="TB"
+        prd_ref="PRD-POC-003"
+        promise_id=""
+    ];
+
+    node [fontname="Helvetica" fontsize=11];
+    edge [fontname="Helvetica" fontsize=9];
+
+    // Entry — validated
+    start [
+        shape=Mdiamond
+        label="PARSE\nPRD-POC-003"
+        handler="start"
+        status="validated"
+    ];
+
+    // Implementation — impl_complete (work done, not yet validated)
+    impl_backend [
+        shape=box
+        label="Implement\nBackend API"
+        handler="codergen"
+        bead_id="TASK-10"
+        worker_type="backend-solutions-engineer"
+        acceptance="POST /api/items returns 200 with JSON body"
+        promise_ac="AC-1"
+        status="impl_complete"
+        style=filled
+        fillcolor=lightblue
+    ];
+
+    // Technical validation gate — pending (ready: impl_backend at impl_complete)
+    validate_backend [
+        shape=hexagon
+        label="Backend\nTechnical\nValidation"
+        handler="wait.human"
+        gate="technical"
+        mode="technical"
+        bead_id="AT-10-TECH"
+        promise_ac="AC-1"
+        status="pending"
+        style=filled
+        fillcolor=lightyellow
+    ];
+
+    // Exit — pending
+    finalize [
+        shape=Msquare
+        label="FINALIZE"
+        handler="exit"
+        status="pending"
+    ];
+
+    // Edges
+    start -> impl_backend [label="begin"];
+    impl_backend -> validate_backend [label="impl_complete"];
+    validate_backend -> finalize [label="validated"];
+}

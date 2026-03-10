@@ -1,0 +1,72 @@
+// poc-stuck.dot — POC test scenario 5: Stuck pipeline
+//
+// State: impl_backend has failed 3 times (status=failed, retry_count=3).
+// No path forward without System 3 intervention.
+// Expected runner action: signal_stuck
+//
+// Schema: .claude/attractor/schema.md
+
+digraph "poc-stuck" {
+    graph [
+        label="POC Test: Stuck Pipeline"
+        labelloc="t"
+        fontsize=16
+        rankdir="TB"
+        prd_ref="PRD-POC-005"
+        promise_id=""
+    ];
+
+    node [fontname="Helvetica" fontsize=11];
+    edge [fontname="Helvetica" fontsize=9];
+
+    // Entry — validated
+    start [
+        shape=Mdiamond
+        label="PARSE\nPRD-POC-005"
+        handler="start"
+        status="validated"
+    ];
+
+    // Implementation — failed after 3 retries (exhausted)
+    impl_backend [
+        shape=box
+        label="Implement\nBackend API\n(FAILED x3)"
+        handler="codergen"
+        bead_id="TASK-10"
+        worker_type="backend-solutions-engineer"
+        acceptance="POST /api/items returns 200 with auth header"
+        promise_ac="AC-1"
+        status="failed"
+        retry_count="3"
+        last_failure="Missing auth middleware; validation failed 3 times"
+        style=filled
+        fillcolor=lightcoral
+    ];
+
+    // Validation gate — pending (stuck: impl_backend can't proceed)
+    validate_backend [
+        shape=hexagon
+        label="Backend\nValidation"
+        handler="wait.human"
+        gate="technical"
+        mode="technical"
+        bead_id="AT-10-TECH"
+        promise_ac="AC-1"
+        status="pending"
+        style=filled
+        fillcolor=lightyellow
+    ];
+
+    // Exit — pending (stuck: no path)
+    finalize [
+        shape=Msquare
+        label="FINALIZE"
+        handler="exit"
+        status="pending"
+    ];
+
+    // Edges
+    start -> impl_backend [label="begin"];
+    impl_backend -> validate_backend [label="impl_complete"];
+    validate_backend -> finalize [label="validated"];
+}

@@ -37,6 +37,7 @@ import shlex
 import subprocess
 import sys
 import time
+from pathlib import Path
 from typing import Any
 
 # Ensure local module imports work regardless of invocation directory
@@ -391,6 +392,16 @@ def _tool_get_node_details(pipeline_path: str, node_id: str) -> str:
         return json.dumps({"error": f"JSON parse error: {exc}", "raw": raw[:500]})
 
 
+def _get_cobuilder_state_dir() -> Path:
+    """Resolve the CoBuilder state directory, preferring cobuilder.dirs if available."""
+    try:
+        from cobuilder.dirs import get_state_dir
+        return get_state_dir(create=False)
+    except ImportError:
+        # Fallback when cobuilder package isn't installed
+        return Path.home() / ".claude" / "attractor" / "state"
+
+
 def _tool_check_checkpoint(pipeline_path: str) -> str:
     """Tool: check_checkpoint — look for a checkpoint JSON file."""
     pipeline_dir = os.path.dirname(pipeline_path)
@@ -404,7 +415,7 @@ def _tool_check_checkpoint(pipeline_path: str) -> str:
             f"{pipeline_name}-checkpoint.json",
         ),
         os.path.join(
-            os.path.expanduser("~/.claude/attractor/state"),
+            str(_get_cobuilder_state_dir()),
             f"{pipeline_name}-checkpoint.json",
         ),
     ]
