@@ -2045,10 +2045,11 @@ class PipelineRunner:
             lines.append(f"\n## Solution Design Path\n{solution_design_path or '(none)'}")
 
         # Inject failure guidance if this is a requeued node
-        # First check in-memory dict, then fall back to persisted file (survives restarts)
-        guidance = self.requeue_guidance.pop(nid, None)
+        # Persisted file is authoritative (written at requeue time, survives restarts).
+        # In-memory dict is fallback for same-process retries before file is written.
+        guidance = self._load_persisted_guidance(nid)
         if not guidance:
-            guidance = self._load_persisted_guidance(nid)
+            guidance = self.requeue_guidance.pop(nid, None)
         if guidance:
             lines.append(
                 f"\n## IMPORTANT: Previous Attempt Failed\n"
