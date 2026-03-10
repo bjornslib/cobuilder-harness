@@ -427,8 +427,8 @@ Post-E7.2 hardening addressing latent bugs discovered via stress testing and res
 | B: force_status Persistence | P1 | **DONE** | _do_transition disk write, guidance files. 4 E2E tests (`5e826fc`) |
 | C: Validation Error Handling | P1 | **DONE** | VALIDATION_TIMEOUT, crash→fail signal. 4 E2E tests (`5e826fc`) |
 | J: Validation Spam Suppression | P1 | **DONE** | Terminal state guard. 8 E2E tests (`5e826fc`) |
-| D: Orphan Resume Expansion | P2 | **PARTIAL** → Absorbed into PRD-COBUILDER-CONSOLIDATION-001 E2 | All handlers resumable with exponential backoff |
-| E.3: Persistent Requeue Guidance | P2 | Absorbed into PRD-COBUILDER-CONSOLIDATION-001 E2 | |
+| D: Orphan Resume Expansion | P2 | **DONE** (via PRD-COBUILDER-CONSOLIDATION-001 E2) | All 4 handler types resumable, exponential backoff, max 3 retries |
+| E.3: Persistent Requeue Guidance | P2 | **DONE** (via PRD-COBUILDER-CONSOLIDATION-001 E2, `bb5b60e`+`05cdb8a`) | File-backed persistence, authoritative over in-memory dict |
 | F: Global Safeguards | P2 | Absorbed into PRD-COBUILDER-CONSOLIDATION-001 E4-E5 | |
 | Liveness Race Fix | P1 | **DONE** | `6337153` — _get_node_status() guard prevents spurious signal overwrites |
 
