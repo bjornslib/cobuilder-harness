@@ -1,0 +1,187 @@
+digraph PRD_DASHBOARD_AUDIT_001_impl {
+
+    node [shape=ellipse, style=filled, fillcolor=lightblue];
+    edge [arrowhead=vee, color=gray];
+
+    # =========================================================================
+    # Implementation Pipeline: PRD-DASHBOARD-AUDIT-001
+    # Epic A: Per-Step Task Creation (backend prerequisite)
+    # Epic B: Dashboard Backend API
+    # Epic B-fix: Missing route handler for GET /cases/{case_id}
+    # Epic C: Case Detail Page Frontend
+    # =========================================================================
+
+    start [
+        label="Start Implementation"
+        handler="start"
+        shape=Mdiamond
+        fillcolor="lightgreen"
+        status="validated"
+        style="filled"
+    ];
+
+    # =========================================================================
+    # Epic A: Per-Step Task Creation (Backend Prerequisite) — VALIDATED
+    # =========================================================================
+
+    impl_epic_a [
+        label="Epic A: Per-Step Task Creation"
+        handler="codergen"
+        shape=box
+        fillcolor="palegreen"
+        status="validated"
+        worker_type="backend-solutions-engineer"
+        sd_path="docs/sds/sequence-progression/SD-SEQ-PERSTEP-TASKS-001.md"
+        prd_ref="PRD-DASHBOARD-AUDIT-001"
+        epic_id="EPIC-A"
+        bead_id="claude-harness-setup-r73x"
+        target_dir="/Users/theb/Documents/Windsurf/zenagent3/zenagent/agencheck/agencheck-support-agent"
+        project_bank="claude-code-agencheck"
+        acceptance="Migration 052 created with previous_task_id/next_task_id columns. create_step_task() function in background_task_helpers.py. verification_orchestrator.py step loop updated to create per-step tasks before dispatch. Guard checks case status after asyncio.sleep. Idempotency guard prevents duplicate step tasks."
+        style="filled"
+    ];
+
+    wait_system3_epic_a [
+        label="Validate Epic A"
+        handler="wait.system3"
+        shape=octagon
+        fillcolor="palegreen"
+        status="validated"
+        prd_ref="PRD-DASHBOARD-AUDIT-001"
+        epic_id="EPIC-A"
+        style="filled"
+    ];
+
+    # =========================================================================
+    # Epic B: Dashboard Backend API — IMPL_COMPLETE (service layer done)
+    # =========================================================================
+
+    impl_epic_b [
+        label="Epic B: Dashboard Backend API"
+        handler="codergen"
+        shape=box
+        fillcolor="palegreen"
+        status="validated"
+        worker_type="backend-solutions-engineer"
+        sd_path="docs/sds/dashboard-audit-trail/SD-DASHBOARD-AUDIT-001.md"
+        prd_ref="PRD-DASHBOARD-AUDIT-001"
+        epic_id="EPIC-B"
+        bead_id="claude-harness-setup-e2vb"
+        target_dir="/Users/theb/Documents/Windsurf/zenagent3/zenagent/agencheck/agencheck-support-agent"
+        project_bank="claude-code-agencheck"
+        acceptance="GET /api/v1/cases/{case_id} endpoint returns case overview + full timeline (completed + synthesized future steps). StatusLabelMapper in utils/status_labels.py. CI script scripts/export_status_labels.py generates frontend TypeScript constants. list_verifications response includes case_id, sequence_progress, status_label. Migration for latest_employment_status on cases table."
+        style="filled"
+    ];
+
+    # =========================================================================
+    # Fix-it: Missing @router.get("/cases/{case_id}") route handler
+    # Service layer (get_case_by_id, get_case_timeline) exists but no HTTP endpoint
+    # =========================================================================
+
+    fix_epic_b_route [
+        label="Fix: Add GET /cases/{case_id} route handler"
+        handler="codergen"
+        shape=box
+        fillcolor="palegreen"
+        status="validated"
+        worker_type="backend-solutions-engineer"
+        sd_path="docs/sds/dashboard-audit-trail/SD-DASHBOARD-AUDIT-001.md"
+        prd_ref="PRD-DASHBOARD-AUDIT-001"
+        epic_id="EPIC-B-FIX"
+        bead_id="claude-harness-setup-e2vb"
+        target_dir="/Users/theb/Documents/Windsurf/zenagent3/zenagent/agencheck/agencheck-support-agent"
+        project_bank="claude-code-agencheck"
+        acceptance="@router.get /api/v1/cases/{case_id} endpoint exists in api/routers/work_history.py. Returns case overview + timeline JSON. Uses get_case_by_id() and get_case_timeline() service methods already implemented."
+        prompt="You are working in the agencheck-support-agent repository on branch feat/dashboard-audit-perstep. The service layer methods get_case_by_id() and get_case_timeline() already exist in api/routers/work_history.py (in the WorkHistoryDBService class). You need to add a route handler: @router.get('/api/v1/cases/{case_id}') that (1) calls get_case_by_id() to get case overview, (2) calls get_case_timeline() to get timeline entries (completed + synthesized future steps), (3) returns a JSON response with both case overview and timeline. Follow the existing patterns in the router file for auth, error handling, and response models. Add a CaseDetailResponse Pydantic model. Commit with descriptive message."
+        style="filled"
+    ];
+
+    wait_system3_epic_b [
+        label="Validate Epic B"
+        handler="wait.system3"
+        shape=octagon
+        fillcolor="palegreen"
+        status="validated"
+        prd_ref="PRD-DASHBOARD-AUDIT-001"
+        epic_id="EPIC-B"
+        prompt="Validate Epic B dashboard API: (1) GET /api/v1/cases/{case_id} returns correct JSON shape. (2) Timeline synthesizes future steps. (3) StatusLabelMapper covers all status values. (4) CI export script generates valid TypeScript. (5) list_verifications includes new fields."
+        style="filled"
+    ];
+
+    # =========================================================================
+    # Epic C: Case Detail Page Frontend
+    # SD: SD-DASHBOARD-AUDIT-FRONTEND-001
+    # Target: agencheck-support-frontend
+    # =========================================================================
+
+    impl_epic_c [
+        label="Epic C: Frontend Case Detail"
+        handler="codergen"
+        shape=box
+        fillcolor="palegreen"
+        status="validated"
+        worker_type="frontend-dev-expert"
+        sd_path="docs/sds/dashboard-audit-trail/SD-DASHBOARD-AUDIT-FRONTEND-001.md"
+        prd_ref="PRD-DASHBOARD-AUDIT-001"
+        epic_id="EPIC-C"
+        bead_id="claude-harness-setup-f28d"
+        target_dir="/Users/theb/Documents/Windsurf/zenagent3/zenagent/agencheck/agencheck-support-frontend"
+        project_bank="claude-code-agencheck"
+        acceptance="Case detail page at /checks-dashboard/cases/[id] with 12-col grid layout. CandidateEmployerCard, VerificationComparisonTable, ActivityTimeline with vertical left-border dots, CallRecordingPlayer with HTML5 audio. React Query hook with terminal-aware polling. TypeScript types matching API contract. API client fix (work-history.ts:368 uses case_id not task_id). Redirect middleware for UUID URLs. Skeleton loading states."
+        prompt="You are in the agencheck-support-frontend repo on branch feat/dashboard-audit-frontend. The TypeScript types (types/case.ts), API client (lib/api/cases.ts), React Query hook (hooks/useCaseDetail.ts), and work-history.ts fix are ALREADY COMMITTED. You only need to create the REMAINING files. Read the SD at /Users/theb/Documents/Windsurf/claude-harness-setup/docs/sds/dashboard-audit-trail/SD-DASHBOARD-AUDIT-FRONTEND-001.md for component specs. Create: (1) app/checks-dashboard/cases/[id]/_components/CandidateEmployerCard.tsx — card with candidate+employer info. (2) app/checks-dashboard/cases/[id]/_components/VerificationComparisonTable.tsx — side-by-side comparison. (3) app/checks-dashboard/cases/[id]/_components/ActivityTimeline.tsx — vertical timeline with left-border dots. (4) app/checks-dashboard/cases/[id]/_components/CallRecordingPlayer.tsx — HTML5 audio player. (5) app/checks-dashboard/cases/[id]/_components/CasePageHeader.tsx — breadcrumb + status badge. (6) app/checks-dashboard/cases/[id]/page.tsx — 12-col grid assembly using useCaseDetail hook and above components. (7) app/checks-dashboard/cases/[id]/loading.tsx — skeleton. Use shadcn card, badge, breadcrumb, skeleton components. Commit with descriptive message."
+        style="filled"
+    ];
+
+    wait_system3_epic_c [
+        label="Validate Epic C"
+        handler="wait.system3"
+        shape=octagon
+        fillcolor="palegreen"
+        status="validated"
+        prd_ref="PRD-DASHBOARD-AUDIT-001"
+        epic_id="EPIC-C"
+        prompt="Validate Epic C frontend: (1) Page renders at /checks-dashboard/cases/[id]. (2) Components match SD specs. (3) API client uses case_id (integer). (4) React Query stops polling on terminal. (5) Timeline renders completed/current/pending dots. (6) Skeleton loading state works."
+        style="filled"
+    ];
+
+    # =========================================================================
+    # Exit
+    # =========================================================================
+
+    complete [
+        label="Implementation Complete"
+        handler="exit"
+        shape=Msquare
+        fillcolor="palegreen"
+        status="validated"
+        style="filled"
+    ];
+
+    # =========================================================================
+    # Execution flow — sequential epics with validation gates
+    # Fix-it node inserted between Epic B impl and its validation gate
+    # =========================================================================
+
+    start -> impl_epic_a [label="begin"];
+
+    impl_epic_a -> wait_system3_epic_a [label="impl_complete"];
+    wait_system3_epic_a -> impl_epic_b [label="validated"];
+
+    impl_epic_b -> fix_epic_b_route [label="impl_complete"];
+    fix_epic_b_route -> wait_system3_epic_b [label="impl_complete"];
+    wait_system3_epic_b -> impl_epic_c [label="validated"];
+
+    impl_epic_c -> wait_system3_epic_c [label="impl_complete"];
+    wait_system3_epic_c -> complete [label="validated"];
+
+    # =========================================================================
+    # Metadata
+    # =========================================================================
+    graph [
+        label="PRD-DASHBOARD-AUDIT-001: Implementation Pipeline (3 Epics + 1 Fix-It)"
+        labelloc=top
+        fontname="Helvetica"
+        fontsize=12
+        target_dir="/Users/theb/Documents/Windsurf/zenagent3/zenagent/agencheck/agencheck-support-frontend"
+    ];
+}

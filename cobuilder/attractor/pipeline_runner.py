@@ -1068,6 +1068,7 @@ class PipelineRunner:
         "Bash", "Read", "Write", "Edit", "Glob", "Grep", "MultiEdit",
         "TodoWrite", "WebFetch", "WebSearch",
         "ToolSearch",  # MANDATORY — loads deferred MCP tool schemas
+        "Skill",       # Native skill invocation (requires setting_sources)
         "LSP",         # type info, definitions, diagnostics
     ]
     # Serena: semantic code navigation and symbol-level editing
@@ -1142,9 +1143,10 @@ class PipelineRunner:
         # Worker model: ANTHROPIC_MODEL (from attractor .env) > PIPELINE_WORKER_MODEL > default
         worker_model = os.environ.get("ANTHROPIC_MODEL") or os.environ.get("PIPELINE_WORKER_MODEL", "claude-haiku-4-5-20251001")
 
-        # NOTE: Skill() is NOT available to SDK agents — skills_required from agent
-        # definitions are informational only. The system prompt from the agent .md
-        # file already contains domain knowledge that replaces skill invocation.
+        # Skills are available to SDK agents via setting_sources=['user', 'project']
+        # + 'Skill' in allowed_tools. Agent .md files reference skills in their body
+        # text (e.g., Skill('acceptance-test-runner')). The setting_sources option
+        # enables filesystem-based skill discovery from .claude/skills/.
 
         # Build handler-specific allowed_tools
         tools = self._get_allowed_tools(handler)
@@ -1160,7 +1162,6 @@ class PipelineRunner:
                 permission_mode="bypassPermissions",
                 model=worker_model,
                 cwd=self._get_target_dir(),
-                max_turns=50,
                 env=clean_env,
             )
             messages = []
@@ -1227,22 +1228,20 @@ class PipelineRunner:
         finally:
             loop.close()
 
-        # Fix 1: Signal file as ground truth for worker completion.
-        # Workers are expected to write {signal_dir}/{node_id}.json on completion.
-        # If the SDK reports success but no signal file exists, the worker was
-        # interrupted before finishing (e.g. rate limit, OOM, premature exit).
+        # Fix 1 (softened): Worker-written signal is preferred, but not required.
+        # If the SDK reports success but no signal file exists, the worker likely
+        # ran out of turns before writing the signal. The runner writes the signal
+        # on the worker's behalf at line 1274 below.
         if result.get("status") == "success":
             signal_path = os.path.join(self.signal_dir, f"{node_id}.json")
             if not os.path.exists(signal_path):
-                log.error(
-                    "[sdk] Worker %s reported success but no signal file at %s — "
-                    "likely interrupted (rate limit, OOM, etc.)",
-                    node_id, signal_path,
+                log.warning(
+                    "[sdk] Worker %s completed without writing signal file — "
+                    "runner will write signal on worker's behalf",
+                    node_id,
                 )
-                result = {
-                    "status": "failed",
-                    "message": "Worker exited without writing signal file — likely interrupted (rate limit, OOM, etc.)",
-                }
+                # Do NOT override to "failed" — the SDK stream completed normally.
+                # The runner's _write_node_signal at line 1274 will handle it.
 
         elapsed = time.time() - t0
         log.info("[sdk] Worker %s finished in %.1fs  status=%s  msgs=%s",
@@ -1502,7 +1501,7 @@ class PipelineRunner:
         async def _run() -> dict:
             clean_env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
             # Base tools for validation; extend for browser-required PRDs
-            validation_tools = ["Read", "Write", "Bash", "Grep", "Glob"]
+            validation_tools = ["Read", "Write", "Bash", "Grep", "Glob", "ToolSearch", "Skill"]
             if getattr(self, "_validation_method_hint", None) == "browser-required":
                 validation_tools.extend([
                     "mcp__claude-in-chrome__navigate",

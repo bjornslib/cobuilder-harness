@@ -3,12 +3,11 @@ title: "SD-DASHBOARD-AUDIT-FRONTEND-001: Case Detail Page Frontend Redesign"
 status: draft
 type: guide
 grade: authoritative
-last_verified: 2026-03-09
+last_verified: 2026-03-09T00:00:00.000Z
 ---
-
 # SD-DASHBOARD-AUDIT-FRONTEND-001: Case Detail Page Frontend Redesign
 
-**Version**: 0.2.0 (Incorporated research findings from SD-DASHBOARD-AUDIT-001)
+**Version**: 0.3.0 (Dropped case_reference — use case_id; added Prefect prerequisite note)
 **Date**: 2026-03-09
 **PRD**: PRD-DASHBOARD-AUDIT-001, Epic B
 **Design Source**: Stitch project `4785994430092730679`, screen `2906fd2e2b044991b8e672b9c41e3bc5`
@@ -19,7 +18,7 @@ last_verified: 2026-03-09
 
 ## 1. Design Analysis (from Stitch HTML)
 
-The Stitch design shows a case detail page at `/checks-dashboard/cases/[ref]` with:
+The Stitch design shows a case detail page at `/checks-dashboard/cases/[id]` with:
 
 - **12-column grid layout**: 7-col left panel, 5-col right panel
 - **Left panel**: Candidate/employer card (top) + Verification results comparison table (below)
@@ -30,7 +29,7 @@ The Stitch design shows a case detail page at `/checks-dashboard/cases/[ref]` wi
 ### Key Design Patterns
 
 | Pattern | Design Implementation |
-|---------|----------------------|
+| --- | --- |
 | Status indicators | Green check (match), amber warning (mismatch), badges |
 | Timeline | Vertical left-border with circle dots (filled=active, outline=past) |
 | Audio player | Inline in timeline entry: play button + progress bar + duration |
@@ -44,10 +43,10 @@ The Stitch design shows a case detail page at `/checks-dashboard/cases/[ref]` wi
 ### 2.1 Page Component Tree
 
 ```
-/checks-dashboard/cases/[ref]/page.tsx
+/checks-dashboard/cases/[id]/page.tsx
 ├── Breadcrumb (shadcn)
 ├── CasePageHeader
-│   ├── Title with case_reference
+│   ├── Title with case_id
 │   └── ActionsDropdown (shadcn DropdownMenu)
 └── Grid (12-col)
     ├── Left (7-col)
@@ -64,7 +63,7 @@ The Stitch design shows a case detail page at `/checks-dashboard/cases/[ref]` wi
 ### 2.2 Component Inventory
 
 | Component | Source | shadcn Install | Notes |
-|-----------|--------|----------------|-------|
+| --- | --- | --- | --- |
 | `Breadcrumb` | shadcn | `npx shadcn@latest add breadcrumb` | Standard breadcrumb with chevron separators |
 | `Card` | shadcn | `npx shadcn@latest add card` | Wraps candidate card + verification table |
 | `Badge` | shadcn | `npx shadcn@latest add badge` | "Discrepancy Found", "Verified", "Mismatch" |
@@ -107,7 +106,7 @@ case_id: v.case_id
 
 ```typescript
 // lib/api/cases.ts
-export async function getCaseByReference(ref: string): Promise<CaseDetail> {
+export async function getCaseById(id: number): Promise<CaseDetail> {
   const response = await apiClient.get(`/api/v1/cases/${ref}`);
   return response.data;
 }
@@ -120,7 +119,7 @@ export async function getCaseByReference(ref: string): Promise<CaseDetail> {
 ```typescript
 // hooks/useCaseDetail.ts
 import { useQuery } from "@tanstack/react-query";
-import { getCaseByReference } from "@/lib/api/cases";
+import { getCaseById } from "@/lib/api/cases";
 
 const TERMINAL_STATUSES = new Set([
   "verification_complete", "verification_failed",
@@ -130,7 +129,7 @@ const TERMINAL_STATUSES = new Set([
 export function useCaseDetail(caseRef: string) {
   return useQuery({
     queryKey: ["case", caseRef],
-    queryFn: () => getCaseByReference(caseRef),
+    queryFn: () => getCaseById(caseRef),
     refetchInterval: (query) => {
       const status = query.state.data?.status;
       if (status && TERMINAL_STATUSES.has(status)) return false;
@@ -145,7 +144,7 @@ export function useCaseDetail(caseRef: string) {
 ```typescript
 // types/case.ts
 export interface CaseDetail {
-  case_reference: string;
+  case_id: string;
   case_id: number;
   status: string;
   status_label: string;
@@ -289,21 +288,21 @@ interface CallRecordingPlayerProps {
 ### 5.1 Route Structure
 
 ```
-/checks-dashboard/cases/[ref]/page.tsx    ← new case detail page
-/checks-dashboard/cases/[ref]/loading.tsx ← skeleton loader
+/checks-dashboard/cases/[id]/page.tsx    ← new case detail page
+/checks-dashboard/cases/[id]/loading.tsx ← skeleton loader
 ```
 
 ### 5.2 Redirect Middleware
 
 ```typescript
 // middleware.ts (or next.config.js redirects)
-// Pattern: UUID-shaped path segment → look up case_reference via API → redirect
+// Pattern: UUID-shaped path segment → look up case_id via API → redirect
 // Only applies to /checks-dashboard/cases/[segment] where segment matches UUID pattern
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-/;
 
 if (UUID_PATTERN.test(ref)) {
-  // Redirect old task_id URLs to new case_reference URLs
-  // API call: GET /api/v1/verifications/{task_id} → extract case_reference
+  // Redirect old task_id URLs to new case_id URLs
+  // API call: GET /api/v1/verifications/{task_id} → extract case_id
   return NextResponse.redirect(`/checks-dashboard/cases/${caseReference}`);
 }
 ```
@@ -315,7 +314,7 @@ if (UUID_PATTERN.test(ref)) {
 ### 6.1 Page Loading States
 
 | State | Behavior |
-|-------|----------|
+| --- | --- |
 | **Initial load** | Skeleton placeholders for each card/section (shadcn `<Skeleton>` components). Breadcrumb renders immediately (static). |
 | **Data loaded** | Cards fade in with `transition-opacity duration-300`. Timeline entries stagger in with 50ms delay each. |
 | **API error** | Toast notification (shadcn `<Sonner>`) with retry button. Cards show "Unable to load" inline. |
@@ -338,7 +337,7 @@ if (UUID_PATTERN.test(ref)) {
 ### 6.2 Verification Results — Interaction States
 
 | Element | Hover | Click | Active State |
-|---------|-------|-------|-------------|
+| --- | --- | --- | --- |
 | **Matched row** | Subtle green tint (`bg-green-50/50`) | No action (v1) | — |
 | **Mismatched row** | Amber tint (`bg-amber-50/50`) | Future: expand to show AI explanation | Highlighted border-left amber |
 | **Overall status badge** | Slight scale (`scale-105`) | No action | Pulses gently when `status !== terminal` (CSS `animate-pulse` at reduced opacity) |
@@ -357,7 +356,7 @@ if (UUID_PATTERN.test(ref)) {
 #### Dot States (Timeline Markers)
 
 | State | Dot Style | Connector Style |
-|-------|-----------|-----------------|
+| --- | --- | --- |
 | **Completed (latest)** | `bg-teal-500 border-2 border-white shadow-sm` (filled, 14px) | Solid `border-l-2 border-slate-100` |
 | **Completed (older)** | `bg-white border-2 border-slate-300` (outline, 14px) | Solid line |
 | **In Progress** | `bg-teal-500 border-2 border-white animate-pulse` (filled + pulse) | Solid line |
@@ -366,7 +365,7 @@ if (UUID_PATTERN.test(ref)) {
 #### Timeline Event Interactions
 
 | Interaction | Behavior |
-|-------------|----------|
+| --- | --- |
 | **Hover on event** | Entire event row gets `bg-slate-50/50` background. Timestamp text darkens from `text-slate-400` → `text-slate-600`. |
 | **Hover on dot** | Tooltip appears with: step label, result label, timestamp. Tooltip uses shadcn `<Tooltip>` with 200ms delay. |
 | **New event arrives (polling)** | New entry slides down from top of position with `animate-slideDown` (translateY -8px → 0, opacity 0 → 1, 300ms). Brief green flash (`ring-2 ring-green-400/30`) then fades. |
@@ -385,7 +384,7 @@ useEffect(() => {
 ### 6.4 Call Recording Player — Interaction Design
 
 | Element | Interaction | Behavior |
-|---------|-------------|----------|
+| --- | --- | --- |
 | **Play button** | Click | Toggles play/pause. Icon transitions: `play_arrow` ↔ `pause` with 150ms fade. Button has `hover:bg-slate-100` ring. |
 | **Progress bar** | Click | Seeks to clicked position. Bar fills from left (`bg-teal-400`). |
 | **Progress bar** | Drag | Scrubber knob (`w-3 h-3 bg-white border border-teal-400 rounded-full shadow-sm`) follows cursor. Audio seeks in real-time. |
@@ -435,7 +434,7 @@ useEffect(() => {
 ### 6.5 Actions Dropdown — Interaction Flows
 
 | Action | Click Behavior | Confirmation | API Call |
-|--------|---------------|--------------|----------|
+| --- | --- | --- | --- |
 | **Flag Issue** | Opens `<Dialog>` with textarea for notes + "Flag" button | Required: user must enter notes | `POST /api/v1/cases/{ref}/flags` |
 | **Request Re-verification** | Opens `<Dialog>` with reason radio group (Data Error, New Information, Other) + notes | Required: reason selection | `POST /api/v1/cases/{ref}/reverify` |
 | **Download Report** | Immediate: triggers PDF download | None | `GET /api/v1/cases/{ref}/report` (returns PDF blob) |
@@ -467,7 +466,7 @@ useEffect(() => {
 ### 6.6 Polling & Real-Time Update Behavior
 
 | Scenario | Behavior |
-|----------|----------|
+| --- | --- |
 | **Active case** | `refetchInterval: 10_000` (10s). Each refetch silently updates React Query cache. |
 | **Terminal case** | `refetchInterval: false`. Page becomes static. Badge stops pulsing. |
 | **New timeline event detected** | Diff previous vs current `timeline.length`. New entries get `data-new="true"` attribute → green flash animation (ring-2 ring-green-400/30, 1s fade). |
@@ -478,7 +477,7 @@ useEffect(() => {
 ### 6.7 Keyboard Accessibility
 
 | Key | Context | Action |
-|-----|---------|--------|
+| --- | --- | --- |
 | `Space/Enter` | Audio player play button focused | Toggle play/pause |
 | `ArrowLeft/Right` | Audio player focused | Seek ±5 seconds |
 | `Escape` | Transcript sheet open | Close sheet |
@@ -487,7 +486,7 @@ useEffect(() => {
 ### 6.8 Empty & Edge States
 
 | State | UI |
-|-------|-----|
+| --- | --- |
 | **No verification results yet** | Verification card shows "Verification results will appear here once the check is complete" with a clock icon |
 | **No timeline events** | Timeline shows single "Case Created" entry with creation timestamp |
 | **No recording available** | Timeline event renders without audio player section |
@@ -499,7 +498,7 @@ useEffect(() => {
 ## 7. Responsive Behavior (Detail)
 
 | Breakpoint | Layout |
-|------------|--------|
+| --- | --- |
 | `lg` (1024px+) | 12-col grid: 7-col left + 5-col right |
 | `md` (768px) | Single column: candidate → verification → timeline stacked |
 | `sm` (640px) | Full-width cards, timeline dots shift to smaller size |
@@ -511,7 +510,7 @@ useEffect(() => {
 All customer-facing text must use v3.3 terminology:
 
 | Forbidden | Use Instead |
-|-----------|-------------|
+| --- | --- |
 | "task" | "check" or "verification" |
 | "background_task" | "verification step" |
 | "unreachable" | "Unable to Verify" |
@@ -524,7 +523,7 @@ Status labels come exclusively from the backend `status_label` field — no fron
 ## 9. Implementation Order
 
 | Step | Component | Depends On |
-|------|-----------|------------|
+| --- | --- | --- |
 | 1 | TypeScript types (`types/case.ts`) | API contract (SD-DASHBOARD-AUDIT-001 §7) |
 | 2 | API client fix (`work-history.ts:368`) | — |
 | 3 | New API client (`lib/api/cases.ts`) | Backend endpoint |
@@ -536,7 +535,7 @@ Status labels come exclusively from the backend `status_label` field — no fron
 | 9 | `CasePageHeader` | shadcn DropdownMenu, Breadcrumb |
 | 10 | Page assembly (`page.tsx`) | Steps 4-9 |
 | 11 | Redirect middleware | Step 10 |
-| 12 | Checks list table updates | Backend `case_reference` field |
+| 12 | Checks list table updates | Backend `case_id` field |
 
 ---
 
@@ -550,7 +549,7 @@ Status labels come exclusively from the backend `status_label` field — no fron
 
 ### Integration Tests
 - Navigate to `/checks-dashboard/cases/AC-202603-00042` → renders full page
-- Old UUID URL redirects to case_reference URL
+- Old UUID URL redirects to case_id URL
 - Actions dropdown items trigger correct API calls
 
 ### Visual Regression
