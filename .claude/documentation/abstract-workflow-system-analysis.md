@@ -1,455 +1,445 @@
 ---
-title: "Abstract Workflow System: MASFactory-Inspired Design for Claude Code Harness"
+title: "Abstract Workflow System: MASFactory vs CoBuilder/Attractor Comparison"
 status: draft
 type: architecture
 grade: reference
 last_verified: 2026-03-11
 ---
 
-# Abstract Workflow System: MASFactory-Inspired Design
+# Abstract Workflow System: MASFactory vs CoBuilder/Attractor Comparison
 
 ## Executive Summary
 
-This document analyzes [MASFactory](https://github.com/BUPT-GAMMA/MASFactory) — a graph-based multi-agent orchestration framework — and proposes how its key ideas can be adapted to make the Claude Code harness workflow **abstract, configurable, storable, and loadable**.
+This document compares [MASFactory](https://github.com/BUPT-GAMMA/MASFactory) — an open-source graph-based multi-agent orchestration framework — against our **existing** CoBuilder Engine and Attractor DOT pipeline system. The harness already has a sophisticated graph-based workflow system; the question is what (if anything) MASFactory's patterns could add to it.
 
-Currently, our 3-tier workflow (System3 → Orchestrator → Workers) is defined implicitly through a combination of output-styles, skills, hooks, and hardcoded patterns in markdown files. MASFactory offers a proven model for making such workflows explicit, composable, and user-customizable.
+**Key finding**: Our system and MASFactory solve similar problems with different approaches. Our DOT-based system is **more mature for LLM agent orchestration** with features MASFactory lacks (signal protocol, checkpoint resume, validation gates). MASFactory's main advantages are **composed graph templates** and **intent-to-graph generation** (VibeGraph).
 
 ---
 
-## Part 1: MASFactory Key Concepts
+## Part 1: What We Already Have — CoBuilder/Attractor
+
+### Two-System Architecture
+
+The harness contains two complementary DOT pipeline systems:
+
+| System | Location | Purpose | Parser |
+|--------|----------|---------|--------|
+| **Attractor** | `.claude/scripts/attractor/` | System 3 initiative orchestration | Regex-based, zero dependencies |
+| **CoBuilder Engine** | `cobuilder/engine/` | Production workflow engine | Recursive-descent lexer/parser |
+
+Both parse and execute **DOT directed graphs** but serve different complexity tiers.
+
+### DOT Graph as Workflow Definition
+
+Workflows are **already** structured, serializable, and executable. A DOT file encodes the complete topology:
+
+```dot
+digraph "PRD-AUTH-001" {
+    graph [
+        label="Initiative: Login Feature"
+        prd_ref="PRD-AUTH-001"
+        promise_id="promise-abc"
+        rankdir="TB"
+    ];
+
+    START [shape=Mdiamond handler=start];
+
+    impl_backend [
+        shape=box
+        handler=codergen
+        bead_id="TASK-10"
+        worker_type="backend-solutions-engineer"
+        acceptance="POST /api/auth returns 200"
+        solution_design=".taskmaster/docs/SD-AUTH-001.md"
+        status=pending
+    ];
+
+    validate_tech [shape=hexagon handler="wait.system3" mode=technical bead_id="AT-10-TECH"];
+    validate_biz [shape=hexagon handler="wait.human" mode=business bead_id="AT-10-BIZ"];
+    decision [shape=diamond handler=conditional];
+
+    FINALIZE [shape=Msquare handler=exit];
+
+    START -> impl_backend;
+    impl_backend -> validate_tech [label="impl_complete"];
+    validate_tech -> validate_biz [label="pass" condition="pass"];
+    validate_tech -> impl_backend [label="fail" condition="fail" style=dashed];
+    validate_biz -> decision;
+    decision -> FINALIZE [label="pass" condition="pass"];
+    decision -> impl_backend [label="fail" condition="fail"];
+}
+```
+
+### Node Shape → Handler Mapping
+
+| Shape | Handler | Purpose |
+|-------|---------|---------|
+| `Mdiamond` | `start` | Pipeline entry point |
+| `Msquare` | `exit` | Pipeline exit point |
+| `box` | `codergen` | Implementation task → dispatches worker |
+| `box` | `tool` | CLI/script execution |
+| `hexagon` | `wait.system3` | Automated validation gate |
+| `hexagon` | `wait.human` | Human review gate |
+| `diamond` | `conditional` | Pass/fail routing |
+| `parallelogram` | `parallel` | Fan-out concurrent execution |
+| `tripleoctagon` | `fan_in` | Multi-stream convergence |
+| `house` | `manager_loop` | Orchestrator loop marker |
+| `tab` | `research` | Framework research task |
+
+### State Machine
+
+All nodes follow a defined lifecycle:
+
+```
+pending → active → impl_complete → validated → accepted
+                 ↘ failed ↙
+                     ↓
+                   active (retry via fail edge)
+```
+
+### Pipeline Runner (Zero LLM Token Execution)
+
+```
+System 3 (Opus) → pipeline_runner.py (pure Python) → Workers (AgentSDK)
+```
+
+The runner is a **pure Python state machine** with zero LLM intelligence for graph traversal:
+- Parses DOT, tracks node states, finds dispatchable nodes
+- Launches workers via `claude_code_sdk`
+- Watches signal files for completion
+- Applies transitions mechanically
+- Writes checkpoints for resume
+
+### Worker Dispatch from DOT Nodes
+
+```python
+# Pipeline runner reads node attributes from DOT
+worker_type = node.attrs["worker_type"]  # e.g., "backend-solutions-engineer"
+bead_id = node.attrs["bead_id"]
+solution_design = node.attrs.get("solution_design")
+
+# Loads agent definition from .claude/agents/<worker_type>.md
+# Spawns worker via AgentSDK
+# Worker writes signal file on completion: signals/<node_id>.json
+# Runner reads signal, applies transition
+```
+
+### Signal Protocol (4-Layer Communication)
+
+```
+Guardian ←→ Runner ←→ Orchestrator ←→ Worker
+
+Signals (atomic file writes in signals/):
+- NEEDS_REVIEW: runner → guardian
+- VALIDATION_PASSED/FAILED: guardian → runner
+- DISPATCH_READY: runner → orchestrator
+- IMPL_COMPLETE: orchestrator → runner
+```
+
+### Existing CLI
+
+```bash
+# Parse and validate
+attractor validate pipeline.dot --strict
+
+# Query status
+attractor status pipeline.dot --json --filter=pending
+
+# State transitions
+attractor transition pipeline.dot impl_backend active --dry-run
+
+# Generate from beads
+attractor generate --prd PRD-AUTH-001 --output pipeline.dot
+
+# Execute
+attractor run pipeline.dot --execute
+
+# Checkpoint save/restore
+attractor checkpoint save pipeline.dot
+attractor checkpoint restore checkpoint.json
+```
+
+### CoBuilder Engine (Production-Grade)
+
+The CoBuilder engine adds:
+- **Async execution** with event bus for monitoring
+- **Middleware chain**: Logfire → TokenCounting → Retry → Audit → Handler
+- **Loop detection** with configurable max node visits
+- **Handler registry** mapping shapes to typed handler implementations
+- **Checkpoint system** with full state persistence and resume
+
+---
+
+## Part 2: MASFactory Key Concepts
 
 ### Graph-Based Workflow Model
 
-MASFactory represents all multi-agent workflows as **directed graphs**:
+MASFactory represents workflows as **directed graphs** in Python:
+
+```python
+graph = RootGraph()
+graph.add_node(researcher, name="researcher")
+graph.add_node(writer, name="writer")
+graph.add_edge("researcher", "writer", field_mapping={"research_output": "input"})
+workflow = graph.build()
+result = workflow.invoke({"query": "..."})
+```
+
+### Composed Graph Patterns
+
+MASFactory's standout feature — **pre-built topologies** as reusable classes:
+
+| Pattern | Topology | Our DOT Equivalent |
+|---------|----------|-------------------|
+| `VerticalGraph` | Sequential A→B→C | Linear DOT chain (START → task → FINALIZE) |
+| `HorizontalGraph` | Parallel fan-out/in | `parallelogram` + `tripleoctagon` nodes |
+| `BrainstormingGraph` | Multi-agent ideation + synthesis | Parallel `tab` (research) nodes + fan-in |
+| `HubGraph` | Central coordinator → spokes | `house` (manager_loop) → `box` (codergen) nodes |
+| `PingPongGraph` | Iterative back-and-forth | `diamond` conditional with retry edges |
+| `InstructorAssistantGraph` | Guide + execute | System3→Orchestrator relationship (implicit in hierarchy) |
+| `VerticalDecisionGraph` | Sequential + conditional | `diamond` nodes with pass/fail edges |
+| `Loop` | Iterative refinement | Fail edges creating cycles (already in our schema) |
+
+### VibeGraph (Intent-to-Workflow)
 
 ```
-Nodes  = Agents, control structures, subgraphs
-Edges  = Message pathways with explicit field mappings
-Gates  = Conditional routing logic
+User: "Build a code review pipeline"
+  → LLM generates graph_design.json
+  → User refines in VS Code
+  → System compiles and executes
 ```
-
-A workflow is a `RootGraph` containing nodes and edges, built with `.build()` and executed with `.invoke()`.
-
-### Composed Graph Patterns (Pre-Built Topologies)
-
-MASFactory ships reusable **composed graph patterns** — the most relevant insight for us:
-
-| Pattern | Topology | Our Equivalent |
-|---------|----------|----------------|
-| `VerticalGraph` | Sequential pipeline (A→B→C) | Our 4-phase pattern (Ideation→Planning→Execution→Validation) |
-| `HorizontalGraph` | Parallel fan-out, fan-in | Parallel worker dispatch |
-| `BrainstormingGraph` | Multiple agents contribute ideas, then synthesize | Our `parallel-solutioning` skill |
-| `HubGraph` | Central coordinator delegates to spokes | Our Orchestrator→Worker pattern |
-| `PingPongGraph` | Two agents iterating back-and-forth | Code review loops, instructor-assistant |
-| `InstructorAssistantGraph` | Instructor guides, assistant executes | Our System3→Orchestrator relationship |
-| `MeshGraph` | All-to-all agent communication | Peer worker coordination |
-| `VerticalDecisionGraph` | Sequential with conditional branches | Our LogicSwitch-style task routing |
-| `Loop` | Iterative refinement with exit condition | TDD red-green-refactor cycles |
-
-### VibeGraph: Intent-to-Workflow Generation
-
-MASFactory's `VibeGraph` generates workflow topology from natural language:
-1. User describes intent ("Build a code review pipeline")
-2. LLM generates a `graph_design.json` with nodes, edges, agent configs
-3. User refines visually in VS Code
-4. System compiles and executes
 
 ### NodeTemplate & Factory
 
-`NodeTemplate` allows parameterized agent definitions that can be instantiated multiple times with different configs. `Factory` creates agents from templates. This is analogous to our agent directory but declarative rather than hardcoded.
+Parameterized agent definitions instantiated with different configs:
 
-### Hooks System
-
-MASFactory has `HookManager` with `HookStage` and `masf_hook` — lifecycle hooks at graph/node/edge levels. Similar to our `SessionStart`, `Stop`, `PreCompact` hooks but more granular.
+```python
+template = NodeTemplate(
+    model="claude-sonnet-4-6",
+    system_prompt="You are a {role}",
+    tools=["{tool_set}"]
+)
+researcher = template.create(role="researcher", tool_set="web_search")
+writer = template.create(role="writer", tool_set="file_write")
+```
 
 ### Serialization
 
-Workflows serialize to `graph_design.json` — the entire topology, agent configs, and edge mappings in one file. This enables **storing and loading workflows**.
+Workflows serialize to `graph_design.json` — topology, agent configs, and edge mappings in one file.
 
 ---
 
-## Part 2: Current Harness Architecture (What We Have)
+## Part 3: Head-to-Head Comparison
 
-### Workflow Definition Is Implicit
+### Feature Matrix
 
-Our workflow is defined across **7+ scattered locations**:
+| Capability | CoBuilder/Attractor | MASFactory |
+|-----------|-------------------|------------|
+| **Graph format** | DOT (Graphviz) | Python code / JSON |
+| **Serialization** | Native (DOT files ARE the serialization) | `graph_design.json` export |
+| **Visual rendering** | Graphviz renders DOT natively | VS Code extension |
+| **Node types** | 10 shapes with domain semantics (codergen, validation, etc.) | Generic agent nodes |
+| **State machine** | Built-in (pending→active→impl_complete→validated) | No built-in state tracking |
+| **Checkpoint/resume** | Full checkpoint system with file persistence | No built-in checkpointing |
+| **Signal protocol** | 4-layer async communication (Guardian↔Runner↔Orch↔Worker) | Direct function calls |
+| **Validation gates** | First-class hexagon nodes (technical, business, e2e) | No validation concept |
+| **Worker dispatch** | DOT attributes → AgentSDK spawn | Python function calls |
+| **Zero-LLM traversal** | Yes (pure Python runner) | LLM-driven routing |
+| **Beads integration** | `bead_id`, `prd_ref`, `promise_ac` attributes | No issue tracking |
+| **CLI** | Full CRUD + validate + generate + run | Python API only |
+| **Composed patterns** | Manual DOT construction per initiative | **Pre-built topology classes** |
+| **Intent-to-graph** | `attractor generate --prd` (from beads) | **VibeGraph (from natural language)** |
+| **Template agents** | `.claude/agents/<type>.md` files | `NodeTemplate` parameterized |
+| **Edge semantics** | `condition`, `label`, pass/fail routing | `field_mapping` for data flow |
+| **Parallel execution** | `parallelogram` + `tripleoctagon` nodes | `HorizontalGraph` class |
+| **Hook system** | SessionStart/Stop/PreCompact lifecycle hooks | `HookManager` with graph/node/edge stages |
+| **Middleware** | Logfire→TokenCounting→Retry→Audit chain | No middleware concept |
+| **Loop detection** | Configurable max node visits | No loop detection |
 
-| Component | Location | What It Defines |
-|-----------|----------|-----------------|
-| Agent hierarchy | `CLAUDE.md` | 3-tier structure (System3→Orchestrator→Worker) |
-| Orchestrator behavior | `.claude/output-styles/orchestrator.md` | Delegation rules, investigation boundaries |
-| System3 behavior | `.claude/output-styles/system3-meta-orchestrator.md` | Strategic planning, monitor patterns |
-| Worker dispatch | `orchestrator-multiagent/SKILL.md` | Team creation, task delegation |
-| Phase pattern | `orchestrator-multiagent/WORKFLOWS.md` | 4-phase orchestration pattern |
-| Agent selection | `CLAUDE.md` Agent Directory | Which specialist for which task |
-| Lifecycle hooks | `.claude/settings.json` | SessionStart, Stop, PreCompact |
+### Where MASFactory Wins
 
-### What's Hardcoded vs Configurable
+1. **Composed Graph Templates**: Pre-built `HubGraph`, `BrainstormingGraph`, `PingPongGraph` etc. as reusable classes. We construct each pipeline manually or generate from beads — no reusable topology library.
 
-| Aspect | Current State | Customizable? |
-|--------|--------------|---------------|
-| Number of tiers (3) | Hardcoded in docs | No |
-| Phase sequence (4 phases) | Hardcoded in WORKFLOWS.md | No |
-| Agent types | Hardcoded in CLAUDE.md | No (must edit markdown) |
-| Delegation rules | Hardcoded in output-styles | No |
-| Hook scripts | Configurable in settings.json | Yes (partially) |
-| Worker selection logic | Hardcoded decision tree in CLAUDE.md | No |
-| Validation requirements | Hardcoded in multiple files | No |
+2. **VibeGraph (Natural Language → Graph)**: MASFactory can generate a complete workflow from "Build a code review pipeline." Our `generate.py` only works from structured beads data.
 
-### Pain Points
+3. **Edge Field Mappings**: Explicit data flow between nodes (`field_mapping={"output": "input"}`). Our edges only carry conditions (pass/fail), not data schemas.
 
-1. **No workflow switching** — Can't switch between "full 4-phase" and "quick 2-phase" without editing files
-2. **No workflow sharing** — Can't export a working workflow config for others
-3. **No experimentation** — Can't A/B test different orchestration strategies
-4. **Scattered definition** — Understanding the full workflow requires reading 7+ files
-5. **No programmatic access** — Workflows are prose in markdown, not structured data
+4. **Parameterized Templates**: `NodeTemplate` creates agent variants from a base template with parameter substitution. Our agent definitions in `.claude/agents/` are static markdown files.
 
----
+### Where Our System Wins
 
-## Part 3: Proposed Abstract Workflow System
+1. **Domain-Specific Node Types**: 10 specialized shapes (codergen, validation gates, research, fan-in) vs MASFactory's generic agent nodes. Our shapes encode execution semantics.
 
-### Core Design: Workflow as Data
+2. **State Machine with Audit Trail**: Every transition is logged to `.transitions.jsonl`. MASFactory has no built-in state tracking.
 
-Inspired by MASFactory's graph model, define workflows as **structured JSON/YAML** that the harness interprets at runtime.
+3. **Checkpoint & Resume**: Full pipeline state can be saved and restored. Essential for long-running LLM workflows that may be interrupted.
 
-```yaml
-# .claude/workflows/standard-coding.workflow.yaml
----
-name: standard-coding
-description: "Full 4-phase software development workflow"
-version: "1.0"
+4. **Zero-LLM Graph Traversal**: Our runner uses zero tokens for graph operations. MASFactory routes via LLM calls.
 
-# Graph topology
-topology: vertical  # vertical | hub-spoke | mesh | custom
+5. **Validation as First-Class Concept**: Hexagon nodes with technical/business/e2e modes are built into the graph vocabulary. MASFactory would need custom agent logic.
 
-# Phases (nodes in the graph)
-phases:
-  - id: ideation
-    type: phase
-    agent_tier: orchestrator
-    description: "Research, brainstorm, parallel-solutioning"
-    skills: [research-first, explore-first-navigation, parallel-solutioning]
-    outputs: [investigation_summary, solution_options]
-    next: planning
+6. **Signal Protocol**: Async 4-layer communication enables parallel workers to operate independently and report via atomic file writes. MASFactory uses synchronous function calls.
 
-  - id: planning
-    type: phase
-    agent_tier: orchestrator
-    description: "PRD creation, task decomposition, acceptance test generation"
-    skills: [acceptance-test-writer, s3-guardian]
-    tools: [task-master]
-    outputs: [prd, task_list, acceptance_tests]
-    next: execution
+7. **Beads/PRD Integration**: Direct link from graph nodes to issue tracker and PRD references.
 
-  - id: execution
-    type: phase
-    agent_tier: orchestrator
-    description: "Delegate to workers, monitor progress"
-    delegation:
-      pattern: hub-spoke  # orchestrator delegates to parallel workers
-      worker_selection: auto  # uses agent directory decision tree
-    outputs: [implemented_code, unit_tests]
-    next: validation
-
-  - id: validation
-    type: phase
-    agent_tier: system3
-    description: "Run acceptance tests, validate against PRD"
-    skills: [acceptance-test-runner]
-    agents: [validation-test-agent]
-    outputs: [validation_evidence, pass_fail]
-    on_fail: execution  # loop back
-
-# Agent definitions (NodeTemplate equivalent)
-agents:
-  orchestrator:
-    output_style: orchestrator
-    capabilities: [read, grep, glob, delegate]
-    restrictions: [no_edit, no_write]
-
-  workers:
-    frontend:
-      type: frontend-dev-expert
-      capabilities: [edit, write, read, grep]
-      skills: [react-best-practices, frontend-design]
-    backend:
-      type: backend-solutions-engineer
-      capabilities: [edit, write, read, grep]
-      skills: [research-first]
-    tester:
-      type: tdd-test-engineer
-      capabilities: [edit, write, read, bash]
-
-# Worker selection rules (replaces hardcoded decision tree)
-worker_routing:
-  rules:
-    - match: { file_pattern: "*/frontend/*", task_type: "implementation" }
-      agent: workers.frontend
-    - match: { file_pattern: "*/agent/*", task_type: "implementation" }
-      agent: workers.backend
-    - match: { task_type: "testing" }
-      agent: workers.tester
-  default: general-purpose
-
-# Hooks (lifecycle events)
-hooks:
-  session_start:
-    - detect-orchestrator-mode
-    - load-mcp-skills
-  phase_transition:
-    - log-phase-change
-    - update-completion-promise
-  worker_complete:
-    - validate-output
-    - update-task-status
-  session_end:
-    - unified-stop-gate
-```
-
-### Workflow Variants (Storable & Loadable)
-
-```
-.claude/workflows/
-├── standard-coding.workflow.yaml      # Full 4-phase for complex features
-├── quick-fix.workflow.yaml            # 2-phase: investigate → fix → validate
-├── research-only.workflow.yaml        # Investigation without implementation
-├── tdd-first.workflow.yaml            # Tests before code
-├── review-pipeline.workflow.yaml      # Code review focused workflow
-├── custom/                            # User-created workflows
-│   └── my-team-process.workflow.yaml
-└── templates/                         # Composable building blocks
-    ├── phase-ideation.yaml
-    ├── phase-planning.yaml
-    ├── phase-execution.yaml
-    ├── phase-validation.yaml
-    └── pattern-hub-spoke.yaml
-```
-
-### Example: Quick-Fix Workflow (Simplified)
-
-```yaml
-name: quick-fix
-description: "Rapid bug fix - skip ideation, minimal planning"
-version: "1.0"
-topology: vertical
-
-phases:
-  - id: investigate
-    type: phase
-    agent_tier: orchestrator
-    description: "Find the bug, understand root cause"
-    max_duration: "5min"
-    outputs: [root_cause, fix_plan]
-    next: fix
-
-  - id: fix
-    type: phase
-    agent_tier: worker
-    description: "Implement fix and write regression test"
-    delegation:
-      pattern: single-worker
-      worker_selection: auto
-    outputs: [fix_commit, regression_test]
-    next: verify
-
-  - id: verify
-    type: phase
-    agent_tier: orchestrator
-    description: "Run tests, verify fix"
-    validation:
-      run_tests: true
-      require_passing: true
-    outputs: [test_results]
-
-agents:
-  orchestrator:
-    output_style: orchestrator
-    capabilities: [read, grep, glob, delegate]
-    restrictions: [no_edit, no_write]
-```
-
-### Composed Patterns (MASFactory's Best Idea)
-
-Reusable graph patterns that can be referenced in workflows:
-
-```yaml
-# .claude/workflows/templates/pattern-parallel-solutioning.yaml
-name: parallel-solutioning
-type: pattern
-topology: brainstorming
-
-nodes:
-  - id: researcher_1
-    agent: general-purpose
-    prompt_template: "Research approach A: {approach_a}"
-  - id: researcher_2
-    agent: general-purpose
-    prompt_template: "Research approach B: {approach_b}"
-  - id: synthesizer
-    agent: solution-architect
-    prompt_template: "Compare findings and recommend: {research_results}"
-
-edges:
-  - from: [researcher_1, researcher_2]
-    to: synthesizer
-    aggregation: collect  # wait for all, then pass combined
-```
-
-Referenced in a workflow:
-
-```yaml
-phases:
-  - id: ideation
-    type: pattern
-    pattern: parallel-solutioning
-    params:
-      approach_a: "React Server Components"
-      approach_b: "Traditional SPA with API"
-```
+8. **Structural Validation**: `attractor validate --strict` enforces 10+ rules (single entry/exit, reachability, AT pairing, conditional completeness, etc.).
 
 ---
 
-## Part 4: Workflow Lifecycle Commands
+## Part 4: What MASFactory Ideas Could Enhance Our System
 
-### Loading & Switching Workflows
+### 1. Composed DOT Templates (High Value)
+
+**Gap**: Every pipeline is hand-crafted or generated from beads. No reusable topology patterns.
+
+**Proposal**: Create a library of DOT template patterns in `.claude/attractor/templates/`:
+
+```
+.claude/attractor/templates/
+├── vertical-pipeline.dot.tmpl         # Sequential A→B→C
+├── parallel-fanout.dot.tmpl           # Fan-out with convergence
+├── hub-spoke.dot.tmpl                 # Orchestrator → parallel workers
+├── review-loop.dot.tmpl              # Implement → review → fix cycle
+├── tdd-cycle.dot.tmpl                # Test → implement → refactor loop
+├── brainstorm-synthesize.dot.tmpl    # Parallel research + synthesis
+└── full-initiative.dot.tmpl          # Standard 4-phase with validation
+```
+
+Templates would use variable substitution:
+
+```dot
+digraph "{{prd_ref}}" {
+    graph [label="{{initiative_name}}" prd_ref="{{prd_ref}}" rankdir="TB"];
+
+    START [shape=Mdiamond handler=start];
+    {% for task in tasks %}
+    impl_{{task.id}} [
+        shape=box handler=codergen
+        bead_id="{{task.bead_id}}"
+        worker_type="{{task.worker_type}}"
+        acceptance="{{task.acceptance}}"
+        status=pending
+    ];
+    validate_{{task.id}} [shape=hexagon handler="wait.system3" mode=technical];
+    {% endfor %}
+    FINALIZE [shape=Msquare handler=exit];
+
+    START -> impl_{{tasks[0].id}};
+    {% for task in tasks %}
+    impl_{{task.id}} -> validate_{{task.id}};
+    {% if not loop.last %}
+    validate_{{task.id}} -> impl_{{tasks[loop.index].id}} [condition="pass"];
+    {% else %}
+    validate_{{task.id}} -> FINALIZE [condition="pass"];
+    {% endif %}
+    validate_{{task.id}} -> impl_{{task.id}} [condition="fail" style=dashed];
+    {% endfor %}
+}
+```
+
+CLI extension:
 
 ```bash
-# List available workflows
-/workflow list
-
-# Show current active workflow
-/workflow active
-
-# Switch workflow for this session
-/workflow use quick-fix
-
-# Create from template
-/workflow create my-process --from standard-coding
-
-# Import shared workflow
-/workflow import ./team-workflow.yaml
-
-# Export for sharing
-/workflow export standard-coding > ./shared-workflow.yaml
+attractor create --template hub-spoke \
+    --prd PRD-AUTH-001 \
+    --tasks '["backend-auth", "frontend-login"]' \
+    --output pipeline.dot
 ```
 
-### VibeGraph-Inspired: Generate from Intent
+### 2. Intent-to-DOT Generation (Medium Value)
+
+**Gap**: `generate.py` requires structured beads data. No natural language generation.
+
+**Proposal**: Add a `--from-intent` flag that uses an LLM to generate a DOT pipeline:
 
 ```bash
-# Describe what you want, get a workflow draft
-/workflow generate "I want a TDD-first process where tests are written
-before code, with peer review between implementation rounds"
+attractor generate --from-intent "TDD-first pipeline with parallel backend and frontend,
+    each validated independently before integration testing" \
+    --output pipeline.dot
 ```
 
-This would use an LLM to generate a `.workflow.yaml` from natural language description, similar to MASFactory's VibeGraph.
+This would:
+1. Use an LLM to select the closest template and fill parameters
+2. Generate a valid DOT file following the Attractor schema
+3. Run `attractor validate` on the result
+4. Present for human review before execution
+
+### 3. Edge Data Schemas (Low Value)
+
+**Gap**: Our edges carry conditions (pass/fail) but not typed data contracts between nodes.
+
+**Assessment**: Low priority. Our signal protocol already handles data flow via JSON signal files. Adding explicit field mappings to edges would add complexity without clear benefit — the LLM workers already handle context via prompts and solution design documents.
+
+### 4. Parameterized Agent Templates (Low-Medium Value)
+
+**Gap**: Agent definitions in `.claude/agents/` are static markdown. No parameterization.
+
+**Assessment**: Could be useful for creating variants (e.g., a "strict" vs "lenient" backend engineer) but current static definitions work well. Consider if/when we need agent variants for different project types.
 
 ---
 
-## Part 5: Implementation Approach
+## Part 5: Summary — What's Actually Missing
 
-### Phase 1: Schema & Parser (Foundation)
+| Category | Status | Action Needed |
+|----------|--------|---------------|
+| Graph-based workflow | **Already have it** (DOT pipelines) | None |
+| Serializable workflows | **Already have it** (DOT files) | None |
+| State machine | **Already have it** (5-state lifecycle) | None |
+| Worker dispatch from graph | **Already have it** (codergen nodes) | None |
+| Validation gates | **Already have it** (hexagon nodes) | None |
+| Checkpoint/resume | **Already have it** (checkpoint system) | None |
+| Signal protocol | **Already have it** (4-layer signals) | None |
+| CLI management | **Already have it** (attractor CLI) | None |
+| **Reusable topology templates** | **Missing** | Build DOT template library |
+| **Natural language → graph** | **Missing** | Add `--from-intent` generation |
+| **Quick workflow switching** | **Partially missing** | Different DOT files exist, but no session-level "use this template" |
+| **Workflow sharing/export** | **Already have it** (DOT files are portable) | None |
 
-1. Define the workflow YAML schema (JSON Schema for validation)
-2. Build a workflow parser that reads `.workflow.yaml` files
-3. Create a workflow registry (list, load, validate workflows)
-4. Store workflow definitions in `.claude/workflows/`
-
-### Phase 2: Runtime Interpreter
-
-1. Build a workflow engine that interprets phase transitions
-2. Map phases to existing output-styles and skills
-3. Implement worker routing from workflow rules
-4. Hook into existing lifecycle events
-
-### Phase 3: Workflow Management
-
-1. `/workflow` slash commands for switching and managing
-2. Workflow validation (check all referenced agents/skills exist)
-3. Workflow diff (compare two workflows)
-4. Active workflow indicator in status line
-
-### Phase 4: Generation & Sharing
-
-1. VibeGraph-style intent-to-workflow generation
-2. Export/import workflows
-3. Workflow marketplace/registry
-4. Visual workflow editor (stretch goal)
+The honest assessment: our system is **more advanced** than MASFactory for LLM agent orchestration. The two concrete gaps worth addressing are **composed DOT templates** and **intent-to-DOT generation**.
 
 ---
 
-## Part 6: Mapping MASFactory Concepts to Our System
+## Part 6: Corrected MASFactory Concept Mapping
 
-| MASFactory Concept | Our Adaptation | Implementation |
-|-------------------|----------------|----------------|
-| `RootGraph` | Workflow definition file | `.workflow.yaml` |
-| `Node` | Phase or agent step | Phase entries in YAML |
-| `Edge` | Phase transitions | `next` field + `on_fail` |
-| `Agent` | Agent type definition | `agents` section |
-| `NodeTemplate` | Agent templates | Parameterized agent configs |
-| `VerticalGraph` | Sequential phase pattern | `topology: vertical` |
-| `HubGraph` | Orchestrator→Workers | `delegation.pattern: hub-spoke` |
-| `BrainstormingGraph` | Parallel solutioning | `pattern: parallel-solutioning` |
-| `PingPongGraph` | Review loops | `pattern: review-cycle` |
-| `Loop` | Validation retry | `on_fail: <phase_id>` |
-| `LogicSwitch` | Conditional routing | Worker routing rules |
-| `VibeGraph` | `/workflow generate` | Intent-to-YAML generation |
-| `graph_design.json` | `.workflow.yaml` | Serialized workflow format |
-| `HookManager` | Existing hooks + phase hooks | `hooks` section |
-| `Factory` | Agent spawning | Worker dispatch from routing rules |
-
----
-
-## Part 7: Key Design Decisions
-
-### 1. YAML over JSON
-
-YAML is more readable for workflow definitions that humans will edit. JSON Schema validates the structure. Support both formats for interop.
-
-### 2. Declarative over Imperative
-
-MASFactory uses Python code to build graphs. We should use **declarative YAML** because:
-- Our "runtime" is Claude itself, not a Python process
-- Workflows are interpreted by the LLM reading them, not compiled
-- YAML is easier for non-programmers to customize
-- Still machine-parseable for tooling
-
-### 3. Backwards Compatible
-
-The workflow system should be **additive** — existing output-styles, skills, and hooks continue to work. Workflows layer on top as a coordination mechanism. A missing workflow file falls back to the current implicit behavior.
-
-### 4. Composable Building Blocks
-
-Following MASFactory's composed graph patterns, workflows should reference reusable patterns and phase templates. This prevents duplication across workflow variants.
-
-### 5. Progressive Complexity
-
-- **Simple**: Pick a pre-built workflow (`/workflow use quick-fix`)
-- **Medium**: Customize an existing workflow (edit YAML)
-- **Advanced**: Create from scratch or generate from intent
+| MASFactory Concept | Our Existing Equivalent | Gap? |
+|-------------------|------------------------|------|
+| `RootGraph` | DOT `digraph` | No |
+| `Node` | DOT nodes with shape→handler mapping | No |
+| `Edge` | DOT edges with conditions | Partial (no field mappings) |
+| `Agent` | `.claude/agents/<type>.md` | No |
+| `NodeTemplate` | Static agent definitions | Minor (no parameterization) |
+| `VerticalGraph` | Linear DOT chain | **Yes** (no template library) |
+| `HubGraph` | `house` + `box` nodes | **Yes** (no template library) |
+| `BrainstormingGraph` | `tab` + `tripleoctagon` pattern | **Yes** (no template library) |
+| `PingPongGraph` | `diamond` with retry edges | No (already expressible) |
+| `Loop` | Fail edges creating cycles | No |
+| `LogicSwitch` | `diamond` (conditional) nodes | No |
+| `VibeGraph` | `generate.py --prd` (from beads only) | **Yes** (no NL generation) |
+| `graph_design.json` | `.dot` files (richer format) | No |
+| `HookManager` | settings.json hooks + middleware chain | No |
+| `Factory` | Pipeline runner worker dispatch | No |
 
 ---
 
-## Part 8: What MASFactory Does That We Should NOT Copy
+## Appendix: Capability Comparison Summary
 
-| MASFactory Feature | Why We Skip It |
-|-------------------|----------------|
-| Python-based graph definition | Our "runtime" is the LLM, not Python |
-| Explicit field mappings on edges | Over-engineering for LLM context passing |
-| VS Code visualizer extension | Out of scope (could be future work) |
-| Embedding/retrieval adapters | We have MCP servers for this |
-| Model adapter abstraction | Claude Code handles model selection |
-| `DynamicAgent` runtime creation | Security concern in autonomous systems |
-
----
-
-## Appendix: Quick-Start Workflows to Ship
-
-| Workflow | Phases | When to Use |
-|----------|--------|-------------|
-| `standard-coding` | Ideation→Planning→Execution→Validation | Complex features, new systems |
-| `quick-fix` | Investigate→Fix→Verify | Bug fixes, small changes |
-| `research-only` | Investigate→Synthesize→Report | Architecture research, spikes |
-| `tdd-first` | Write Tests→Implement→Refactor→Validate | Test-driven development |
-| `review-pipeline` | Implement→Self-Review→Fix→Final-Review | Code quality focused |
-| `parallel-build` | Plan→Parallel-Execute→Integrate→Validate | Multi-component features |
-| `spike` | Research→Prototype→Evaluate | Technical exploration |
+```
+                        CoBuilder/Attractor    MASFactory
+                        ──────────────────     ──────────
+Graph definition        ████████████ DOT       ████████ Python/JSON
+Serialization           ████████████ native    ████████ JSON export
+Node semantics          ████████████ 10 types  ████ generic
+State machine           ████████████ 5-state   ░░░░ none
+Checkpointing           ████████████ full      ░░░░ none
+Signal protocol         ████████████ 4-layer   ░░░░ none
+Validation gates        ████████████ built-in  ░░░░ custom
+Zero-LLM traversal      ████████████ pure Py   ░░░░ LLM-driven
+Structural validation    ████████████ 10 rules  ████ basic
+CLI tooling             ████████████ full      ░░░░ API only
+Beads/PRD integration   ████████████ native    ░░░░ none
+Composed templates      ░░░░ manual per-init   ████████████ 9 patterns
+Intent-to-graph         ████ from beads        ████████████ VibeGraph NL
+Edge data schemas       ████ conditions only   ████████ field mappings
+Agent parameterization  ████ static defs       ████████ NodeTemplate
+Visual editor           ████ Graphviz render   ████████ VS Code ext
+```
