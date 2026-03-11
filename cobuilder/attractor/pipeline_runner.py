@@ -2042,7 +2042,16 @@ class PipelineRunner:
         "codergen": (
             "## Your Role: IMPLEMENTATION Worker\n"
             "You write production-quality code. Do NOT research or investigate — only implement.\n"
-            "Read the Solution Design carefully. It contains the exact changes to make.\n"
+            "Read the Solution Design carefully. It contains the exact changes to make.\n\n"
+            "### MANDATORY FIRST STEP: Load Code Navigation Tools\n"
+            "Before writing ANY code, run these ToolSearch calls to load MCP tools:\n"
+            "```\n"
+            "ToolSearch(query=\"serena\")     # Code navigation: find_symbol, get_symbols_overview, search_for_pattern\n"
+            "ToolSearch(query=\"hindsight\")  # Memory: recall past patterns and retain learnings\n"
+            "```\n"
+            "Once loaded, use Serena to explore the codebase BEFORE editing.\n"
+            "Use `mcp__hindsight__recall()` to check for known patterns in this project.\n"
+            "Use `mcp__hindsight__retain()` after completing work to store learnings.\n\n"
             "Done when: All files changed, tests pass, signal written with files_changed list."
         ),
         "research": (
@@ -2073,7 +2082,10 @@ class PipelineRunner:
         "acceptance-test-writer": (
             "## Your Role: TEST WRITER\n"
             "You create Gherkin acceptance test scenarios from PRD acceptance criteria.\n"
-            "Write .feature files with Given/When/Then. Tests should be blind (not peek at implementation).\n"
+            "Write .feature files with Given/When/Then. Tests should be blind (not peek at implementation).\n\n"
+            "### MANDATORY FIRST STEP: Load Code Navigation Tools\n"
+            "Run `ToolSearch(query=\"serena\")` to load code navigation tools.\n"
+            "Use Serena to understand the codebase structure before writing tests.\n\n"
             "Done when: Feature files written covering all PRD acceptance criteria."
         ),
     }
