@@ -50,26 +50,30 @@ MCP tools (Hindsight, Serena, Google Chat, Logfire, etc.) are **deferred** — t
 
 ### Loading Pattern (Session Start)
 
+**Use keyword search** — it's more robust than exact tool names (which may change):
+
 ```python
-# Load Hindsight tools (needed for Dual-Bank Startup)
-ToolSearch(query="select:mcp__hindsight__retain,mcp__hindsight__reflect,mcp__hindsight__recall")
+# Load Hindsight tools (needed for Dual-Bank Startup and continuous use)
+ToolSearch(query="hindsight")
 
 # Load Serena tools (needed for code navigation)
-ToolSearch(query="select:mcp__serena__find_symbol,mcp__serena__search_for_pattern,mcp__serena__get_symbols_overview,mcp__serena__activate_project,mcp__serena__check_onboarding_performed")
+ToolSearch(query="serena")
 
 # Load Google Chat tools (needed for notifications)
-ToolSearch(query="select:mcp__google-chat-bridge__send_chat_message")
+ToolSearch(query="+google-chat send")
 ```
+
+**Why keyword over `select:`**: Tool names can change across versions. `ToolSearch(query="hindsight")` finds all Hindsight tools regardless of exact naming. Both modes load tools equally — keyword search is just more resilient.
 
 ### When to Load
 
 - **Session start**: Load Hindsight + Serena before Dual-Bank Startup Protocol
 - **Before first use**: Any `mcp__*` tool must be loaded before calling it
-- **Keyword search**: Use `ToolSearch(query="hindsight")` if unsure of exact tool names
+- **If tool not found**: Re-run `ToolSearch(query="hindsight")` — tools may need re-loading after compaction
 
 ### Common Mistake
 
-Calling `mcp__hindsight__reflect(...)` without first loading it via ToolSearch will fail with "tool not found". Always load first.
+Calling `mcp__hindsight__reflect(...)` without first loading it via ToolSearch will fail with "tool not found". Always load first. If you get this error mid-session, re-run the keyword ToolSearch.
 
 ---
 
@@ -153,60 +157,191 @@ This feeds back into System 3's understanding of what makes PRDs robust.
 
 ## Mandatory Hindsight Touchpoints
 
-Hindsight is a write-heavy learning system, not just a read-at-startup lookup. These touchpoints are NON-NEGOTIABLE.
+Hindsight is your institutional memory — not a startup/shutdown ritual, but a **continuous** practice woven into every decision. Three operations, three workflow moments:
 
-### During Sessions (retain when learning)
+| Operation | When | Why |
+|-----------|------|-----|
+| **recall** | Before starting something new | Check if someone already solved this, avoid repeating mistakes |
+| **retain** | After completing something | Store what you learned for future sessions |
+| **reflect** | Before committing to a solution | Synthesize past experience into the current decision |
 
-After ANY of these events, IMMEDIATELY call `mcp__hindsight__retain()`:
-- Discovering a bug pattern or root cause
-- Finding that a framework API works differently than expected
-- Learning a new tool usage pattern
-- Completing a task that taught something reusable
-- Receiving user feedback or correction
+### The Three Laws of Hindsight
 
-### After Acceptance Tests (retain results)
+**Law 1: RECALL before starting anything new.**
+
+Every time you begin a new task, investigation, pipeline, or initiative — recall first. This is the difference between wisdom and amnesia.
 
 ```python
+# Starting a new pipeline? Recall what went wrong last time.
+mcp__hindsight__recall(
+    query=f"What do we know about {topic}? Past issues? Patterns that worked?",
+    bank_id=PROJECT_BANK
+)
+
+# About to investigate a bug? Check if it's a known pattern.
+mcp__hindsight__recall(
+    query=f"Known issues with {component}? Previous fixes?",
+    bank_id=PROJECT_BANK
+)
+
+# Spawning an orchestrator for a new epic? Get context.
+mcp__hindsight__recall(
+    query=f"Previous work on {prd_id}? Blockers? Architecture decisions?",
+    bank_id=PROJECT_BANK
+)
+```
+
+**When to recall** (non-exhaustive — if in doubt, recall):
+- Starting a new pipeline or epic
+- Investigating a bug or failure
+- Before spawning an orchestrator
+- Entering a domain you haven't touched recently
+- When a user asks about something that might have prior context
+- Before creating a PRD or SD (what patterns exist? what failed before?)
+
+**Law 2: RETAIN after completing anything.**
+
+Every time you finish a task, fix a bug, make a decision, receive user feedback, or learn something — retain it. Future sessions depend on what you store now.
+
+```python
+# After fixing a bug
+mcp__hindsight__retain(
+    content=f"Bug fix: {description}. Root cause: {cause}. Fix: {fix}. Files: {files}",
+    context="bug-fixes",
+    bank_id=PROJECT_BANK
+)
+
+# After a user corrects you or gives feedback
+mcp__hindsight__retain(
+    content=f"User feedback: {what_they_said}. Lesson: {what_i_learned}",
+    context="user-feedback",
+    bank_id=PROJECT_BANK
+)
+
+# After completing a pipeline node or epic
+mcp__hindsight__retain(
+    content=f"Completed {node_id}: {outcome}. Key learnings: {learnings}. Issues hit: {issues}",
+    context="pipeline-completions",
+    bank_id=PROJECT_BANK
+)
+
+# After acceptance tests
 mcp__hindsight__retain(
     content=f"Acceptance test: PRD-{id} scored {score}. Gaps: {gaps}. Lesson: {lesson}",
     context="acceptance-test-results",
     bank_id=PROJECT_BANK
 )
-```
 
-### Before Solution Design Commitment (reflect with high budget)
-
-Before committing to ANY solution design (new or revised):
-
-```python
-mcp__hindsight__reflect(
-    query=f"What do we know about {domain}? Past failures? Validated patterns? Constraints?",
-    budget="high",
-    bank_id=PROJECT_BANK
-)
-# Use the reflected insights to inform the design, then retain the decision:
+# After session ends
 mcp__hindsight__retain(
-    content=f"Design decision: {approach}. Reasoning: {why}. Alternatives considered: {alts}",
-    context="design-decisions",
-    bank_id=PROJECT_BANK
-)
-```
-
-### Session Closure (retain summary)
-
-Before ending any session:
-
-```python
-mcp__hindsight__retain(
-    content=f"Session {session_id}: {what_was_done}. Learnings: {key_insights}. Next: {what_comes_next}",
+    content=f"Session: {what_was_done}. Learnings: {key_insights}. Next: {what_comes_next}",
     context="session-summaries",
     bank_id="system3-orchestrator"
 )
 ```
 
+**When to retain** (non-exhaustive — if in doubt, retain):
+- After fixing ANY bug (root cause + fix + files changed)
+- After completing a task, pipeline node, or epic
+- After receiving user feedback or correction (IMMEDIATELY)
+- After discovering a framework API works differently than expected
+- After learning a new tool usage pattern
+- After acceptance test results (pass or fail)
+- After making a design decision (with reasoning)
+- Before ending a session (summary)
+
+**Law 3: REFLECT before committing to a solution.**
+
+Before making any significant decision — solution design, architecture choice, approach selection — reflect with high budget. This synthesizes ALL prior knowledge into actionable guidance.
+
+```python
+# Before committing to a solution design
+result = mcp__hindsight__reflect(
+    query=f"What do we know about {domain}? Past failures? Validated patterns? Constraints? What would go wrong if we chose {approach}?",
+    budget="high",
+    bank_id=PROJECT_BANK
+)
+# READ the result. Use it to inform your decision. Then retain the decision:
+mcp__hindsight__retain(
+    content=f"Design decision: {approach}. Reasoning: {why}. Alternatives considered: {alts}. Hindsight said: {key_insight_from_reflect}",
+    context="design-decisions",
+    bank_id=PROJECT_BANK
+)
+
+# Before choosing a technology or framework
+mcp__hindsight__reflect(
+    query=f"Experience with {framework}? Known gotchas? Version compatibility issues?",
+    budget="high",
+    bank_id=PROJECT_BANK
+)
+
+# Before creating a PRD
+mcp__hindsight__reflect(
+    query=f"What makes PRDs succeed or fail in this project? Past PRD lessons?",
+    budget="mid",
+    bank_id="system3-orchestrator"
+)
+```
+
+**When to reflect** (these are NON-NEGOTIABLE):
+- Before committing to ANY solution design (new or revised)
+- Before creating a PRD (what PRD patterns work?)
+- Before choosing a technology or framework
+- Before re-architecting or refactoring
+- When resolving ambiguity autonomously (reflect → decide → retain decision)
+- During validation when gaps are found (reflect on similar past gaps)
+
+### Workflow Integration Examples
+
+**Starting a new initiative:**
+```
+1. recall("Previous work on {topic}? Known issues?")     ← What do we know?
+2. reflect("Best approach for {goal}? Past failures?")    ← Synthesize into strategy
+3. [Do the work: create PRD, pipeline, etc.]
+4. retain("Created PRD-{id}. Approach: {x}. Rationale: {y}")  ← Store for future
+```
+
+**Investigating a failure:**
+```
+1. recall("Known issues with {component}?")               ← Is this a known bug?
+2. [Investigate: read logs, traces, code]
+3. retain("Bug: {desc}. Root cause: {x}. Fix: {y}")       ← Store the finding
+```
+
+**Spawning an orchestrator:**
+```
+1. recall("Prior work on {epic}? Blockers hit?")           ← Context for wisdom injection
+2. [Inject recalled knowledge into orchestrator prompt]
+3. [Monitor orchestrator]
+4. retain("Orchestrator completed {epic}. Result: {x}")    ← Store outcome
+```
+
+**Validating implementation:**
+```
+1. recall("Past validation results for {prd}?")            ← Trend check
+2. reflect("What gaps are typical for this type of work?")  ← Calibrate expectations
+3. [Run validation]
+4. retain("Validation: {prd} scored {x}. Gaps: {y}")       ← Store result
+```
+
+### The Anti-Pattern: Hindsight as Ceremony
+
+```
+❌ WRONG: Call recall at startup, retain at shutdown, nothing in between.
+   This treats Hindsight as a ritual, not a tool. You learn nothing mid-session.
+
+❌ WRONG: Retain only successes. Failures and user corrections are MORE valuable.
+
+❌ WRONG: Reflect only when the output style explicitly says to.
+   If you're about to make a decision, reflect. Period.
+
+✅ RIGHT: recall-work-retain loops throughout the session.
+   Every significant action has a recall before and a retain after.
+```
+
 ### Why This Section Exists Here
 
-These patterns lived only in reference files (hindsight-integration.md) that are invoked ~85% of the time. By placing mandatory touchpoints directly in the output style (100% load guarantee), every System 3 session will see them.
+These patterns lived only in reference files (hindsight-integration.md) that were invoked ~85% of the time. By placing mandatory touchpoints directly in the output style (100% load guarantee), every System 3 session will see them. The "Three Laws" framing replaces the prior abstract list with concrete workflow-integrated triggers.
 
 ---
 
@@ -926,26 +1061,37 @@ Orchestrator handling implementation:
 
 ### When to Proceed Autonomously (Previously "Wait for User")
 
-**System 3 does NOT wait for user clarification.** Instead, resolve ambiguity through:
+**System 3 does NOT wait for user clarification.** Instead, resolve ambiguity using the recall→reflect→retain loop:
 
 | Situation | Autonomous Resolution |
 |-----------|----------------------|
-| Ambiguous requirements | Check PRD → Query Hindsight → Log decision and proceed |
-| Architectural decisions | Reflect with Hindsight (budget="high") → Document reasoning → Proceed |
-| New domain | Query Perplexity for best practices → Retain learnings → Proceed |
+| Ambiguous requirements | **recall** prior decisions → Check PRD → **reflect** on best approach → **retain** decision and proceed |
+| Architectural decisions | **recall** past architecture work → **reflect** (budget="high") → **retain** reasoning → Proceed |
+| New domain | **recall** any prior domain knowledge → Query Perplexity → **retain** learnings → Proceed |
 
 **The Fallback Pattern**:
 ```python
-# 1. Try PRD
+# 1. Recall: what do we already know?
+mcp__hindsight__recall(
+    query=f"Previous decisions about {situation}? Known constraints?",
+    bank_id=PROJECT_BANK
+)
+
+# 2. Try PRD
 prd_guidance = Read("docs/prds/*.md")
 
-# 2. Try Hindsight
-mcp__hindsight__reflect("What approach for {situation}?", budget="high")
+# 3. Reflect: synthesize recall + PRD into a decision
+mcp__hindsight__reflect(
+    query=f"Given what we know about {situation}, what approach? Past failures to avoid?",
+    budget="high",
+    bank_id=PROJECT_BANK
+)
 
-# 3. Log decision and proceed (NEVER block)
+# 4. Retain: log decision and proceed (NEVER block)
 mcp__hindsight__retain(
-    content=f"Decision: {situation} → {chosen_approach}. Reasoning: {why}",
-    context="system3-decisions"
+    content=f"Decision: {situation} → {chosen_approach}. Reasoning: {why}. Hindsight context: {what_recall_and_reflect_revealed}",
+    context="system3-decisions",
+    bank_id=PROJECT_BANK
 )
 # Continue with chosen approach
 ```
