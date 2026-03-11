@@ -1,0 +1,38 @@
+prd_id: PRD-DASHBOARD-AUDIT-001
+title: Dashboard Audit Trail
+version: 1.1.0
+date: 2026-03-12
+
+# Fix-it round: validation gap closure
+fix_it:
+  - id: fix-it-gaps
+    name: "Fix-It: Validation Gap Closure"
+    feature_file: fix-it-gaps.feature
+    scenarios: 6
+
+features:
+  - id: epic-a-perstep-tasks
+    name: "Epic A: Per-Step Task Creation"
+    weight: 0.30
+    feature_file: epic-a-perstep-tasks.feature
+
+  - id: epic-b-dashboard-api
+    name: "Epic B: Dashboard Backend API"
+    weight: 0.35
+    feature_file: epic-b-dashboard-api.feature
+
+  - id: epic-c-frontend
+    name: "Epic C: Frontend Case Detail Page"
+    weight: 0.35
+    feature_file: epic-c-frontend.feature
+
+thresholds:
+  accept: 0.70
+  investigate: 0.50
+  reject: 0.00
+
+scoring:
+  pass: 1.0
+  partial: 0.5
+  fail: 0.0
+  skip: null
