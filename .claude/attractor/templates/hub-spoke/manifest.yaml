@@ -1,0 +1,87 @@
+template:
+  name: hub-spoke
+  version: "1.0"
+  description: "Central coordinator fans out to N parallel workers, joins, validates"
+  topology: parallel
+  min_nodes: 5
+  max_nodes: 50
+
+parameters:
+  prd_ref:
+    type: string
+    required: true
+    description: "PRD identifier (e.g., PRD-AUTH-001)"
+  promise_id:
+    type: string
+    required: false
+    default: ""
+  workers:
+    type: list
+    required: true
+    min_length: 1
+    max_length: 10
+  include_e2e:
+    type: boolean
+    default: true
+    description: "Whether to append an E2E test node after the join gate"
+
+constraints:
+  codergen_transitions:
+    description: "Allowed status transitions for implementation nodes"
+    type: node_state_machine
+    applies_to:
+      shape: box
+      handler: codergen
+    states: [pending, active, impl_complete, validated, failed]
+    transitions:
+      - {from: pending, to: active}
+      - {from: active, to: impl_complete}
+      - {from: active, to: failed}
+      - {from: impl_complete, to: validated}
+      - {from: impl_complete, to: failed}
+      - {from: failed, to: active}
+    initial: pending
+    terminal: [validated, failed]
+
+  validation_gate_transitions:
+    description: "Allowed status transitions for validation gates"
+    type: node_state_machine
+    applies_to:
+      shape: hexagon
+      handler: wait_human
+    states: [pending, active, passed, failed]
+    transitions:
+      - {from: pending, to: active}
+      - {from: active, to: passed}
+      - {from: active, to: failed}
+      - {from: failed, to: active}
+    initial: pending
+    terminal: [passed, failed]
+
+  require_validation_before_exit:
+    description: "No codergen node may reach exit without passing a validation gate"
+    type: path_constraint
+    rule:
+      from_shape: box
+      must_pass_through:
+        - hexagon
+      before_reaching:
+        - Msquare
+
+  balanced_parallelism:
+    description: "Every parallel fan-out must have a corresponding fan-in"
+    type: topology_constraint
+    rule:
+      every_node:
+        shape: component
+        handler: parallel
+      must_have_downstream:
+        shape: tripleoctagon
+        max_hops: 20
+
+  bounded_retries:
+    description: "Edges targeting already-visited nodes must be bounded"
+    type: loop_constraint
+    rule:
+      max_per_node_visits: 4
+      max_pipeline_visits: 50

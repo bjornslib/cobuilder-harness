@@ -1,0 +1,53 @@
+template:
+  name: sequential-validated
+  version: "1.0"
+  description: "Single-task pipeline: implement -> validate -> finalize"
+  topology: linear
+  min_nodes: 5
+  max_nodes: 10
+
+parameters:
+  prd_ref:
+    type: string
+    required: true
+    description: "PRD identifier (e.g., PRD-AUTH-001)"
+  promise_id:
+    type: string
+    required: false
+    default: ""
+  worker:
+    type: object
+    required: true
+    description: "Single worker definition with label, worker_type, bead_id, acceptance"
+  include_research:
+    type: boolean
+    default: false
+    description: "Whether to prepend a research node before implementation"
+
+constraints:
+  codergen_transitions:
+    description: "Allowed status transitions for implementation nodes"
+    type: node_state_machine
+    applies_to:
+      shape: box
+      handler: codergen
+    states: [pending, active, impl_complete, validated, failed]
+    transitions:
+      - {from: pending, to: active}
+      - {from: active, to: impl_complete}
+      - {from: active, to: failed}
+      - {from: impl_complete, to: validated}
+      - {from: impl_complete, to: failed}
+      - {from: failed, to: active}
+    initial: pending
+    terminal: [validated, failed]
+
+  require_validation_before_exit:
+    description: "Implementation must pass validation before exit"
+    type: path_constraint
+    rule:
+      from_shape: box
+      must_pass_through:
+        - hexagon
+      before_reaching:
+        - Msquare
