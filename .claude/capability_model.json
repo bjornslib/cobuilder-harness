@@ -1,65 +1,65 @@
 {
   "_schema_version": "1.0.0",
   "_description": "System 3 Capability Self-Model \u2014 tracks confidence, success rates, and pitfalls per domain. Updated by hindsight-capability-update.py Stop hook after each session.",
-  "_last_updated": "2026-03-09T23:23:41.059110+00:00",
+  "_last_updated": "2026-03-12T23:07:49.161209+00:00",
   "domains": {
     "backend_orchestration": {
       "description": "Python backend work: FastAPI, PydanticAI, database ops, MCP tools",
       "confidence": 0.95,
-      "sessions_total": 1836,
-      "sessions_successful": 1304,
-      "success_rate": 0.71,
+      "sessions_total": 1845,
+      "sessions_successful": 1313,
+      "success_rate": 0.712,
       "common_pitfalls": [],
       "recent_outcomes": [
-        {
-          "timestamp": "2026-03-09T21:35:19.576290+00:00",
-          "success": true,
-          "reason": "12 uncommitted changes; 1 recent commits; beads closed"
-        },
-        {
-          "timestamp": "2026-03-09T22:01:49.945497+00:00",
-          "success": true,
-          "reason": "13 uncommitted changes; 1 recent commits; beads closed"
-        },
-        {
-          "timestamp": "2026-03-09T22:06:27.593168+00:00",
-          "success": true,
-          "reason": "13 uncommitted changes; 1 recent commits; beads closed"
-        },
-        {
-          "timestamp": "2026-03-09T22:06:34.963793+00:00",
-          "success": true,
-          "reason": "13 uncommitted changes; 1 recent commits; beads closed"
-        },
-        {
-          "timestamp": "2026-03-09T22:50:45.680005+00:00",
-          "success": true,
-          "reason": "13 uncommitted changes; 1 recent commits; beads closed"
-        },
-        {
-          "timestamp": "2026-03-09T23:15:14.459005+00:00",
-          "success": true,
-          "reason": "14 uncommitted changes; 1 recent commits; beads closed"
-        },
-        {
-          "timestamp": "2026-03-09T23:19:21.164082+00:00",
-          "success": true,
-          "reason": "9 uncommitted changes; 2 recent commits; beads closed"
-        },
-        {
-          "timestamp": "2026-03-09T23:23:07.741246+00:00",
-          "success": true,
-          "reason": "9 uncommitted changes; 2 recent commits; beads closed"
-        },
-        {
-          "timestamp": "2026-03-09T23:23:17.812733+00:00",
-          "success": true,
-          "reason": "9 uncommitted changes; 2 recent commits; beads closed"
-        },
         {
           "timestamp": "2026-03-09T23:23:41.059110+00:00",
           "success": true,
           "reason": "7 uncommitted changes; 3 recent commits; beads closed"
+        },
+        {
+          "timestamp": "2026-03-11T00:30:33.309207+00:00",
+          "success": true,
+          "reason": "clean working tree; 3 recent commits"
+        },
+        {
+          "timestamp": "2026-03-11T00:30:43.907126+00:00",
+          "success": true,
+          "reason": "3 recent commits"
+        },
+        {
+          "timestamp": "2026-03-11T00:31:11.141772+00:00",
+          "success": true,
+          "reason": "clean working tree; 3 recent commits"
+        },
+        {
+          "timestamp": "2026-03-11T04:18:27.837528+00:00",
+          "success": true,
+          "reason": "1 recent commits"
+        },
+        {
+          "timestamp": "2026-03-11T04:18:48.039521+00:00",
+          "success": true,
+          "reason": "clean working tree; 2 recent commits"
+        },
+        {
+          "timestamp": "2026-03-11T04:35:02.326061+00:00",
+          "success": true,
+          "reason": "2 recent commits"
+        },
+        {
+          "timestamp": "2026-03-11T04:35:14.331496+00:00",
+          "success": true,
+          "reason": "clean working tree; 3 recent commits"
+        },
+        {
+          "timestamp": "2026-03-12T23:07:35.973423+00:00",
+          "success": true,
+          "reason": "1 recent commits"
+        },
+        {
+          "timestamp": "2026-03-12T23:07:49.161209+00:00",
+          "success": true,
+          "reason": "clean working tree; 2 recent commits"
         }
       ]
     },
@@ -312,31 +312,11 @@
     "testing": {
       "description": "TDD, unit tests, E2E tests, acceptance testing, validation",
       "confidence": 0.95,
-      "sessions_total": 1672,
-      "sessions_successful": 1160,
-      "success_rate": 0.694,
+      "sessions_total": 1676,
+      "sessions_successful": 1164,
+      "success_rate": 0.695,
       "common_pitfalls": [],
       "recent_outcomes": [
-        {
-          "timestamp": "2026-03-09T21:35:19.576290+00:00",
-          "success": true,
-          "reason": "12 uncommitted changes; 1 recent commits; beads closed"
-        },
-        {
-          "timestamp": "2026-03-09T22:01:49.945497+00:00",
-          "success": true,
-          "reason": "13 uncommitted changes; 1 recent commits; beads closed"
-        },
-        {
-          "timestamp": "2026-03-09T22:06:27.593168+00:00",
-          "success": true,
-          "reason": "13 uncommitted changes; 1 recent commits; beads closed"
-        },
-        {
-          "timestamp": "2026-03-09T22:06:34.963793+00:00",
-          "success": true,
-          "reason": "13 uncommitted changes; 1 recent commits; beads closed"
-        },
         {
           "timestamp": "2026-03-09T22:50:45.680005+00:00",
           "success": true,
@@ -366,13 +346,33 @@
           "timestamp": "2026-03-09T23:23:41.059110+00:00",
           "success": true,
           "reason": "7 uncommitted changes; 3 recent commits; beads closed"
+        },
+        {
+          "timestamp": "2026-03-11T00:30:33.309207+00:00",
+          "success": true,
+          "reason": "clean working tree; 3 recent commits"
+        },
+        {
+          "timestamp": "2026-03-11T00:30:43.907126+00:00",
+          "success": true,
+          "reason": "3 recent commits"
+        },
+        {
+          "timestamp": "2026-03-11T00:31:11.141772+00:00",
+          "success": true,
+          "reason": "clean working tree; 3 recent commits"
+        },
+        {
+          "timestamp": "2026-03-11T04:18:27.837528+00:00",
+          "success": true,
+          "reason": "1 recent commits"
         }
       ]
     }
   },
   "aggregate": {
-    "total_sessions": 6203,
-    "total_successful": 4302,
+    "total_sessions": 6216,
+    "total_successful": 4315,
     "overall_success_rate": 0.694,
     "strongest_domain": "backend_orchestration",
     "weakest_domain": "backend_orchestration"

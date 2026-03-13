@@ -14,6 +14,7 @@ dependencies = [
     "chromadb>=0.5",
     "typer>=0.9",
     "rich>=13.0",
+    "logfire>=2.0",
 ]
 
 [project.scripts]
@@ -38,7 +39,32 @@ vectordb = [
 testpaths = ["tests"]
 markers = [
     "functional: marks tests as functional (end-to-end) tests",
+    "unit: fast unit tests",
+    "integration: integration tests requiring external services",
+    "e2e: full end-to-end pipeline tests",
 ]
+addopts = "--cov=cobuilder --cov-report=term-missing --cov-report=html"
+
+[tool.coverage.run]
+source = ["cobuilder"]
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "cobuilder/__main__.py",
+]
+
+[tool.coverage.report]
+fail_under = 0
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.",
+    "raise NotImplementedError",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
 
 [tool.hatch.build.targets.wheel]
 packages = ["cobuilder"]

@@ -76,6 +76,18 @@ except ImportError:
     compose_middleware = None  # type: ignore[assignment]
     MiddlewareHandlerRequest = None  # type: ignore[assignment]
 
+# Template constraints — optional; graceful degradation if template pkg absent.
+try:
+    from cobuilder.engine.state_machine import NodeStateMachine
+    from cobuilder.engine.middleware.constraint import ConstraintMiddleware
+    from cobuilder.templates.manifest import resolve_manifest_for_graph
+    _TEMPLATE_CONSTRAINTS_AVAILABLE = True
+except ImportError:
+    _TEMPLATE_CONSTRAINTS_AVAILABLE = False
+    NodeStateMachine = None  # type: ignore[assignment,misc]
+    ConstraintMiddleware = None  # type: ignore[assignment,misc]
+    resolve_manifest_for_graph = None  # type: ignore[assignment]
+
 # Signal protocol — optional; graceful degradation if pipeline pkg absent.
 try:
     from cobuilder.pipeline.signal_protocol import ORCHESTRATOR_CRASHED, ORCHESTRATOR_STUCK, write_signal
@@ -203,6 +215,20 @@ class EngineRunner:
         # ── 1. Parse DOT file ─────────────────────────────────────────────
         graph = parse_dot_file(str(self.dot_path))
         pipeline_id = self.dot_path.stem
+
+        # ── 1b. Resolve template manifest for constraint enforcement ─────
+        self._constraint_machines: list[Any] = []
+        if _TEMPLATE_CONSTRAINTS_AVAILABLE and resolve_manifest_for_graph is not None:
+            manifest = resolve_manifest_for_graph(graph.attrs)
+            if manifest is not None:
+                for sc in manifest.state_machine_constraints:
+                    sm = NodeStateMachine.from_manifest_constraint(sc)
+                    self._constraint_machines.append(sm)
+                logger.info(
+                    "Loaded %d state machine constraint(s) from template '%s'",
+                    len(self._constraint_machines),
+                    manifest.name,
+                )
 
         # ── 2. Pre-execution validation (Epic 2) ──────────────────────────
         if not self._skip_validation:
@@ -758,14 +784,23 @@ class EngineRunner:
                 attempt_number=0,
                 run_dir=str(run_dir),
             )
+            # Build middleware list — constraint middleware is optional.
+            middlewares: list[Any] = [
+                LogfireMiddleware(),
+                TokenCountingMiddleware(),
+                RetryMiddleware(),
+            ]
+            if (
+                _TEMPLATE_CONSTRAINTS_AVAILABLE
+                and ConstraintMiddleware is not None
+                and self._constraint_machines
+            ):
+                middlewares.append(ConstraintMiddleware(self._constraint_machines))
+            middlewares.append(AuditMiddleware())
+
             # Build and invoke the middleware chain.
             chain = compose_middleware(
-                [
-                    LogfireMiddleware(),
-                    TokenCountingMiddleware(),
-                    RetryMiddleware(),
-                    AuditMiddleware(),
-                ],
+                middlewares,
                 handler,
             )
             return await chain(mw_request)
