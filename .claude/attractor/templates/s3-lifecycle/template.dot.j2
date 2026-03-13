@@ -1,0 +1,182 @@
+// Generated from template: s3-lifecycle v1.0
+// PRD: {{ prd_ref }}
+// Self-driving System 3 lifecycle pipeline
+// Cycle limit: {{ max_cycles }}
+
+digraph "s3-{{ prd_ref }}" {
+    graph [
+        label="System 3 Lifecycle: {{ prd_ref }}"
+        labelloc="t"
+        fontsize=16
+        rankdir="TB"
+        prd_ref="{{ prd_ref }}"
+        _template="s3-lifecycle"
+        _template_version="1.0"
+        default_max_retry="{{ max_cycles * 7 + 10 }}"
+    ];
+
+    node [fontname="Helvetica" fontsize=11];
+    edge [fontname="Helvetica" fontsize=9];
+
+    // ================================================================
+    // ENTRY
+    // ================================================================
+    start [
+        shape=Mdiamond
+        label="PARSE\n{{ prd_ref }}"
+        handler="start"
+        status="pending"
+        style=filled
+        fillcolor=lightyellow
+    ];
+
+    // ================================================================
+    // RESEARCH — investigate problem domain
+    // ================================================================
+    research [
+        shape=tab
+        label="RESEARCH\nProblem Domain"
+        handler="research"
+        worker_type="researcher"
+        llm="{{ model_research }}"
+        prompt="Research the problem domain for {{ prd_ref }}. Read {{ prd_path }}. Identify unknowns, framework constraints, and prior art. If $previous_failures is set, focus on investigating root causes of prior failures rather than domain research. Write findings to state/{{ prd_ref }}-research.json."
+        prd_ref="{{ prd_ref }}"
+        status="pending"
+        style=filled
+        fillcolor=lightcyan
+    ];
+
+    start -> research [label="begin"];
+
+    // ================================================================
+    // REFINE — update PRD with research findings
+    // ================================================================
+    refine [
+        shape=box
+        label="REFINE\nPRD + Constraints"
+        handler="codergen"
+        worker_type="solution-architect"
+        llm="{{ model_refine }}"
+        prompt="Read state/{{ prd_ref }}-research.json and {{ prd_path }}. Produce a refined PRD with updated acceptance criteria, constraints discovered during research, and solution design notes. Write to state/{{ prd_ref }}-refined.md."
+        prd_ref="{{ prd_ref }}"
+        status="pending"
+        style=filled
+        fillcolor=lightyellow
+    ];
+
+    research -> refine [label="findings ready"];
+
+    // ================================================================
+    // PLAN — generate child pipeline DOT from refined PRD
+    // ================================================================
+    plan [
+        shape=box
+        label="PLAN\nGenerate Pipeline"
+        handler="codergen"
+        worker_type="solution-architect"
+        llm="{{ model_plan }}"
+        prompt="Read state/{{ prd_ref }}-refined.md. Select template '{{ execution_template }}' and map tasks to workers. Generate params.yaml and instantiate the template. Write state/{{ prd_ref }}-plan.json with {dot_path, template, params}. Use: attractor templates create {{ execution_template }} --params-file params.yaml --output pipelines/{{ prd_ref }}-cycle-$cycle_count.dot"
+        prd_ref="{{ prd_ref }}"
+        status="pending"
+        style=filled
+        fillcolor=lightyellow
+    ];
+
+    refine -> plan [label="PRD refined"];
+
+    // ================================================================
+    // EXECUTE — spawn child pipeline runner (the key node)
+    // ================================================================
+    execute [
+        shape=house
+        label="EXECUTE\nChild Pipeline"
+        handler="manager_loop"
+        mode="spawn_pipeline"
+        pipeline_params_file="state/{{ prd_ref }}-plan.json"
+        signals_dir="signals/{{ prd_ref }}"
+        summarizer="true"
+        timeout="7200"
+        prd_ref="{{ prd_ref }}"
+        status="pending"
+        style=filled
+        fillcolor=lightyellow
+    ];
+
+    plan -> execute [label="pipeline ready"];
+
+    // ================================================================
+    // VALIDATE — run acceptance tests against PRD
+    // ================================================================
+    validate [
+        shape=hexagon
+        label="VALIDATE\nAcceptance Tests"
+        handler="wait_human"
+        gate="acceptance"
+        mode="business"
+        prd_ref="{{ prd_ref }}"
+        status="pending"
+        style=filled
+        fillcolor=lightyellow
+    ];
+
+    execute -> validate [label="execution complete"];
+
+    {% if deploy_command %}
+    // ================================================================
+    // DEPLOY — run deployment command
+    // ================================================================
+    deploy [
+        shape=parallelogram
+        label="DEPLOY"
+        handler="tool"
+        tool_command="{{ deploy_command }}"
+        status="pending"
+        style=filled
+        fillcolor=lightyellow
+    ];
+
+    validate -> deploy [label="validated"];
+    deploy -> evaluate [label="deployed"];
+    {% endif %}
+
+    // ================================================================
+    // EVALUATE — check if business goals are met
+    // ================================================================
+    evaluate [
+        shape=diamond
+        label="Goals\nMet?"
+        handler="conditional"
+    ];
+
+    {% if not deploy_command %}
+    validate -> evaluate [label="validated"];
+    {% endif %}
+
+    // All goals met -> exit
+    evaluate -> finalize [
+        label="goals met"
+        condition="$last_status = 'success'"
+        color=green
+        style=bold
+    ];
+
+    // Goals not met, cycles remaining -> loop back with failure context
+    evaluate -> research [
+        label="iterate\n(cycle back)"
+        condition="$last_status = 'failure'"
+        color=orange
+        loop_restart=true
+    ];
+
+    // ================================================================
+    // EXIT
+    // ================================================================
+    finalize [
+        shape=Msquare
+        label="FINALIZE\n{{ prd_ref }}"
+        handler="exit"
+        status="pending"
+        style=filled
+        fillcolor=lightyellow
+    ];
+}
