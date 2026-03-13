@@ -36,6 +36,8 @@ note: "This is the LAST document using PRD/SD terminology. E6 migrates to Busine
 | G7 | **Bounded loops**: `loop_constraint` in manifest caps iteration count. ManagerLoopHandler tracks loop counter. | Loop terminates at bound; counter visible in status output | P1 |
 | G8 | **Unified cobuilder-guardian skill**: Merge `s3-guardian` + `system3-meta-orchestrator` into single `cobuilder-guardian` skill. Strip all legacy terminology (system3, agent teams, sub agents, tmux). Rename `wait.system3` → `wait.cobuilder` globally. Migrate PRD→Business Spec (BS), SD→Technical Spec (TS) with per-initiative directories. | Zero references to "system3", "agent teams", or "tmux" in skills/output-styles | P1 |
 | G9 | **GitHub publication readiness**: Secret scrubbing, LICENSE, CONTRIBUTING.md, onboarding docs, CI/CD via GitHub Actions. | Repo passes `git-secrets` scan; README has Getting Started section; CI runs on PR | P1 |
+| G10 | **Logfire observability preserved**: All existing Logfire spans survive the merge and package rename. New features (ManagerLoopHandler upgrade, child signal monitoring) add their own spans. | Zero span regression; `CaptureLogfire` assertions in all handler tests | P0 |
+| G11 | **90% unit test coverage**: CI enforces `fail_under=90` on all PRs. Coverage baseline established in E0, gaps filled progressively, gate enforced in E5. | `pytest --cov-fail-under=90` passes; no PR reduces coverage | P1 |
 
 ## 3. User Stories
 
@@ -426,6 +428,7 @@ docs/specs/
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
+| Observability optional instead of mandatory: Logfire is imported defensively and skipped if missing (see `_LOGFIRE_AVAILABLE` in runner), and no CI enforces span presence | High | High | E0.2 audits all spans; E5 CI enforces span presence via `CaptureLogfire` test assertions. Convert defensive imports to hard requirements in `cobuilder/engine/` package |
 | Merge conflicts from abstract-workflow-system | Medium | Medium | Merge early (E0), resolve conflicts before new code |
 | Child gate deadlock if signal monitoring fails | Low | High | E2E test: parent detects child `wait.cobuilder`, handles, child resumes |
 | Profile `$VAR` resolution exposes secrets in logs | Medium | High | Sanitize env values in all log output; never log resolved api_key |
@@ -447,12 +450,51 @@ docs/specs/
 - Verify ManagerLoopHandler `spawn_pipeline` mode works (already implemented and tested)
 - Add integration test: instantiate `sequential-validated` template → valid DOT output
 
+**Sub-epics**:
+
+**E0.1: Code Merge & Integration**
+- Merge `abstract-workflow-system` branch into `cobuilder/`
+- Resolve conflicts with current `cobuilder/` code
+- Verify all existing tests pass
+- Verify ManagerLoopHandler `spawn_pipeline` mode works (already implemented and tested)
+- Add integration test: instantiate `sequential-validated` template → valid DOT output
+
+**E0.2: Logfire Observability Preservation**
+- **Goal**: Preserve ALL existing Logfire spans during the merge. The current `cobuilder/attractor/` layer has Logfire tracing (pipeline_runner.py, dispatch, session_runner). The `abstract-workflow-system` worktree's engine layer also has Logfire spans (middleware, event backend, runner). Both must survive the merge.
+- Audit current Logfire instrumentation: 6 files in current codebase (engine middleware + event backend + runner + attractor dispatch layer)
+- Audit worktree Logfire instrumentation: 4 files in abstract-workflow-system (engine middleware + event backend + runner — NO attractor/dispatch layer)
+- Ensure all spans from BOTH codebases survive the merge without duplication or omission
+- Add Logfire span assertions to merge validation tests using `logfire.testing.CaptureLogfire`
+- **Gap to close**: The `cobuilder/attractor/` dispatch layer (pipeline_runner.py, guardian.py, session_runner.py) is NOT present in the abstract-workflow-system worktree — these Logfire spans must be explicitly carried forward during the rename to `cobuilder/engine/`
+- **Colleague observation**: "Observability optional instead of mandatory: Logfire is imported defensively and skipped if missing (see `_LOGFIRE_AVAILABLE` in runner), and no CI enforces span presence." → Convert defensive `try/except` Logfire imports to hard requirements in `cobuilder/engine/` package; add `logfire` to `pyproject.toml` dependencies; add `CaptureLogfire` test assertions in CI
+
+**E0.3: Test Coverage Baseline**
+- **Goal**: Establish coverage measurement infrastructure and measure baseline before any refactoring.
+- Configure `pytest-cov` with `pyproject.toml` settings:
+  ```toml
+  [tool.coverage.run]
+  source = ["cobuilder"]
+  omit = ["*/tests/*", "*/__pycache__/*"]
+
+  [tool.coverage.report]
+  fail_under = 0  # Baseline measurement only — gate enforced in E5
+  show_missing = true
+  exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:"]
+  ```
+- Run baseline coverage measurement and record results
+- Identify critical gaps (known: `engine/handlers/` at ~10%, `repomap/models/` at 0%, `repomap/serena/` at 33%)
+- Create prioritized test gap backlog for downstream epics to consume
+
 **Acceptance Criteria**:
 - [ ] `cobuilder/templates/` directory exists with constraints.py, instantiator.py, manifest.py
 - [ ] `cobuilder/engine/state_machine.py` and `middleware/constraint.py` present
 - [ ] `cobuilder/engine/handlers/manager_loop.py` present with `spawn_pipeline` mode
 - [ ] All existing tests pass (`pytest tests/`)
 - [ ] New test: `test_template_instantiation` passes
+- [ ] All Logfire spans from both codebases present in merged code (verified via `CaptureLogfire` assertions)
+- [ ] No Logfire span regression: dispatch layer spans (pipeline_runner, guardian, session_runner) carried forward
+- [ ] `pytest --cov=cobuilder --cov-report=term-missing` runs successfully and baseline recorded
+- [ ] Test gap backlog created with priority-ordered list of under-tested modules
 
 ---
 
@@ -540,6 +582,8 @@ docs/specs/
 - [ ] Nesting depth exceeding manifest `max_depth` raises `MaxNestingDepthError`
 - [ ] `close` handler pushes branch, creates PR, reports via signal
 - [ ] Child gate handling has E2E test
+- [ ] All Logfire observability spans maintained — ManagerLoopHandler upgrade must preserve existing engine spans and add new spans for child signal monitoring, gate detection, and nesting depth tracking
+- [ ] Unit test coverage for `engine/handlers/` module reaches ≥80% (up from ~10% baseline)
 
 ---
 
@@ -553,17 +597,49 @@ docs/specs/
 - **LICENSE**: Choose and add license file (MIT or Apache 2.0)
 - **CONTRIBUTING.md**: Contributor guide explaining 3-level agent hierarchy, MCP server setup, how to run tests, how to create templates
 - **Onboarding**: "Getting Started" section in README.md with setup steps
-- **CI/CD**: GitHub Actions workflow — linting (doc-gardener), pytest, template validation on PR. Badge in README.
+- **CI/CD**: GitHub Actions workflow — linting (doc-gardener), pytest with coverage enforcement, template validation on PR. Badge in README.
+- **Test coverage gate**: Enforce 90% minimum coverage in CI via `pytest --cov=cobuilder --cov-report=term-missing --cov-fail-under=90`
 - **History cleanup**: BFG repo cleaner if secrets found in history. Stale branch cleanup.
+
+**Test Coverage Strategy** (enforced in CI):
+```toml
+# pyproject.toml
+[tool.coverage.run]
+source = ["cobuilder"]
+omit = ["*/tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
+```
+
+**Test Management Best Practices** (documented in CONTRIBUTING.md):
+1. **Test co-location**: Tests mirror source layout (`cobuilder/engine/runner.py` → `tests/engine/test_runner.py`)
+2. **Fixture library**: Shared fixtures in `tests/conftest.py` and `tests/fixtures/` for DOT graphs, providers.yaml, manifest.yaml, mock signal files
+3. **Parameterized tests**: Use `@pytest.mark.parametrize` for handler variations, profile resolution order, constraint types
+4. **Test markers**: `@pytest.mark.unit`, `@pytest.mark.integration`, `@pytest.mark.e2e` — CI runs unit+integration; e2e on demand
+5. **Logfire span assertions**: Use `logfire.testing.CaptureLogfire` to verify observability in all handler tests
+6. **Coverage-per-PR**: CI reports coverage diff on each PR — no PR may reduce overall coverage
+7. **Priority test gaps** (from E0.3 baseline): engine/handlers (~10%), repomap/models (0%), repomap/serena (33%), orchestration/adapters (~25%)
 
 **Acceptance Criteria**:
 - [ ] `git-secrets --scan` returns clean on full history
 - [ ] `.mcp.json` contains no plaintext API keys
 - [ ] `.mcp.json.example` exists with placeholder values
 - [ ] LICENSE file present
-- [ ] CONTRIBUTING.md covers: architecture overview, setup, testing, template creation
+- [ ] CONTRIBUTING.md covers: architecture overview, setup, testing (including coverage requirements), template creation
 - [ ] README.md has "Getting Started" section
-- [ ] GitHub Actions CI runs on PR: lint + test + template-validate
+- [ ] GitHub Actions CI runs on PR: lint + test + coverage enforcement (≥90%) + template-validate
+- [ ] `pytest --cov-fail-under=90` passes in CI
+- [ ] Coverage diff reported on each PR (no coverage regression allowed)
 - [ ] No stale branches remaining
 
 ---
@@ -667,12 +743,12 @@ docs/specs/
 
 | Epic | Status | Notes |
 |------|--------|-------|
-| E0: Merge Template System + ManagerLoopHandler | Not Started | 1,023 LOC + ManagerLoopHandler ready in abstract-workflow-system |
+| E0: Merge Template System + ManagerLoopHandler | Not Started | 1,023 LOC + ManagerLoopHandler ready in abstract-workflow-system. Sub-epics: E0.1 Code Merge, E0.2 Logfire Preservation, E0.3 Coverage Baseline |
 | E1: Per-Node LLM Profiles | Not Started | providers.yaml with named profiles |
 | E2: Rename attractor→engine + .pipelines/ | Not Started | Package + runtime state extraction |
 | E3: Stable Worktree Management | Not Started | Existing branch support, DOT graph-level config |
-| E4: ManagerLoopHandler Upgrade | Not Started | Child signal monitoring (prevent gate deadlocks) |
-| E5: GitHub Publication Readiness | Not Started | Secret scrubbing, LICENSE, CI/CD |
+| E4: ManagerLoopHandler Upgrade | Not Started | Child signal monitoring (prevent gate deadlocks). Requires Logfire span preservation + 80% handler coverage |
+| E5: GitHub Publication Readiness | Not Started | Secret scrubbing, LICENSE, CI/CD with 90% coverage gate |
 | E6: cobuilder-guardian + Terminology Migration | Not Started | system3→cobuilder, PRD→BS, SD→TS |
 | E7: cobuilder-lifecycle Template | Not Started | Self-driving guardian template |
 | E8: Hub-Spoke Template | Not Started | Parallel worker patterns |
