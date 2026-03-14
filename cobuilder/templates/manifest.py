@@ -69,6 +69,37 @@ class ParameterDef:
 
 
 # ---------------------------------------------------------------------------
+# Defaults models
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class HandlerDefaults:
+    """Default configuration for a specific handler type."""
+
+    llm_profile: str | None = None
+
+    # Future extensions can add more fields here (e.g., timeout, allowed_tools)
+
+
+@dataclass
+class Defaults:
+    """Default configuration values for the template.
+
+    Provides a 5-layer resolution for LLM configuration:
+    1. Node's llm_profile attribute
+    2. handler_defaults.{handler_type}.llm_profile
+    3. defaults.llm_profile (this field)
+    4. Environment variables (ANTHROPIC_MODEL, ANTHROPIC_API_KEY, ANTHROPIC_BASE_URL)
+    5. Runner hardcoded defaults
+    """
+
+    llm_profile: str | None = None
+    providers_file: str | None = None
+    handler_defaults: dict[str, HandlerDefaults] = field(default_factory=dict)
+
+
+# ---------------------------------------------------------------------------
 # Constraint models
 # ---------------------------------------------------------------------------
 
@@ -127,7 +158,7 @@ class LoopConstraint:
 
 @dataclass
 class Manifest:
-    """Parsed template manifest with metadata, parameters, and constraints."""
+    """Parsed template manifest with metadata, parameters, constraints, and defaults."""
 
     name: str
     version: str = "1.0"
@@ -136,6 +167,7 @@ class Manifest:
     min_nodes: int | None = None
     max_nodes: int | None = None
     parameters: dict[str, ParameterDef] = field(default_factory=dict)
+    defaults: Defaults = field(default_factory=Defaults)
     state_machine_constraints: list[StateMachineConstraint] = field(default_factory=list)
     path_constraints: list[PathConstraint] = field(default_factory=list)
     topology_constraints: list[TopologyConstraint] = field(default_factory=list)
@@ -236,6 +268,42 @@ def _parse_constraint(name: str, raw: dict[str, Any]) -> Any:
         return None
 
 
+def _parse_defaults(raw: dict[str, Any]) -> Defaults:
+    """Parse the defaults section from manifest YAML.
+
+    Expected structure:
+        defaults:
+          llm_profile: "anthropic-fast"
+          providers_file: "providers.yaml"
+          handler_defaults:
+            codergen:
+              llm_profile: "anthropic-smart"
+            research:
+              llm_profile: "anthropic-fast"
+    """
+    handler_defaults: dict[str, HandlerDefaults] = {}
+
+    # Parse handler_defaults if present
+    handler_defaults_raw = raw.get("handler_defaults", {})
+    if isinstance(handler_defaults_raw, dict):
+        for handler_type, hd_config in handler_defaults_raw.items():
+            if isinstance(hd_config, dict):
+                handler_defaults[handler_type] = HandlerDefaults(
+                    llm_profile=hd_config.get("llm_profile"),
+                )
+            elif isinstance(hd_config, str):
+                # Shorthand: handler_defaults: {codergen: "anthropic-smart"}
+                handler_defaults[handler_type] = HandlerDefaults(
+                    llm_profile=hd_config,
+                )
+
+    return Defaults(
+        llm_profile=raw.get("llm_profile"),
+        providers_file=raw.get("providers_file"),
+        handler_defaults=handler_defaults,
+    )
+
+
 def load_manifest(manifest_path: str | Path) -> Manifest:
     """Load and parse a manifest.yaml file into a Manifest object.
 
@@ -289,6 +357,10 @@ def load_manifest(manifest_path: str | Path) -> Manifest:
         elif isinstance(parsed, LoopConstraint):
             loop_constraints.append(parsed)
 
+    # Defaults
+    defaults_raw = raw.get("defaults", {})
+    defaults = _parse_defaults(defaults_raw) if isinstance(defaults_raw, dict) else Defaults()
+
     return Manifest(
         name=name,
         version=tmpl.get("version", "1.0"),
@@ -297,6 +369,7 @@ def load_manifest(manifest_path: str | Path) -> Manifest:
         min_nodes=tmpl.get("min_nodes"),
         max_nodes=tmpl.get("max_nodes"),
         parameters=parameters,
+        defaults=defaults,
         state_machine_constraints=sm_constraints,
         path_constraints=path_constraints,
         topology_constraints=topo_constraints,

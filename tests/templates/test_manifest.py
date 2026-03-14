@@ -1,7 +1,6 @@
 """Tests for cobuilder.templates.manifest — manifest parsing and validation."""
 from __future__ import annotations
 
-import textwrap
 from pathlib import Path
 
 import pytest
@@ -168,3 +167,142 @@ class TestManifestValidation:
         })
         assert resolved["count"] == 5
         assert resolved["enabled"] is True
+
+
+class TestDefaults:
+    """Tests for defaults and handler_defaults parsing."""
+
+    def test_loads_defaults_llm_profile(self, tmp_path: Path) -> None:
+        """Test that manifest-level llm_profile is parsed correctly."""
+        manifest = {
+            "template": {"name": "test-defaults"},
+            "defaults": {
+                "llm_profile": "anthropic-fast",
+            },
+        }
+        manifest_path = tmp_path / "manifest.yaml"
+        manifest_path.write_text(yaml.dump(manifest))
+
+        from cobuilder.templates.manifest import load_manifest
+
+        m = load_manifest(manifest_path)
+        assert m.defaults.llm_profile == "anthropic-fast"
+
+    def test_loads_defaults_providers_file(self, tmp_path: Path) -> None:
+        """Test that providers_file path is parsed correctly."""
+        manifest = {
+            "template": {"name": "test-providers"},
+            "defaults": {
+                "llm_profile": "anthropic-fast",
+                "providers_file": "custom/providers.yaml",
+            },
+        }
+        manifest_path = tmp_path / "manifest.yaml"
+        manifest_path.write_text(yaml.dump(manifest))
+
+        from cobuilder.templates.manifest import load_manifest
+
+        m = load_manifest(manifest_path)
+        assert m.defaults.providers_file == "custom/providers.yaml"
+
+    def test_loads_handler_defaults_dict(self, tmp_path: Path) -> None:
+        """Test handler_defaults with full dict config."""
+        manifest = {
+            "template": {"name": "test-handler-defaults"},
+            "defaults": {
+                "llm_profile": "anthropic-fast",
+                "handler_defaults": {
+                    "codergen": {"llm_profile": "anthropic-smart"},
+                    "research": {"llm_profile": "anthropic-fast"},
+                    "refine": {"llm_profile": "anthropic-smart"},
+                },
+            },
+        }
+        manifest_path = tmp_path / "manifest.yaml"
+        manifest_path.write_text(yaml.dump(manifest))
+
+        from cobuilder.templates.manifest import load_manifest
+
+        m = load_manifest(manifest_path)
+        assert len(m.defaults.handler_defaults) == 3
+        assert m.defaults.handler_defaults["codergen"].llm_profile == "anthropic-smart"
+        assert m.defaults.handler_defaults["research"].llm_profile == "anthropic-fast"
+        assert m.defaults.handler_defaults["refine"].llm_profile == "anthropic-smart"
+
+    def test_loads_handler_defaults_shorthand(self, tmp_path: Path) -> None:
+        """Test handler_defaults with shorthand string syntax."""
+        manifest = {
+            "template": {"name": "test-shorthand"},
+            "defaults": {
+                "handler_defaults": {
+                    "codergen": "anthropic-smart",
+                    "summarizer": "anthropic-fast",
+                },
+            },
+        }
+        manifest_path = tmp_path / "manifest.yaml"
+        manifest_path.write_text(yaml.dump(manifest))
+
+        from cobuilder.templates.manifest import load_manifest
+
+        m = load_manifest(manifest_path)
+        assert m.defaults.handler_defaults["codergen"].llm_profile == "anthropic-smart"
+        assert m.defaults.handler_defaults["summarizer"].llm_profile == "anthropic-fast"
+
+    def test_empty_defaults(self, tmp_path: Path) -> None:
+        """Test that manifest without defaults section works correctly."""
+        manifest = {
+            "template": {"name": "no-defaults"},
+        }
+        manifest_path = tmp_path / "manifest.yaml"
+        manifest_path.write_text(yaml.dump(manifest))
+
+        from cobuilder.templates.manifest import load_manifest
+
+        m = load_manifest(manifest_path)
+        assert m.defaults.llm_profile is None
+        assert m.defaults.providers_file is None
+        assert m.defaults.handler_defaults == {}
+
+    def test_full_manifest_example(self, tmp_path: Path) -> None:
+        """Test full manifest with all fields from PRD example."""
+        manifest = {
+            "template": {
+                "name": "sequential-validated",
+                "version": "1.0",
+                "description": "Linear pipeline with research→refine→codergen chains",
+                "topology": "linear",
+            },
+            "parameters": {
+                "initiative_id": {"type": "string", "required": True},
+                "epic_count": {"type": "integer", "default": 1},
+            },
+            "defaults": {
+                "llm_profile": "anthropic-fast",
+                "providers_file": "providers.yaml",
+                "handler_defaults": {
+                    "codergen": {"llm_profile": "anthropic-smart"},
+                    "research": {"llm_profile": "anthropic-fast"},
+                    "refine": {"llm_profile": "anthropic-smart"},
+                    "summarizer": {"llm_profile": "anthropic-fast"},
+                },
+            },
+            "constraints": {
+                "loop_bound": {
+                    "type": "loop_constraint",
+                    "rule": {"max_iterations": 3},
+                },
+            },
+        }
+        manifest_path = tmp_path / "manifest.yaml"
+        manifest_path.write_text(yaml.dump(manifest, default_flow_style=False))
+
+        from cobuilder.templates.manifest import load_manifest
+
+        m = load_manifest(manifest_path)
+        assert m.name == "sequential-validated"
+        assert m.defaults.llm_profile == "anthropic-fast"
+        assert m.defaults.providers_file == "providers.yaml"
+        assert len(m.defaults.handler_defaults) == 4
+        assert m.defaults.handler_defaults["codergen"].llm_profile == "anthropic-smart"
+        assert m.defaults.handler_defaults["summarizer"].llm_profile == "anthropic-fast"
