@@ -73,10 +73,11 @@ class HandlerRegistry:
 
     @classmethod
     def default(cls) -> "HandlerRegistry":
-        """Build a fully-wired registry with all 9 standard handlers.
+        """Build a fully-wired registry with all 10 standard handlers.
 
         Import is deferred to avoid circular imports at module load time.
         """
+        from cobuilder.engine.handlers.close import CloseHandler
         from cobuilder.engine.handlers.codergen import CodergenHandler
         from cobuilder.engine.handlers.conditional import ConditionalHandler
         from cobuilder.engine.handlers.exit import ExitHandler
@@ -97,4 +98,5 @@ class HandlerRegistry:
         registry.register("tripleoctagon", FanInHandler())
         registry.register("parallelogram", ToolHandler())
         registry.register("house", ManagerLoopHandler())
+        registry.register("octagon", CloseHandler())
         return registry
