@@ -341,7 +341,7 @@ class TestGateSignalDetection:
 
         call_count = 0
 
-        async def mock_sleep(interval: float) -> None:
+        async def mock_sleep(_interval: float) -> None:
             nonlocal call_count
             call_count += 1
 
@@ -372,3 +372,380 @@ class TestGateSignalDetection:
                 outcome = await handler.execute(request)
 
         assert outcome.status == OutcomeStatus.SUCCESS
+
+
+class TestResolveChildDotPath:
+    """Tests for _resolve_child_dot_path edge cases."""
+
+    @pytest.mark.asyncio
+    async def test_resolve_absolute_path(self, tmp_path: Path) -> None:
+        """Test resolving an absolute DOT path."""
+        handler = ManagerLoopHandler()
+
+        # Create DOT file at absolute path
+        dot_file = tmp_path / "absolute" / "child.dot"
+        dot_file.parent.mkdir(parents=True)
+        dot_file.write_text('digraph test { start [shape=Mdiamond]; }')
+
+        node = MagicMock()
+        node.id = "test_node"
+        node.attrs = {"sub_pipeline": str(dot_file)}
+
+        result = await handler._resolve_child_dot_path(node, tmp_path)
+        assert result == dot_file
+
+    @pytest.mark.asyncio
+    async def test_resolve_relative_path(self, tmp_path: Path) -> None:
+        """Test resolving a relative DOT path."""
+        handler = ManagerLoopHandler()
+
+        # Create DOT file at relative path from run_dir
+        dot_file = tmp_path / "pipelines" / "child.dot"
+        dot_file.parent.mkdir(parents=True)
+        dot_file.write_text('digraph test { start [shape=Mdiamond]; }')
+
+        node = MagicMock()
+        node.id = "test_node"
+        node.attrs = {"sub_pipeline": "pipelines/child.dot"}
+
+        result = await handler._resolve_child_dot_path(node, tmp_path)
+        assert result == dot_file
+
+    @pytest.mark.asyncio
+    async def test_resolve_nonexistent_path_returns_none(self, tmp_path: Path) -> None:
+        """Test that nonexistent path returns None."""
+        handler = ManagerLoopHandler()
+
+        node = MagicMock()
+        node.id = "test_node"
+        node.attrs = {"sub_pipeline": "/nonexistent/path.dot"}
+
+        result = await handler._resolve_child_dot_path(node, tmp_path)
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_resolve_from_params_file_absolute_dot_path(self, tmp_path: Path) -> None:
+        """Test resolving DOT path from params file with absolute path."""
+        handler = ManagerLoopHandler()
+
+        # Create DOT file
+        dot_file = tmp_path / "child.dot"
+        dot_file.write_text('digraph test { start [shape=Mdiamond]; }')
+
+        # Create params file with absolute dot_path
+        params_file = tmp_path / "params.json"
+        params_file.write_text(json.dumps({"dot_path": str(dot_file)}))
+
+        node = MagicMock()
+        node.id = "test_node"
+        node.attrs = {"pipeline_params_file": str(params_file)}
+
+        result = await handler._resolve_child_dot_path(node, tmp_path)
+        assert result == dot_file
+
+    @pytest.mark.asyncio
+    async def test_resolve_from_params_file_relative_dot_path(self, tmp_path: Path) -> None:
+        """Test resolving DOT path from params file with relative path."""
+        handler = ManagerLoopHandler()
+
+        # Create DOT file at relative path
+        dot_file = tmp_path / "pipelines" / "child.dot"
+        dot_file.parent.mkdir(parents=True)
+        dot_file.write_text('digraph test { start [shape=Mdiamond]; }')
+
+        # Create params file with relative dot_path
+        params_file = tmp_path / "params.json"
+        params_file.write_text(json.dumps({"dot_path": "pipelines/child.dot"}))
+
+        node = MagicMock()
+        node.id = "test_node"
+        node.attrs = {"pipeline_params_file": str(params_file)}
+
+        result = await handler._resolve_child_dot_path(node, tmp_path)
+        assert result == dot_file
+
+    @pytest.mark.asyncio
+    async def test_resolve_params_file_relative_path(self, tmp_path: Path) -> None:
+        """Test resolving params file itself from relative path."""
+        handler = ManagerLoopHandler()
+
+        # Create DOT file
+        dot_file = tmp_path / "child.dot"
+        dot_file.write_text('digraph test { start [shape=Mdiamond]; }')
+
+        # Create params file at relative location
+        params_dir = tmp_path / "state"
+        params_dir.mkdir()
+        params_file = params_dir / "params.json"
+        params_file.write_text(json.dumps({"dot_path": str(dot_file)}))
+
+        node = MagicMock()
+        node.id = "test_node"
+        node.attrs = {"pipeline_params_file": "state/params.json"}
+
+        result = await handler._resolve_child_dot_path(node, tmp_path)
+        assert result == dot_file
+
+    @pytest.mark.asyncio
+    async def test_resolve_invalid_json_params_returns_none(self, tmp_path: Path) -> None:
+        """Test that invalid JSON in params file returns None."""
+        handler = ManagerLoopHandler()
+
+        params_file = tmp_path / "params.json"
+        params_file.write_text("not valid json")
+
+        node = MagicMock()
+        node.id = "test_node"
+        node.attrs = {"pipeline_params_file": str(params_file)}
+
+        result = await handler._resolve_child_dot_path(node, tmp_path)
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_resolve_missing_dot_path_key_returns_none(self, tmp_path: Path) -> None:
+        """Test that params file without dot_path returns None."""
+        handler = ManagerLoopHandler()
+
+        params_file = tmp_path / "params.json"
+        params_file.write_text(json.dumps({"template": "hub-spoke"}))
+
+        node = MagicMock()
+        node.id = "test_node"
+        node.attrs = {"pipeline_params_file": str(params_file)}
+
+        result = await handler._resolve_child_dot_path(node, tmp_path)
+        assert result is None
+
+
+class TestLaunchSummarizer:
+    """Tests for _launch_summarizer."""
+
+    @pytest.mark.asyncio
+    async def test_launch_summarizer_success(self, tmp_path: Path) -> None:
+        """Test successful summarizer launch."""
+        handler = ManagerLoopHandler()
+
+        dot_path = tmp_path / "child.dot"
+        dot_path.write_text('digraph test {}')
+        signals_dir = tmp_path / "signals"
+        signals_dir.mkdir()
+
+        mock_proc = AsyncMock()
+        mock_proc.pid = 54321
+
+        with patch("asyncio.create_subprocess_exec", return_value=mock_proc):
+            result = await handler._launch_summarizer(dot_path, str(signals_dir), tmp_path)
+
+        assert result is not None
+        assert result.pid == 54321
+
+    @pytest.mark.asyncio
+    async def test_launch_summarizer_failure_returns_none(self, tmp_path: Path) -> None:
+        """Test that summarizer launch failure returns None."""
+        handler = ManagerLoopHandler()
+
+        dot_path = tmp_path / "child.dot"
+        dot_path.write_text('digraph test {}')
+        signals_dir = tmp_path / "signals"
+        signals_dir.mkdir()
+
+        with patch("asyncio.create_subprocess_exec", side_effect=OSError("Failed")):
+            result = await handler._launch_summarizer(dot_path, str(signals_dir), tmp_path)
+
+        assert result is None
+
+
+class TestMonitorChildProcess:
+    """Tests for _monitor_child_process edge cases."""
+
+    @pytest.mark.asyncio
+    async def test_monitor_timeout_kills_child(self, tmp_path: Path) -> None:
+        """Test that monitor kills child process on timeout."""
+        handler = ManagerLoopHandler()
+
+        mock_proc = AsyncMock()
+        mock_proc.returncode = None  # Process never exits
+        mock_proc.pid = 12345
+        mock_proc.kill = MagicMock()
+        mock_proc.communicate = AsyncMock(return_value=(b"", b""))
+
+        node = MagicMock()
+        node.id = "test_node"
+        node.attrs = {"timeout": "0.1"}  # Very short timeout
+
+        signals_dir = tmp_path / "signals"
+        signals_dir.mkdir()
+
+        # Sleep counter to limit iterations
+        sleep_count = [0]
+
+        async def limited_sleep(interval: float) -> None:
+            sleep_count[0] += 1
+            if sleep_count[0] > 5:  # Limit iterations
+                raise RuntimeError("Test limit reached")
+
+        with patch("asyncio.sleep", side_effect=limited_sleep):
+            with patch("asyncio.get_event_loop") as mock_loop:
+                mock_loop.return_value.time.return_value = 0.0
+                # Simulate time passing
+                time_val = [0.0]
+                def increment_time():
+                    time_val[0] += 1.0
+                    return time_val[0]
+                mock_loop.return_value.time.side_effect = increment_time
+
+                result = await handler._monitor_child_process(mock_proc, node, str(signals_dir))
+
+        assert result["status"] == "failed"
+        assert result["error"] == "timeout"
+        mock_proc.kill.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_monitor_handles_runner_exited_signal(self, tmp_path: Path) -> None:
+        """Test that monitor detects RUNNER_EXITED signal."""
+        import datetime
+        from cobuilder.engine.signal_protocol import RUNNER_EXITED
+
+        handler = ManagerLoopHandler()
+
+        mock_proc = AsyncMock()
+        mock_proc.returncode = None
+        mock_proc.pid = 12345
+
+        node = MagicMock()
+        node.id = "test_node"
+        node.attrs = {"timeout": "300"}
+
+        signals_dir = tmp_path / "signals"
+        signals_dir.mkdir()
+
+        # Write completion signal in the format the handler expects (flat structure)
+        # The handler reads: sig_data.get("checkpoint_path", "")
+        timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        signal_file = signals_dir / f"{timestamp}-runner-parent-{RUNNER_EXITED}.json"
+        signal_file.write_text(json.dumps({
+            "status": "completed",
+            "checkpoint_path": "/tmp/checkpoint.json",
+        }))
+
+        call_count = [0]
+
+        async def single_sleep(_interval: float) -> None:
+            call_count[0] += 1
+            if call_count[0] > 1:
+                raise RuntimeError("Should have exited")
+
+        with patch("asyncio.sleep", side_effect=single_sleep):
+            with patch("asyncio.get_event_loop") as mock_loop:
+                mock_loop.return_value.time.return_value = 0.0
+                result = await handler._monitor_child_process(mock_proc, node, str(signals_dir))
+
+        assert result["status"] == "completed"
+        assert result["checkpoint_path"] == "/tmp/checkpoint.json"
+
+
+class TestSpawnFailure:
+    """Tests for subprocess spawn failure handling."""
+
+    @pytest.mark.asyncio
+    async def test_spawn_failure_returns_failure(self, tmp_path: Path) -> None:
+        """Test that subprocess spawn failure returns FAILURE outcome."""
+        handler = ManagerLoopHandler()
+
+        dot_file = tmp_path / "child.dot"
+        dot_file.write_text('digraph test { start [shape=Mdiamond]; }')
+
+        request = _make_request(
+            attrs={
+                "mode": "spawn_pipeline",
+                "sub_pipeline": str(dot_file),
+            },
+            run_dir=str(tmp_path),
+        )
+
+        with patch("asyncio.create_subprocess_exec", side_effect=OSError("Cannot spawn")):
+            outcome = await handler.execute(request)
+
+        assert outcome.status == OutcomeStatus.FAILURE
+        assert outcome.metadata.get("error_type") == "SPAWN_FAILED"
+
+
+class TestGateSignalEdgeCases:
+    """Tests for gate signal edge cases."""
+
+    @pytest.mark.asyncio
+    async def test_detect_gate_signal_malformed_json(self, tmp_path: Path) -> None:
+        """Test that malformed gate signal JSON is ignored."""
+        from cobuilder.engine.signal_protocol import GATE_WAIT_COBUILDER
+
+        handler = ManagerLoopHandler()
+
+        signals_dir = tmp_path / "signals"
+        signals_dir.mkdir()
+
+        # Write malformed signal file
+        malformed_signal = signals_dir / f"source_target_{GATE_WAIT_COBUILDER}.json"
+        malformed_signal.write_text("not valid json")
+
+        gate = handler._detect_gate_signal(signals_dir)
+        assert gate is None
+
+    @pytest.mark.asyncio
+    async def test_detect_gate_signal_missing_payload(self, tmp_path: Path) -> None:
+        """Test gate signal with missing payload uses defaults."""
+        from cobuilder.engine.signal_protocol import GATE_WAIT_COBUILDER, write_signal
+
+        handler = ManagerLoopHandler()
+
+        signals_dir = tmp_path / "signals"
+        signals_dir.mkdir()
+
+        # Write signal without node_id in payload
+        write_signal(
+            source="child",
+            target="parent",
+            signal_type=GATE_WAIT_COBUILDER,
+            payload={},  # Missing node_id
+            signals_dir=str(signals_dir),
+        )
+
+        gate = handler._detect_gate_signal(signals_dir)
+
+        assert gate is not None
+        assert gate.node_id == "unknown"  # Default value
+        assert gate.prd_ref == ""  # Default value
+
+    @pytest.mark.asyncio
+    async def test_handle_gate_write_failure(self, tmp_path: Path) -> None:
+        """Test that failure to write gate response returns handled=False."""
+        from cobuilder.engine.handlers.manager_loop import GateSignal, GateType
+
+        handler = ManagerLoopHandler()
+
+        # Create a signals dir that will fail writes
+        signals_dir = tmp_path / "signals"
+        signals_dir.mkdir()
+
+        gate = GateSignal(
+            gate_type=GateType.COBUILDER,
+            node_id="validate_node",
+            prd_ref="PRD-TEST-001",
+            signal_path=signals_dir / "test-signal.json",
+        )
+
+        node = MagicMock()
+        node.id = "parent_node"
+
+        # Make write_gate_response fail
+        with patch(
+            "cobuilder.engine.handlers.manager_loop.write_gate_response",
+            side_effect=OSError("Write failed"),
+        ):
+            result = await handler._handle_gate(
+                gate=gate,
+                signals_dir=str(signals_dir),
+                node=node,
+            )
+
+        assert result.get("handled") is False
+        assert result.get("error") == "response_write_failed"
