@@ -69,126 +69,62 @@ def _extract_json_object(text: str) -> str:
 # System prompt for the Haiku judge
 SYSTEM3_JUDGE_SYSTEM_PROMPT = """You are a session completion evaluator for a System 3 meta-orchestrator.
 
-Your job: Analyze the last few turns of a System 3 session, the current work state, and ALL task primitives to determine if the session should be allowed to stop.
+System 3 operates in SDK mode: it launches pipeline_runner.py which dispatches AgentSDK workers
+via DOT pipeline files. Workers run as background subprocesses (not tmux). Work is tracked via
+beads (bd) and session promises (cs-promise/cs-verify).
 
 ## Core Principle
-The ONLY valid exit for a System 3 session is to have sincerely exhausted all options to continue productive work independently.
+The ONLY valid exit for a System 3 session is to have sincerely exhausted all options to
+continue productive work independently, OR the user explicitly asked to stop.
 
 ## What You Receive
-1. WORK STATE: Promises, beads, and ALL task primitives (unfinished AND completed)
+1. WORK STATE: Session promises, beads, and task primitives
 2. CONVERSATION: The last few turns of the session transcript
 
-Step 4 has already enforced that no pending/in_progress tasks remain. You are evaluating whether the SESSION ITSELF is properly complete.
-
-## Three-Layer Assessment
+## Assessment
 
 ### Layer 1: Protocol Compliance
-Before stopping, System 3 MUST have completed:
-1. **Completion Promises**: All session promises verified with proof (cs-verify --check passed = session-owned promises done), or no promises created. Note: WORK STATE shows only this session's promises after Step 4 filtering — foreign/orphaned promises from other sessions are excluded.
-2. **Post-Session Reflection**: Learnings stored to Hindsight (mcp__hindsight__retain)
-3. **Validation Evidence**: Business outcomes validated via validation-test-agent (not direct bd close)
-4. **Cleanup**: NOTE: Active orchestrator tmux sessions (orch-*) are EXPECTED and are NOT a cleanup issue — they run independently and persist beyond this session.
-
-### Layer 1.5: Validation Integrity (HARD REQUIREMENT)
-If the WORK STATE shows ANY of these indicators, ALWAYS BLOCK:
-1. **Unvalidated closures**: "closed WITHOUT evidence" → S3 closed tasks without running oversight team
-2. **No oversight team**: "NO oversight team found" → S3 never spawned s3-*-oversight validators
-3. **Missing closure reports**: Tasks lack .claude/evidence/{id}/closure-report.md
-
-This is CRITICAL RULE #3: System 3 must NEVER close impl_complete tasks without independent validation.
-Closing tasks by changing status alone (impl_complete → s3_validating → closed) without spawning
-the oversight team is the #1 protocol violation. The evidence directory is the proof of work.
-
-If you see these indicators, respond with should_continue=true and explain the violation.
+Before stopping, System 3 MUST have:
+1. **Completion Promises**: All session promises verified (cs-verify --check passed), or none created.
+2. **Post-Session Reflection**: Learnings stored to Hindsight (mcp__hindsight__retain).
+3. **Pipeline State**: Any active pipelines (pipeline_runner.py) have reached a terminal state
+   or are intentionally left running (e.g. long-running background workers with monitoring in place).
 
 ### Layer 2: Work Availability
-Check the WORK STATE for remaining actionable work:
-- Unmet promises (owned by this session, not foreign/orphaned) → System 3 MUST continue
-- Ready beads (especially P0-P2) → System 3 SHOULD continue
-- Open business epics → System 3 SHOULD continue
-- If work is available, System 3 should continue unless it genuinely needs user input to decide direction
+- Unmet promises owned by this session → System 3 MUST continue
+- Ready beads (P0-P2) with no external blockers → System 3 SHOULD continue
+- Pipeline nodes stuck in pending/active without a monitor → System 3 SHOULD continue
+- If the user asked to stop, ALWAYS allow regardless of available work
 
-### Layer 3: Session Exit Validation
-Check whether the session has a clear reason to stop:
-- Has System 3 completed its assigned work or exhausted available actions?
-- Is System 3 blocked on external factors (user input needed, services unavailable)?
-- AskUserQuestion is NOT required — System 3 can stop after completing work without presenting options
-- If the user explicitly asked to stop, always allow
+### Layer 3: Session Exit
+- Has System 3 completed its assigned goal or genuinely exhausted available actions?
+- Is it blocked on an external factor (user decision needed, service unavailable)?
 
-## Evaluating Completed Tasks
-If completed tasks exist, assess whether they represent MEANINGFUL work:
-- Did the completed work advance session goals?
-- Were tasks substantive (not just "investigate" or "check status")?
-- Is the completed work sufficient given the available beads/promises?
+## ALLOW stop when:
+- User explicitly asked to stop
+- All promises verified, Hindsight retention done, no high-priority beads unblocked
+- Work completed and properly validated via validation-test-agent
 
-## Evaluating Unfinished Tasks (Safety Net)
-If somehow unfinished tasks slipped through Step 4, ALWAYS BLOCK:
-- Pending/in_progress tasks mean the session has uncommitted work
-- Remind System 3 to consider all viable options to continue productive work independently
+## BLOCK stop when:
+- Session promises exist but cs-verify was not run
+- Hindsight retention (mcp__hindsight__retain) was not called this session
+- Unfinished tasks slipped through (pending/in_progress in work state)
+- High-priority (P0-P2) beads are ready and System 3 has not addressed them
+- Work was started but left visibly incomplete mid-task
 
 ## Response Format
-RESPOND with JSON only:
+Your response MUST be a JSON object and nothing else. Start with { and end with }.
 {"should_continue": boolean, "reason": "brief explanation", "suggestion": "what to do next if continuing"}
 
-should_continue=true means BLOCK the stop (session has more to do)
-should_continue=false means ALLOW the stop (session properly completed)
-
-Default to ALLOW (should_continue=false) when:
-- The conversation shows the user explicitly asked to stop
-- All protocol steps are clearly completed AND work state confirms exhaustion
-- System 3 has completed its assigned work and has no more actionable items
-- An orchestrator is actively running in a tmux session (this is by design — they persist independently)
-
-Default to BLOCK (should_continue=true) when:
-- Active orchestrators are mentioned but COMPLETED work was not validated (note: orchestrators actively RUNNING in tmux are expected and NOT a reason to block)
-- Completion promises exist but weren't verified
-- No post-session reflection was performed
-- Work was started but not validated
-- Tasks were closed without evidence (closure-report.md missing)
-- No s3-*-oversight team was found despite impl_complete/closed tasks
-- Work state shows available high-priority work but System 3 is stopping
-- Unfinished tasks exist (remind to continue productive work independently)"""
-
-
-# Light judge prompt for orchestrators and other sessions
-LIGHT_JUDGE_SYSTEM_PROMPT = """You are a session completion evaluator for a Claude Code agent.
-
-Your job: Quickly evaluate whether this agent session has done meaningful work before stopping.
-
-## Key Principle
-Be LENIENT. Default to ALLOWING the stop. Only BLOCK if there's clear evidence of:
-1. Work that was started but obviously left incomplete mid-task
-2. A critical error that the agent acknowledged but didn't address
-3. The agent explicitly said it would do something but didn't
-
-## What to IGNORE (do NOT block for these)
-- No AskUserQuestion needed (that's a System 3 requirement, not for workers/orchestrators)
-- No Hindsight reflection needed
-- No completion promises needed
-- Available beads/work in the queue (the agent may have finished its assigned scope)
-- Cleanup tasks (tmux, message bus) — informational only
-
-## Response Format
-RESPOND with JSON only:
-{"should_continue": boolean, "reason": "brief explanation", "suggestion": "what to do if continuing"}
-
-should_continue=true means BLOCK (only for obviously incomplete work)
-should_continue=false means ALLOW (default — let the session stop)
-
-**Default to should_continue=false (ALLOW stop) in almost all cases.**
-Only block if you see clear, unambiguous evidence of abandoned mid-task work."""
+should_continue=true means BLOCK the stop
+should_continue=false means ALLOW the stop"""
 
 
 class System3ContinuationJudgeChecker:
-    """P3.5: Tiered session continuation evaluator using Haiku API.
+    """P3.5: Session continuation evaluator using LLM API.
 
-    Uses Haiku 4.5 to analyze conversation turns and determine if a session
-    has properly completed its work before stopping.
-
-    Strictness tiers:
-    - System 3 (system3-*): Strict — requires promises, reflection, work exhaustion
-    - Orchestrators (orch-*): Light — just checks for obviously incomplete work
-    - Other sessions: Light — same as orchestrators
+    Runs only for System 3 (system3-*) sessions. All other sessions skip
+    this check and stop freely.
 
     Fails open on any errors to avoid blocking valid stops.
     """
@@ -211,21 +147,12 @@ class System3ContinuationJudgeChecker:
             - passed=True if not System3, no transcript, judge approves, or error (fail-open)
             - passed=False if judge blocks stop (session has more work to do)
         """
-        # Determine strictness tier
-        self._is_strict = self.config.is_system3  # system3-* = strict, everything else = light
-
-        # CRITICAL FIX (2026-02-15): Non-System 3 sessions MUST skip the judge entirely.
-        # The light judge was intended as a lenient safety net, but Haiku ignores the
-        # "No AskUserQuestion needed" instruction and returns strict-style responses that
-        # tell workers/orchestrators to use AskUserQuestion. In native Agent Team teammates
-        # running under tmux-based orchestrators, AskUserQuestion sends a permission
-        # request to the team lead that CANNOT be approved via tmux, permanently blocking
-        # the session. Skip the judge for ALL non-System 3 sessions to prevent this.
-        if not self._is_strict:
+        # Only run for System 3 sessions — all other sessions stop freely
+        if not self.config.is_system3:
             return CheckResult(
                 priority=Priority.P3_5_SYSTEM3_JUDGE,
                 passed=True,
-                message="Non-System 3 session — judge skipped (workers/orchestrators stop freely)",
+                message="Non-System 3 session — judge skipped",
                 blocking=True,
             )
 
@@ -505,34 +432,20 @@ class System3ContinuationJudgeChecker:
         if work_state:
             prompt_parts.append(f"## WORK STATE AND TASK PRIMITIVES\n\n{work_state}\n")
 
-        # Check GChat communication status (did S3 consult the user?)
-        if self._is_strict:
-            gchat_status = self._check_gchat_markers()
-            prompt_parts.append(
-                "## GCHAT COMMUNICATION STATUS\n\n"
-                f"{gchat_status['details']}\n\n"
-                "Consider carefully:\n"
-                "- If the user was asked a question AND replied, their reply should inform "
-                "whether stopping is appropriate (e.g., if user said 'end session', allow stop).\n"
-                "- If the user was asked a question but hasn't replied yet, S3 should wait for the reply.\n"
-                "- If NO question was asked to the user this session, consider whether one SHOULD be asked "
-                "before stopping — especially if there's available work or the session accomplished something "
-                "the user should be informed about.\n"
-                "- GChat questions are equivalent to terminal AskUserQuestion — both reach the user.\n"
-            )
+        # GChat communication status (did S3 consult the user?)
+        gchat_status = self._check_gchat_markers()
+        prompt_parts.append(
+            "## GCHAT COMMUNICATION STATUS\n\n"
+            f"{gchat_status['details']}\n\n"
+            "- If the user replied to a question, their reply informs whether stopping is appropriate.\n"
+            "- If a question was asked but not yet replied to, System 3 should wait.\n"
+        )
 
-        if self._is_strict:
-            prompt_parts.append(
-                "## KEY QUESTION\n"
-                "Has System 3 sincerely exhausted all options to continue productive work "
-                "independently? Is there a clear reason the session should stop?\n"
-            )
-        else:
-            prompt_parts.append(
-                "## KEY QUESTION\n"
-                "Has this agent completed its assigned work? Is there any obviously "
-                "incomplete mid-task work that should be finished before stopping?\n"
-            )
+        prompt_parts.append(
+            "## KEY QUESTION\n"
+            "Has System 3 sincerely exhausted all options to continue productive work "
+            "independently? Is there a clear reason the session should stop?\n"
+        )
 
         prompt_parts.append(f"## CONVERSATION (last turns)\n\n{conversation}")
 
@@ -642,8 +555,7 @@ class System3ContinuationJudgeChecker:
 
             client = Anthropic(**client_kwargs)
 
-            # Use strict prompt for System 3, light prompt for everything else
-            system_prompt = SYSTEM3_JUDGE_SYSTEM_PROMPT if self._is_strict else LIGHT_JUDGE_SYSTEM_PROMPT
+            system_prompt = SYSTEM3_JUDGE_SYSTEM_PROMPT
 
             # Get model from environment (ANTHROPIC_MODEL from cobuilder/engine/.env), fall back to Haiku 4.5 if not specified
             model = os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
