@@ -1,3 +1,11 @@
+---
+title: "Gap Analysis Llm Collaborative Attractor"
+status: active
+type: architecture
+last_verified: 2026-03-14
+grade: reference
+---
+
 # Gap Analysis: Static DOT Lifecycle vs LLM-Collaborative Graph Iteration
 
 **Date**: 2026-02-23

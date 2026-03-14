@@ -1,3 +1,11 @@
+---
+title: "Dot Validation Scoring"
+status: active
+type: architecture
+last_verified: 2026-03-14
+grade: reference
+---
+
 # DOT Node-Driven Validation Scoring
 
 This document defines how DOT pipeline graphs are scored for validation purposes. Scoring operates at two levels: **per-node** and **graph-level**.

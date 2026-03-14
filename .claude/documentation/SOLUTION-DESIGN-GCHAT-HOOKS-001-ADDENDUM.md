@@ -1,3 +1,11 @@
+---
+title: "Solution Design Gchat Hooks 001 Addendum"
+status: active
+type: architecture
+last_verified: 2026-03-14
+grade: reference
+---
+
 # Solution Design Addendum: PRD-GCHAT-HOOKS-001 v2.0
 # Architecture Pivot: One-Shot Task + ThreadKey Correlation
 

@@ -1,3 +1,11 @@
+---
+title: "Architecture Article"
+status: active
+type: architecture
+last_verified: 2026-03-14
+grade: reference
+---
+
 # Claude Harness: A 4-Layer Autonomous Agent Execution Framework
 
 > Architecture overview for article and diagram creation.

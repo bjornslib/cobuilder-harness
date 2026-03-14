@@ -1,3 +1,11 @@
+---
+title: "Attractor Spec Reference"
+status: active
+type: architecture
+last_verified: 2026-03-14
+grade: reference
+---
+
 # Attractor Specification - Complete Text
 
 # Attractor Specification

@@ -1,3 +1,11 @@
+---
+title: "Solution Design Gchat Hooks 001"
+status: active
+type: architecture
+last_verified: 2026-03-14
+grade: reference
+---
+
 # Solution Design: PRD-GCHAT-HOOKS-001
 # Programmatic GChat Integration via Hooks
 

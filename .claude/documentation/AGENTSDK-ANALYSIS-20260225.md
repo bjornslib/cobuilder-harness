@@ -1,3 +1,11 @@
+---
+title: "Agentsdk Analysis 20260225"
+status: active
+type: architecture
+last_verified: 2026-03-14
+grade: reference
+---
+
 # AgentSDK Analysis — 2026-02-25
 
 ## Key Findings

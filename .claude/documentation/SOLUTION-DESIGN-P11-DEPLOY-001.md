@@ -1,3 +1,11 @@
+---
+title: "Solution Design P11 Deploy 001"
+status: active
+type: architecture
+last_verified: 2026-03-14
+grade: reference
+---
+
 # Solution Design: Phase 1.1 Railway Development Deployment
 
 **ID**: SOLUTION-DESIGN-P11-DEPLOY-001

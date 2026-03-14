@@ -1,3 +1,11 @@
+---
+title: "Gherkin Dot Bridge"
+status: active
+type: architecture
+last_verified: 2026-03-14
+grade: reference
+---
+
 # Gherkin-to-DOT Bridge
 
 This document describes how Gherkin acceptance scenarios map to DOT graph elements, enabling automated conversion between human-readable acceptance criteria and machine-executable pipeline graphs.
