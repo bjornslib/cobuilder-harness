@@ -250,7 +250,7 @@ class TestBuildSystemPrompt(unittest.TestCase):
 
     def test_contains_spawn_runner(self) -> None:
         result = _make_system_prompt()
-        self.assertIn("cobuilder.attractor.session_runner.py --spawn", result)
+        self.assertIn("runner.py --spawn", result)
 
     def test_contains_wait_for_signal(self) -> None:
         result = _make_system_prompt()

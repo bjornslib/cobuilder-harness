@@ -371,6 +371,28 @@ After successful merge of a node:
 python3 {scripts_dir}/hook_manager.py update-phase guardian {pipeline_id} merged
 ```
 
+## Merge Queue Integration
+The merge queue handles sequential merging of completed nodes. Use these commands:
+
+Check for pending merges:
+```bash
+python3 {scripts_dir}/merge_queue.py process_next --pipeline {pipeline_id}
+```
+
+Signal merge completion:
+```bash
+python3 {scripts_dir}/merge_queue.py write_signal MERGE_COMPLETE --node <node_id>
+```
+
+Signal merge failure:
+```bash
+python3 {scripts_dir}/merge_queue.py write_signal MERGE_FAILED --node <node_id> --reason <reason>
+```
+
+## Identity Scanning
+Before dispatching workers, scan for identity conflicts in the DOT graph.
+Ensure all nodes have unique identifiers and no duplicate handler assignments.
+
 ## Important Rules
 - NEVER use Edit or Write tools — you are a coordinator, not an implementer
 - NEVER guess at node status — always read from the DOT file via CLI
@@ -439,7 +461,7 @@ def build_options(
         from claude_code_sdk import ClaudeCodeOptions
 
         return ClaudeCodeOptions(
-            allowed_tools=["Bash", "Read", "Write", "Edit", "Glob"],
+            allowed_tools=["Bash"],
             system_prompt=system_prompt,
             cwd=cwd,
             model=model,
@@ -519,9 +541,8 @@ Examples:
     parser.add_argument("--max-turns", type=int, default=DEFAULT_MAX_TURNS,
                         dest="max_turns",
                         help=f"Max SDK turns (default: {DEFAULT_MAX_TURNS})")
-    _default_model = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-6")
-    parser.add_argument("--model", default=_default_model,
-                        help=f"Claude model to use (default: {_default_model})")
+    parser.add_argument("--model", default=DEFAULT_MODEL,
+                        help=f"Claude model to use (default: {DEFAULT_MODEL})")
     parser.add_argument("--signals-dir", default=None, dest="signals_dir",
                         help="Override signals directory path")
     parser.add_argument("--signal-timeout", type=float, default=DEFAULT_SIGNAL_TIMEOUT,
@@ -688,47 +709,48 @@ async def _launch_guardian_async(
     """
     scripts_dir = resolve_scripts_dir()
 
-    system_prompt = build_system_prompt(
-        dot_path=dot_path,
-        pipeline_id=pipeline_id,
-        scripts_dir=scripts_dir,
-        signal_timeout=signal_timeout,
-        max_retries=max_retries,
-        target_dir=target_dir,
-    )
+    with logfire.span("guardian.launch_guardian_async", pipeline_id=pipeline_id):
+        system_prompt = build_system_prompt(
+            dot_path=dot_path,
+            pipeline_id=pipeline_id,
+            scripts_dir=scripts_dir,
+            signal_timeout=signal_timeout,
+            max_retries=max_retries,
+            target_dir=target_dir,
+        )
 
-    initial_prompt = build_initial_prompt(
-        dot_path=dot_path,
-        pipeline_id=pipeline_id,
-        scripts_dir=scripts_dir,
-        target_dir=target_dir,
-    )
+        initial_prompt = build_initial_prompt(
+            dot_path=dot_path,
+            pipeline_id=pipeline_id,
+            scripts_dir=scripts_dir,
+            target_dir=target_dir,
+        )
 
-    config: dict[str, Any] = {
-        "dry_run": dry_run,
-        "dot_path": dot_path,
-        "pipeline_id": pipeline_id,
-        "model": model,
-        "max_turns": max_turns,
-        "signal_timeout": signal_timeout,
-        "max_retries": max_retries,
-        "project_root": project_root,
-        "signals_dir": signals_dir,
-        "scripts_dir": scripts_dir,
-        "target_dir": target_dir,
-        "system_prompt_length": len(system_prompt),
-        "initial_prompt_length": len(initial_prompt),
-    }
+        config: dict[str, Any] = {
+            "dry_run": dry_run,
+            "dot_path": dot_path,
+            "pipeline_id": pipeline_id,
+            "model": model,
+            "max_turns": max_turns,
+            "signal_timeout": signal_timeout,
+            "max_retries": max_retries,
+            "project_root": project_root,
+            "signals_dir": signals_dir,
+            "scripts_dir": scripts_dir,
+            "target_dir": target_dir,
+            "system_prompt_length": len(system_prompt),
+            "initial_prompt_length": len(initial_prompt),
+        }
 
-    if dry_run:
-        return config
+        if dry_run:
+            return config
 
-    options = build_options(
-        system_prompt=system_prompt,
-        cwd=project_root,
-        model=model,
-        max_turns=max_turns,
-    )
+        options = build_options(
+            system_prompt=system_prompt,
+            cwd=project_root,
+            model=model,
+            max_turns=max_turns,
+        )
 
     try:
         await _run_agent(initial_prompt, options)
@@ -1087,21 +1109,22 @@ def main(argv: list[str] | None = None) -> None:
         }))
         sys.exit(1)
 
-    system_prompt = build_system_prompt(
-        dot_path=dot_path,
-        pipeline_id=args.pipeline_id,
-        scripts_dir=scripts_dir,
-        signal_timeout=args.signal_timeout,
-        max_retries=args.max_retries,
-        target_dir=target_dir,
-    )
+    with logfire.span("guardian.main", pipeline_id=args.pipeline_id):
+        system_prompt = build_system_prompt(
+            dot_path=dot_path,
+            pipeline_id=args.pipeline_id,
+            scripts_dir=scripts_dir,
+            signal_timeout=args.signal_timeout,
+            max_retries=args.max_retries,
+            target_dir=target_dir,
+        )
 
-    initial_prompt = build_initial_prompt(
-        dot_path=dot_path,
-        pipeline_id=args.pipeline_id,
-        scripts_dir=scripts_dir,
-        target_dir=target_dir,
-    )
+        initial_prompt = build_initial_prompt(
+            dot_path=dot_path,
+            pipeline_id=args.pipeline_id,
+            scripts_dir=scripts_dir,
+            target_dir=target_dir,
+        )
 
     # Dry-run: log config and exit without calling the SDK.
     if args.dry_run:
