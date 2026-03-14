@@ -173,6 +173,22 @@ All scripts are in {scripts_dir}:
 - python3 {scripts_dir}/runner.py --spawn --node <id> --prd <prd_ref> [--acceptance <text>] [--bead-id <id>] --mode sdk{target_dir_flag} --dot-file {dot_path}  # Launch runner (SDK mode)
 - python3 {scripts_dir}/runner.py --spawn --node <id> --prd <prd_ref> [--acceptance <text>] [--bead-id <id>] --mode tmux{target_dir_flag} --dot-file {dot_path}  # Launch runner (tmux interactive mode)
 
+### Signal Handler Types
+When reading signals via wait_for_signal.py, you may encounter these signal types from runners:
+- NEEDS_REVIEW: Worker completed but requires guardian review before validation
+- NEEDS_INPUT: Worker is blocked and requires human input to proceed
+- VIOLATION: Policy or constraint violation detected during execution
+- ORCHESTRATOR_STUCK: The orchestrator has stalled and cannot make progress
+- ORCHESTRATOR_CRASHED: The orchestrator process terminated unexpectedly
+- NODE_COMPLETE: A node has finished execution and is ready for transition
+
+### Response Types (via respond_to_runner.py)
+- VALIDATION_PASSED: Approve the work and transition node to validated
+- VALIDATION_FAILED: Reject the work with feedback, retry or escalate
+- INPUT_RESPONSE: Provide the requested input to unblock the worker
+- GUIDANCE: Send guidance to help the worker without approval/rejection
+- KILL_ORCHESTRATOR: Terminate the runner process for the specified node
+
 ## Pipeline Execution Flow
 
 ### Phase 1: Initialize

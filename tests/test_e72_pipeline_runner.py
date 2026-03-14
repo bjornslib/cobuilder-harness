@@ -15,13 +15,10 @@ import sys
 
 import pytest
 
-# Ensure attractor scripts are importable
-_SCRIPTS_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    ".claude", "scripts", "attractor",
-)
-if _SCRIPTS_DIR not in sys.path:
-    sys.path.insert(0, _SCRIPTS_DIR)
+# Import from canonical cobuilder modules
+from cobuilder.attractor.pipeline_runner import PipelineRunner, SIGNAL_TRANSITIONS, _SignalFileHandler
+from cobuilder.attractor.parser import parse_dot
+from cobuilder.attractor.transition import VALID_TRANSITIONS, STATUS_COLORS
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -134,17 +131,18 @@ class TestPipelineRunnerCLI:
     """AC-7.2.1: pipeline_runner.py exists, imports, --help works."""
 
     def test_file_exists(self):
-        path = os.path.join(_SCRIPTS_DIR, "pipeline_runner.py")
+        path = os.path.join(_PROJECT_ROOT, "cobuilder", "attractor", "pipeline_runner.py")
         assert os.path.isfile(path), f"pipeline_runner.py not found at {path}"
 
     def test_imports_cleanly(self):
         """pipeline_runner.py imports without error."""
-        from pipeline_runner import PipelineRunner  # noqa: F401
+        # Already imported at module level
+        assert PipelineRunner is not None
 
     def test_help_flag(self):
         """--help shows expected options."""
         result = subprocess.run(
-            [sys.executable, os.path.join(_SCRIPTS_DIR, "pipeline_runner.py"), "--help"],
+            [sys.executable, os.path.join(_PROJECT_ROOT, "cobuilder", "attractor", "pipeline_runner.py"), "--help"],
             capture_output=True, text=True, timeout=10,
         )
         assert result.returncode == 0
@@ -153,7 +151,7 @@ class TestPipelineRunnerCLI:
 
     def test_no_anthropic_import(self):
         """pipeline_runner.py must NOT import anthropic (zero LLM)."""
-        path = os.path.join(_SCRIPTS_DIR, "pipeline_runner.py")
+        path = os.path.join(_PROJECT_ROOT, "cobuilder", "attractor", "pipeline_runner.py")
         content = open(path).read()
         assert "anthropic.Anthropic" not in content, "Found anthropic.Anthropic — runner must be zero LLM"
         assert "messages.create" not in content, "Found messages.create — runner must be zero LLM"
@@ -170,8 +168,6 @@ class TestDispatchableNodes:
     def test_start_node_dispatchable(self, pipeline_dir):
         """START node has no predecessors, should be immediately dispatchable."""
         tmp_path, dot_file = pipeline_dir
-        from pipeline_runner import PipelineRunner
-        from parser import parse_dot
         runner = PipelineRunner(str(dot_file))
         data = parse_dot(runner.dot_content)
         nodes = runner._find_dispatchable_nodes(data)
@@ -181,8 +177,6 @@ class TestDispatchableNodes:
     def test_blocked_node_not_dispatchable(self, pipeline_dir):
         """Nodes with pending predecessors should NOT be dispatchable."""
         tmp_path, dot_file = pipeline_dir
-        from pipeline_runner import PipelineRunner
-        from parser import parse_dot
         runner = PipelineRunner(str(dot_file))
         data = parse_dot(runner.dot_content)
         nodes = runner._find_dispatchable_nodes(data)
@@ -202,8 +196,6 @@ class TestToolHandler:
     def test_tool_handler_writes_signal(self, two_node_dir):
         """Tool handler should run command and write signal file."""
         tmp_path, dot_file = two_node_dir
-        from pipeline_runner import PipelineRunner
-        from parser import parse_dot
         runner = PipelineRunner(str(dot_file))
         data = parse_dot(runner.dot_content)
 
@@ -213,8 +205,9 @@ class TestToolHandler:
         # Run the handler
         runner._handle_tool(tool_node, data)
 
-        # Check signal file was written
-        signal_file = tmp_path / "signals" / f"{tool_node['id']}.json"
+        # Signal files are written to signals/{pipeline_id}/ where pipeline_id is derived from DOT filename
+        # For "two-node.dot", pipeline_id is "two-node"
+        signal_file = tmp_path / "signals" / "two-node" / f"{tool_node['id']}.json"
         assert signal_file.exists(), f"Signal file not written at {signal_file}"
         signal = json.loads(signal_file.read_text())
         assert signal.get("status") == "success", f"Expected success, got: {signal}"
@@ -230,7 +223,7 @@ class TestZeroLLMGraphTraversal:
 
     def test_no_llm_in_main_loop(self):
         """The main run() loop must not contain LLM API calls."""
-        path = os.path.join(_SCRIPTS_DIR, "pipeline_runner.py")
+        path = os.path.join(_PROJECT_ROOT, "cobuilder", "attractor", "pipeline_runner.py")
         content = open(path).read()
 
         llm_patterns = [
@@ -246,7 +239,7 @@ class TestZeroLLMGraphTraversal:
 
     def test_watchdog_import(self):
         """Runner should use watchdog for file monitoring."""
-        path = os.path.join(_SCRIPTS_DIR, "pipeline_runner.py")
+        path = os.path.join(_PROJECT_ROOT, "cobuilder", "attractor", "pipeline_runner.py")
         content = open(path).read()
         assert "watchdog" in content, "Runner should use watchdog for file monitoring"
 
@@ -261,17 +254,18 @@ class TestWatchdogMonitoring:
 
     def test_signal_file_handler_class(self):
         """_SignalFileHandler class should exist."""
-        from pipeline_runner import _SignalFileHandler  # noqa: F401
+        # Already imported at module level
+        assert _SignalFileHandler is not None
 
     def test_uses_observer(self):
         """Should use watchdog.observers.Observer."""
-        path = os.path.join(_SCRIPTS_DIR, "pipeline_runner.py")
+        path = os.path.join(_PROJECT_ROOT, "cobuilder", "attractor", "pipeline_runner.py")
         content = open(path).read()
         assert "Observer" in content, "Should use watchdog Observer"
 
     def test_no_sleep_polling(self):
         """Main loop should NOT use time.sleep for polling."""
-        path = os.path.join(_SCRIPTS_DIR, "pipeline_runner.py")
+        path = os.path.join(_PROJECT_ROOT, "cobuilder", "attractor", "pipeline_runner.py")
         content = open(path).read()
         assert "Event" in content or "event" in content, (
             "Should use threading.Event for wake mechanism"
@@ -288,14 +282,12 @@ class TestStatusChain:
 
     def test_accepted_in_valid_transitions(self):
         """transition.py should allow validated -> accepted."""
-        from transition import VALID_TRANSITIONS
         assert "accepted" in VALID_TRANSITIONS.get("validated", set()), (
             "VALID_TRANSITIONS['validated'] should include 'accepted'"
         )
 
     def test_accepted_is_terminal(self):
         """accepted should be a terminal status."""
-        from transition import VALID_TRANSITIONS
         assert "accepted" in VALID_TRANSITIONS, "'accepted' missing from VALID_TRANSITIONS"
         assert VALID_TRANSITIONS["accepted"] == set(), (
             "'accepted' should be terminal (empty transition set)"
@@ -303,7 +295,6 @@ class TestStatusChain:
 
     def test_accepted_has_color(self):
         """accepted should have a color in STATUS_COLORS."""
-        from transition import STATUS_COLORS
         assert "accepted" in STATUS_COLORS, "'accepted' missing from STATUS_COLORS"
 
 
@@ -317,14 +308,13 @@ class TestAgentSDKDispatch:
 
     def test_dispatch_method_exists(self):
         """_dispatch_agent_sdk method should exist on PipelineRunner."""
-        from pipeline_runner import PipelineRunner
         assert hasattr(PipelineRunner, "_dispatch_agent_sdk") or hasattr(PipelineRunner, "_handle_worker"), (
             "PipelineRunner must have _dispatch_agent_sdk or _handle_worker method"
         )
 
     def test_uses_claude_code_sdk(self):
         """Dispatch should reference claude_code_sdk."""
-        path = os.path.join(_SCRIPTS_DIR, "pipeline_runner.py")
+        path = os.path.join(_PROJECT_ROOT, "cobuilder", "attractor", "pipeline_runner.py")
         content = open(path).read()
         assert "claude_code_sdk" in content, (
             "pipeline_runner.py should use claude_code_sdk for worker dispatch"
@@ -332,7 +322,7 @@ class TestAgentSDKDispatch:
 
     def test_no_headless_cli(self):
         """Must NOT use headless claude -p CLI for dispatch."""
-        path = os.path.join(_SCRIPTS_DIR, "pipeline_runner.py")
+        path = os.path.join(_PROJECT_ROOT, "cobuilder", "attractor", "pipeline_runner.py")
         content = open(path).read()
         # _dispatch_via_subprocess should have been removed (dead code cleanup)
         assert "_dispatch_via_subprocess" not in content, (
@@ -350,27 +340,22 @@ class TestSignalTransitions:
     """AC-7.2.5 + AC-7.2.6: SIGNAL_TRANSITIONS mechanical logic."""
 
     def test_signal_transitions_exist(self):
-        from pipeline_runner import SIGNAL_TRANSITIONS
         assert "pass" in SIGNAL_TRANSITIONS
         assert "fail" in SIGNAL_TRANSITIONS
         assert "requeue" in SIGNAL_TRANSITIONS
 
     def test_pass_maps_to_validated(self):
         """pass signal should map to 'validated' status."""
-        from pipeline_runner import SIGNAL_TRANSITIONS
         assert SIGNAL_TRANSITIONS["pass"] == "validated"
 
     def test_fail_maps_to_failed(self):
         """fail signal should map to 'failed' status."""
-        from pipeline_runner import SIGNAL_TRANSITIONS
         assert SIGNAL_TRANSITIONS["fail"] == "failed"
 
     def test_requeue_maps_to_pending(self):
         """requeue signal should map to 'pending' status."""
-        from pipeline_runner import SIGNAL_TRANSITIONS
         assert SIGNAL_TRANSITIONS["requeue"] == "pending"
 
     def test_success_maps_to_impl_complete(self):
         """success signal (from workers) should map to 'impl_complete'."""
-        from pipeline_runner import SIGNAL_TRANSITIONS
         assert SIGNAL_TRANSITIONS["success"] == "impl_complete"
