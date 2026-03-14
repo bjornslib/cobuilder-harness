@@ -1273,6 +1273,14 @@ class PipelineRunner:
 
         effective_dir = target_dir or self._get_target_dir()
 
+        # Stale worker detection: configurable via PIPELINE_STALE_WORKER_TIMEOUT (seconds).
+        # If no SDK message arrives for STALE_WORKER_TIMEOUT seconds AND the last worker
+        # text mentioned "signal", the worker has almost certainly completed but failed to
+        # write the signal file. We break out of the stream so the existing fallback at
+        # lines 1356–1369 can write the signal on the worker's behalf.
+        _STALE_WORKER_TIMEOUT = int(os.environ.get("PIPELINE_STALE_WORKER_TIMEOUT", "300"))
+        _PER_MSG_POLL_INTERVAL = int(os.environ.get("PIPELINE_STALE_POLL_INTERVAL", "60"))
+
         async def _run() -> dict:
             # Build clean env without CLAUDECODE
             clean_env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
@@ -1292,11 +1300,46 @@ class PipelineRunner:
             messages = []
             result_text = ""
             _first_msg_logged = False
+
+            # Stale-detection state
+            last_activity = time.time()
+            last_worker_text = ""
+
             try:
-                async for msg in claude_code_sdk.query(  # type: ignore[attr-defined]
+                aiter = claude_code_sdk.query(  # type: ignore[attr-defined]
                     prompt=prompt,
                     options=options,
-                ):
+                ).__aiter__()
+                while True:
+                    try:
+                        msg = await asyncio.wait_for(
+                            aiter.__anext__(),
+                            timeout=float(_PER_MSG_POLL_INTERVAL),
+                        )
+                    except asyncio.TimeoutError:
+                        # No message in the last polling interval — check stale condition.
+                        idle_seconds = time.time() - last_activity
+                        if (
+                            idle_seconds >= _STALE_WORKER_TIMEOUT
+                            and "signal" in last_worker_text.lower()
+                        ):
+                            log.warning(
+                                "[sdk] Stale worker detected for %s: no activity for %.0fs, "
+                                "last text mentioned 'signal' — forcing completion",
+                                node_id, idle_seconds,
+                            )
+                            if _LOGFIRE_AVAILABLE:
+                                logfire.warning(
+                                    "stale_worker_timeout {node_id} after {idle_s}s",
+                                    node_id=node_id, idle_s=round(idle_seconds),
+                                )
+                            break  # Exit loop — fallback below writes signal on worker's behalf
+                        continue  # Not stale yet; keep waiting
+                    except StopAsyncIteration:
+                        break  # Stream ended normally
+
+                    # Message received — reset inactivity clock
+                    last_activity = time.time()
                     messages.append(msg)
                     msg_type = type(msg).__name__
                     if not _first_msg_logged and _LOGFIRE_AVAILABLE:
@@ -1304,19 +1347,23 @@ class PipelineRunner:
                                      node_id=node_id, worker_type=worker_type,
                                      msg_type=msg_type)
                         _first_msg_logged = True
-                    # Log tool use and assistant text for real-time visibility
-                    if _LOGFIRE_AVAILABLE and hasattr(msg, "content") and msg_type == "AssistantMessage":
+                    # Log tool use and assistant text for real-time visibility;
+                    # also capture last_worker_text for stale-detection (regardless of Logfire).
+                    if hasattr(msg, "content") and msg_type == "AssistantMessage":
                         for block in (msg.content if isinstance(msg.content, list) else []):
                             block_type = type(block).__name__
                             if block_type == "ToolUseBlock":
-                                logfire.info("worker_tool {node_id} {tool}",
-                                             node_id=node_id, tool=getattr(block, "name", ""),
-                                             input_preview=str(getattr(block, "input", ""))[:300])
+                                if _LOGFIRE_AVAILABLE:
+                                    logfire.info("worker_tool {node_id} {tool}",
+                                                 node_id=node_id, tool=getattr(block, "name", ""),
+                                                 input_preview=str(getattr(block, "input", ""))[:300])
                             elif block_type == "TextBlock":
                                 text = getattr(block, "text", "")
                                 if text and len(text.strip()) > 5:
-                                    logfire.info("worker_text {node_id}",
-                                                 node_id=node_id, text=text[:300])
+                                    last_worker_text = text  # Track for stale detection
+                                    if _LOGFIRE_AVAILABLE:
+                                        logfire.info("worker_text {node_id}",
+                                                     node_id=node_id, text=text[:300])
                     # Capture result from ResultMessage
                     if hasattr(msg, "result") and msg.result:  # type: ignore[union-attr]
                         result_text = str(msg.result)[:500]
