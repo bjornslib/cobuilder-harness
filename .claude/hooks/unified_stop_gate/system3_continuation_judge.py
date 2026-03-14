@@ -258,8 +258,8 @@ class System3ContinuationJudgeChecker:
         # Update session with found transcript path
         self.session.transcript_path = transcript_path
 
-        # Guard: Check for API key
-        api_key = os.environ.get('ANTHROPIC_API_KEY')
+        # Guard: Check for API key (ANTHROPIC_API_KEY or DASHSCOPE_API_KEY fallback)
+        api_key = os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('DASHSCOPE_API_KEY')
         if not api_key:
             return CheckResult(
                 priority=Priority.P3_5_SYSTEM3_JUDGE,
@@ -616,7 +616,13 @@ class System3ContinuationJudgeChecker:
             raise Exception(f"Anthropic SDK not available: {e}")
 
         try:
-            client = Anthropic(api_key=api_key)
+            # Build client kwargs - include base_url if set (for DASHSCOPE/etc. compatibility)
+            client_kwargs: Dict[str, Any] = {"api_key": api_key}
+            base_url = os.environ.get("ANTHROPIC_BASE_URL")
+            if base_url:
+                client_kwargs["base_url"] = base_url
+
+            client = Anthropic(**client_kwargs)
 
             # Use strict prompt for System 3, light prompt for everything else
             system_prompt = SYSTEM3_JUDGE_SYSTEM_PROMPT if self._is_strict else LIGHT_JUDGE_SYSTEM_PROMPT

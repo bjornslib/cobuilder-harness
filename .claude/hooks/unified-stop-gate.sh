@@ -25,6 +25,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CS_VERIFY="$PROJECT_ROOT/.claude/scripts/completion-state/cs-verify"
 
+# Source cobuilder/engine/.env if it exists (for ANTHROPIC_BASE_URL, DASHSCOPE fallback)
+# Use set -a to auto-export variables to child processes (Python subprocesses)
+COBUILDER_ENV="$PROJECT_ROOT/cobuilder/engine/.env"
+if [ -f "$COBUILDER_ENV" ]; then
+    set -a  # Auto-export all subsequently-set variables
+    # shellcheck source=/dev/null
+    source "$COBUILDER_ENV" 2>/dev/null || true
+    set +a  # Disable auto-export
+fi
+
 # Read JSON from stdin (Claude Code passes context)
 INPUT=$(cat)
 
