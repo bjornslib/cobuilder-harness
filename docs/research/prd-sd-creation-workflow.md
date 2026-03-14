@@ -56,7 +56,7 @@ Business Goal
               ▼
 ┌─────────────────────────────────────┐
 │  6. DOT Pipeline Generation         │  ← `cli.py generate --prd PRD-{ID}`
-│     .claude/attractor/pipelines/    │  ← Directed graph with typed nodes
+│     .pipelines/pipelines/             │  ← Directed graph with typed nodes
 │     <INITIATIVE>.dot                 │  ← Maps beads to codergen + validation nodes
 └─────────────┬───────────────────────┘
               │
@@ -177,12 +177,12 @@ Creates beads issues with:
 
 **Who**: Guardian or System 3
 **Input**: Beads + PRD reference
-**Output**: `.claude/attractor/pipelines/<INITIATIVE>.dot`
+**Output**: `.pipelines/pipelines/<INITIATIVE>.dot`
 
 ```bash
-python3 .claude/scripts/attractor/cli.py generate \
+python3 cobuilder/engine/cli.py generate \
     --prd PRD-AUTH-001 \
-    --output .claude/attractor/pipelines/auth-initiative.dot
+    --output .pipelines/pipelines/auth-initiative.dot
 ```
 
 The `filter_beads_for_prd()` function matches beads to the PRD by title/description heuristics. Each task bead becomes a `codergen → tech_hex → biz_hex → decision` triplet.
@@ -254,7 +254,7 @@ Guardian independently reads code and scores against blind rubric. DOT nodes tra
 | `.taskmaster/docs/SD-{ID}.md` | Technical solution design per epic |
 | `.taskmaster/tasks/tasks.json` | Task Master structured tasks |
 | `.beads/issues.jsonl` | Git-tracked issue tracking |
-| `.claude/attractor/pipelines/*.dot` | Execution pipeline graphs |
+| `.pipelines/pipelines/*.dot` | Execution pipeline graphs |
 | `acceptance-tests/PRD-{ID}/` | Blind acceptance tests (config repo) |
 | `.zerorepo/baseline.json` | Codebase snapshot |
 | `src/zerorepo/` | ZeroRepo implementation (14 modules) |

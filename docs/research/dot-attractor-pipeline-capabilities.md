@@ -12,9 +12,9 @@ grade: reference
 
 The Attractor Pipeline is a CLI-based execution engine that manages initiative lifecycles as directed graphs in DOT format. Each node represents a task (implementation, validation, tooling) and edges encode dependencies and conditional routing. The pipeline is the backbone of System 3's orchestration — it determines what work is ready, what's blocked, and what's been validated.
 
-**CLI location**: `.claude/scripts/attractor/cli.py`
-**Pipeline storage**: `.claude/attractor/pipelines/<INITIATIVE>.dot`
-**Checkpoints**: `.claude/attractor/checkpoints/`
+**CLI location**: `cobuilder/engine/cli.py`
+**Pipeline storage**: `.pipelines/pipelines/<INITIATIVE>.dot`
+**Checkpoints**: `.pipelines/checkpoints/`
 
 ## Node Types
 
@@ -112,7 +112,7 @@ Diamond nodes route based on upstream validation results:
 
 ### Finalize Gate (R4.7)
 
-A special gate that checks if ALL codergen nodes are in terminal state (`validated` or `failed`) before allowing pipeline completion. Writes signal files to `.claude/attractor/pipelines/signals/`.
+A special gate that checks if ALL codergen nodes are in terminal state (`validated` or `failed`) before allowing pipeline completion. Writes signal files to `.pipelines/signals/`.
 
 ### Concurrency Safety
 
@@ -191,17 +191,17 @@ Shows node status distribution with ASCII bar charts. Known limitation: `estimat
 
 | File | Purpose |
 |------|---------|
-| `.claude/scripts/attractor/cli.py` | Central CLI entry point |
-| `.claude/scripts/attractor/generate.py` | Pipeline DOT generation from beads |
-| `.claude/scripts/attractor/transition.py` | State machine + hexagon cascade |
-| `.claude/scripts/attractor/dashboard.py` | Visual status display |
-| `.claude/scripts/attractor/signal_protocol.py` | Inter-layer signal communication |
-| `.claude/scripts/attractor/pipeline_runner.py` | LLM-driven pipeline execution |
-| `.claude/scripts/attractor/spawn_orchestrator.py` | tmux orchestrator spawning |
-| `.claude/attractor/pipelines/` | Pipeline DOT files |
-| `.claude/attractor/checkpoints/` | Saved pipeline states |
-| `.claude/attractor/pipelines/signals/` | Signal files for inter-layer comms |
-| `.claude/attractor/runner-state/` | Runner execution state |
+| `cobuilder/engine/cli.py` | Central CLI entry point |
+| `cobuilder/engine/generate.py` | Pipeline DOT generation from beads |
+| `cobuilder/engine/transition.py` | State machine + hexagon cascade |
+| `cobuilder/engine/dashboard.py` | Visual status display |
+| `cobuilder/engine/signal_protocol.py` | Inter-layer signal communication |
+| `cobuilder/engine/pipeline_runner.py` | LLM-driven pipeline execution |
+| `cobuilder/engine/spawn_orchestrator.py` | tmux orchestrator spawning |
+| `.pipelines/pipelines/` | Pipeline DOT files |
+| `.pipelines/checkpoints/` | Saved pipeline states |
+| `.pipelines/signals/` | Signal files for inter-layer comms |
+| `.pipelines/runner-state/` | Runner execution state |
 
 ## Current Gaps
 
