@@ -53,7 +53,22 @@ async def _next_success(request: HandlerRequest) -> Outcome:
 
 
 def _run(coro):  # type: ignore[no-untyped-def]
-    return asyncio.get_event_loop().run_until_complete(coro)
+    """Run a coroutine synchronously (test helper).
+
+    Creates a fresh event loop for each invocation to avoid state pollution
+    between tests when running the full suite. Uses asyncio.run() for
+    Python 3.7+ compatibility.
+    """
+    try:
+        # Try asyncio.run() first (Python 3.7+)
+        return asyncio.run(coro)
+    except RuntimeError:
+        # Fallback for nested loop scenarios (rare in tests)
+        loop = asyncio.new_event_loop()
+        try:
+            return loop.run_until_complete(coro)
+        finally:
+            loop.close()
 
 
 # ---------------------------------------------------------------------------
