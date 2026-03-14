@@ -222,7 +222,7 @@ When running in pipeline-gate mode, the validation agent communicates results vi
 
 ### Signal File Format
 
-Write to `{ATTRACTOR_SIGNAL_DIR}/{node_id}.json`:
+Write to `{PIPELINE_SIGNAL_DIR}/{node_id}.json`:
 
 **Pass (technical validation succeeded):**
 ```json
@@ -1006,7 +1006,7 @@ PIPELINE_FAIL: Node <node_id> failed gate '<gate>'. Reason: <specific failure>. 
 Task(
     subagent_type="validation-test-agent",
     model="sonnet",
-    prompt="--mode=pipeline --node-id=validate_backend_tech --pipeline=.claude/attractor/PRD-AUTH-001.dot"
+    prompt="--mode=pipeline --node-id=validate_backend_tech --pipeline=.pipelines/PRD-AUTH-001.dot"
 )
 ```
 

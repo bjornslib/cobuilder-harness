@@ -13,7 +13,7 @@ Anti-gaming rules enforced:
     1. Runner never calls Edit/Write (coordinator, not implementer)
     2. Implementer-validator separation: same agent cannot validate its own work
     3. Evidence timestamping: stale evidence is rejected
-    4. Retry hard limit: configurable via ATTRACTOR_MAX_RETRIES (default 3)
+    4. Retry hard limit: configurable via PIPELINE_MAX_RETRIES (default 3)
     5. Audit trail: every transition logged to append-only JSONL with chained hashes
     6. Spot-check selection: deterministic hash(session_id + node_id) auditing
 
@@ -22,9 +22,9 @@ Usage:
     hooks.pre_tool_use("transition_node", {"node_id": "impl_auth", "status": "validated"})
 
 Environment variables:
-    ATTRACTOR_MAX_RETRIES        Maximum retries per node before STUCK (default: 3)
-    ATTRACTOR_SPOT_CHECK_RATE    Fraction of nodes selected for spot-check (default: 0.25)
-    ATTRACTOR_EVIDENCE_MAX_AGE   Max evidence age in seconds (default: 300)
+    PIPELINE_MAX_RETRIES        Maximum retries per node before STUCK (default: 3)
+    PIPELINE_SPOT_CHECK_RATE    Fraction of nodes selected for spot-check (default: 0.25)
+    PIPELINE_EVIDENCE_MAX_AGE   Max evidence age in seconds (default: 300)
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ from .runner_models import AuditEntry, RunnerState
 # ---------------------------------------------------------------------------
 
 # Maximum retries per node before reporting STUCK
-MAX_RETRIES: int = int(os.environ.get("ATTRACTOR_MAX_RETRIES", "3"))
+MAX_RETRIES: int = int(os.environ.get("PIPELINE_MAX_RETRIES", "3"))
 
 # Tools the runner is allowed to call (read-only + coordination only)
 _ALLOWED_TOOLS: frozenset[str] = frozenset({
@@ -95,9 +95,9 @@ class RunnerHooks:
         session_id: Unique identifier for this runner session.
         verbose: If True, print debug information to stderr.
         spot_check_rate: Fraction of nodes selected for spot-check auditing.
-            Defaults to the ``ATTRACTOR_SPOT_CHECK_RATE`` env var or 0.25.
+            Defaults to the ``PIPELINE_SPOT_CHECK_RATE`` env var or 0.25.
         evidence_max_age: Maximum acceptable evidence age in seconds.
-            Defaults to the ``ATTRACTOR_EVIDENCE_MAX_AGE`` env var or 300.
+            Defaults to the ``PIPELINE_EVIDENCE_MAX_AGE`` env var or 300.
     """
 
     def __init__(
@@ -117,12 +117,12 @@ class RunnerHooks:
 
         # Initialise anti-gaming subsystems
         _rate = spot_check_rate if spot_check_rate is not None else float(
-            os.environ.get("ATTRACTOR_SPOT_CHECK_RATE", "0.25")
+            os.environ.get("PIPELINE_SPOT_CHECK_RATE", "0.25")
         )
         self._spot_check = SpotCheckSelector(rate=_rate)
 
         _max_age = evidence_max_age if evidence_max_age is not None else int(
-            os.environ.get("ATTRACTOR_EVIDENCE_MAX_AGE", "300")
+            os.environ.get("PIPELINE_EVIDENCE_MAX_AGE", "300")
         )
         self._evidence_validator = EvidenceValidator(max_age_seconds=_max_age)
 

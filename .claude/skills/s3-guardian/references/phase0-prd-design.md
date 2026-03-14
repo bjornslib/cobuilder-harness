@@ -149,16 +149,16 @@ cobuilder pipeline create \
     --repo <repo-name> \
     --prd PRD-{ID} \
     --target-dir /path/to/impl-repo \
-    --output /path/to/impl-repo/.claude/attractor/pipelines/${INITIATIVE}.dot
+    --output /path/to/impl-repo/.pipelines/pipelines/${INITIATIVE}.dot
 
 # 3. Validate the pipeline
-cobuilder pipeline validate /path/to/impl-repo/.claude/attractor/pipelines/${INITIATIVE}.dot
+cobuilder pipeline validate /path/to/impl-repo/.pipelines/pipelines/${INITIATIVE}.dot
 
 # 4. Review status
-cobuilder pipeline status /path/to/impl-repo/.claude/attractor/pipelines/${INITIATIVE}.dot --summary
+cobuilder pipeline status /path/to/impl-repo/.pipelines/pipelines/${INITIATIVE}.dot --summary
 
 # 5. Verify research → refine → codergen chains (MANDATORY)
-PIPELINE=/path/to/impl-repo/.claude/attractor/pipelines/${INITIATIVE}.dot
+PIPELINE=/path/to/impl-repo/.pipelines/pipelines/${INITIATIVE}.dot
 cobuilder pipeline status ${PIPELINE} --json | python3 -c "
 import json, sys
 data = json.load(sys.stdin)

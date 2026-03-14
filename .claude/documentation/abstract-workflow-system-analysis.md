@@ -292,10 +292,10 @@ Workflows serialize to `graph_design.json` — topology, agent configs, and edge
 
 **Gap**: Every pipeline is hand-crafted or generated from beads. No reusable topology patterns.
 
-**Proposal**: Create a library of DOT template patterns in `.claude/attractor/templates/`:
+**Proposal**: Create a library of DOT template patterns in `.pipelines/templates/`:
 
 ```
-.claude/attractor/templates/
+.pipelines/templates/
 ├── vertical-pipeline.dot.tmpl         # Sequential A→B→C
 ├── parallel-fanout.dot.tmpl           # Fan-out with convergence
 ├── hub-spoke.dot.tmpl                 # Orchestrator → parallel workers

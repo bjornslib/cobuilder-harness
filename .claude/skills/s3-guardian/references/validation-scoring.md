@@ -842,7 +842,7 @@ When the initiative uses a `.dot` attractor pipeline, Phase 4 validation is node
 ```bash
 # Extract node attributes from the pipeline DOT file
 # Hexagon nodes (shape=hexagon) represent validation gates
-grep -A 20 'shape=hexagon' .claude/attractor/<pipeline>.dot
+grep -A 20 'shape=hexagon' .pipelines/<pipeline>.dot
 ```
 
 A hexagon node exposes these attributes:
@@ -954,13 +954,13 @@ When a node passes, advance its status using the attractor CLI:
 
 ```bash
 # Transition node to 'validated' status
-cobuilder pipeline transition .claude/attractor/pipelines/<pipeline>.dot <node_id> validated
+cobuilder pipeline transition .pipelines/pipelines/<pipeline>.dot <node_id> validated
 
 # If validation fails, transition to 'failed'
-cobuilder pipeline transition .claude/attractor/pipelines/<pipeline>.dot <node_id> failed
+cobuilder pipeline transition .pipelines/pipelines/<pipeline>.dot <node_id> failed
 
 # Save checkpoint after any transition
-cobuilder pipeline checkpoint-save .claude/attractor/pipelines/<pipeline>.dot
+cobuilder pipeline checkpoint-save .pipelines/pipelines/<pipeline>.dot
 ```
 
 **Guardian workflow for DOT pipelines:**
@@ -988,8 +988,8 @@ def validate_dot_pipeline_node(node_id: str, node_attrs: dict):
 
     # 5. Advance pipeline status
     status = "validated" if result.verdict == "PASS" else "failed"
-    run(f"cobuilder pipeline transition .claude/attractor/pipelines/<pipeline>.dot {node_id} {status}")
-    run(f"cobuilder pipeline checkpoint-save .claude/attractor/pipelines/<pipeline>.dot")
+    run(f"cobuilder pipeline transition .pipelines/pipelines/<pipeline>.dot {node_id} {status}")
+    run(f"cobuilder pipeline checkpoint-save .pipelines/pipelines/<pipeline>.dot")
 
     # 6. Meet completion promise AC
     if result.verdict == "PASS":

@@ -20,7 +20,7 @@ import pytest
 
 # Ensure attractor package is importable
 
-from cobuilder.attractor.signal_protocol import (  # noqa: E402
+from cobuilder.engine.signal_protocol import (  # noqa: E402
     AGENT_CRASHED,
     AGENT_REGISTERED,
     AGENT_TERMINATED,

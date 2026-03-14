@@ -3,7 +3,7 @@
 // State: start is validated; backend AND frontend are both ready (parallel fan-out).
 // Expected runner action: spawn_orchestrator for BOTH impl_backend AND impl_frontend
 //
-// Schema: .claude/attractor/schema.md
+// Schema: .pipelines/schema.md
 
 digraph "poc-parallel" {
     graph [

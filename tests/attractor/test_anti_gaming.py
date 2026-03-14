@@ -17,13 +17,13 @@ import unittest
 
 # Ensure parent directory is importable regardless of invocation location
 
-from cobuilder.attractor.anti_gaming import (  # noqa: E402
+from cobuilder.engine.anti_gaming import (  # noqa: E402
     ChainedAuditWriter,
     EvidenceValidator,
     SpotCheckSelector,
     _hash_content,
 )
-from cobuilder.attractor.runner_models import AuditEntry  # noqa: E402
+from cobuilder.engine.runner_models import AuditEntry  # noqa: E402
 
 
 # ---------------------------------------------------------------------------

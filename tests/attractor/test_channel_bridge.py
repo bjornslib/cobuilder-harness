@@ -19,8 +19,8 @@ from __future__ import annotations
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from cobuilder.attractor.channel_bridge import ChannelBridge
-from cobuilder.attractor.channel_adapter import InboundMessage, OutboundMessage
+from cobuilder.engine.channel_bridge import ChannelBridge
+from cobuilder.engine.channel_adapter import InboundMessage, OutboundMessage
 
 
 # ---------------------------------------------------------------------------

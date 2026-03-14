@@ -20,8 +20,8 @@ import unittest
 
 # Ensure attractor package is importable
 
-from cobuilder.attractor.guardian_hooks import PipelineHealth, RunnerGuardian  # noqa: E402
-from cobuilder.attractor.runner_models import NodeAction, RunnerPlan, RunnerState  # noqa: E402
+from cobuilder.engine.guardian_hooks import PipelineHealth, RunnerGuardian  # noqa: E402
+from cobuilder.engine.runner_models import NodeAction, RunnerPlan, RunnerState  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -339,8 +339,8 @@ class TestRunnerGuardianVerifyChain(unittest.TestCase):
         self.assertTrue(ok)
 
     def test_valid_chain_returns_true(self) -> None:
-        from cobuilder.attractor.anti_gaming import ChainedAuditWriter
-        from cobuilder.attractor.runner_models import AuditEntry
+        from cobuilder.engine.anti_gaming import ChainedAuditWriter
+        from cobuilder.engine.runner_models import AuditEntry
 
         audit_path = os.path.join(self._tmp, "PRD-AUDIT-001-audit.jsonl")
         writer = ChainedAuditWriter(audit_path)
@@ -355,8 +355,8 @@ class TestRunnerGuardianVerifyChain(unittest.TestCase):
         self.assertTrue(ok, msg)
 
     def test_tampered_chain_returns_false(self) -> None:
-        from cobuilder.attractor.anti_gaming import ChainedAuditWriter
-        from cobuilder.attractor.runner_models import AuditEntry
+        from cobuilder.engine.anti_gaming import ChainedAuditWriter
+        from cobuilder.engine.runner_models import AuditEntry
 
         audit_path = os.path.join(self._tmp, "PRD-AUDIT-002-audit.jsonl")
         writer = ChainedAuditWriter(audit_path)
@@ -387,8 +387,8 @@ class TestRunnerGuardianAuditHelpers(unittest.TestCase):
         self._guardian = _make_guardian(self._tmp)
 
     def _write_audit(self, pipeline_id: str, count: int) -> str:
-        from cobuilder.attractor.anti_gaming import ChainedAuditWriter
-        from cobuilder.attractor.runner_models import AuditEntry
+        from cobuilder.engine.anti_gaming import ChainedAuditWriter
+        from cobuilder.engine.runner_models import AuditEntry
 
         audit_path = os.path.join(self._tmp, f"{pipeline_id}-audit.jsonl")
         writer = ChainedAuditWriter(audit_path)

@@ -12,7 +12,7 @@ grade: authoritative
 The concern queue is a JSONL (JSON Lines) format file used by workers to report issues during execution. Each line contains a single JSON object representing a concern.
 
 ## File Location
-Concerns are written to `{signal_dir}/concerns.jsonl` where `signal_dir` is determined by the `ATTRACTOR_SIGNAL_DIR` environment variable.
+Concerns are written to `{signal_dir}/concerns.jsonl` where `signal_dir` is determined by the `PIPELINE_SIGNAL_DIR` environment variable.
 
 ## JSON Schema
 Each line in the concerns.jsonl file follows this schema:
@@ -51,10 +51,10 @@ Each line in the concerns.jsonl file follows this schema:
 ```
 
 ## Signal Directory Mitigation
-The `ATTRACTOR_SIGNAL_DIR` environment variable must be set to ensure proper signal file handling:
+The `PIPELINE_SIGNAL_DIR` environment variable must be set to ensure proper signal file handling:
 
 ```bash
-export ATTRACTOR_SIGNAL_DIR="${pipeline_dir}/signals/"
+export PIPELINE_SIGNAL_DIR="${pipeline_dir}/signals/"
 ```
 
 This prevents signal directory mismatch which was a documented failure mode.

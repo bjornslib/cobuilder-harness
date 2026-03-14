@@ -8,7 +8,7 @@ AC-F12:
 - Returns ``Outcome(status=SUCCESS)`` for exit code 0.
 - Returns ``Outcome(status=FAILURE)`` for non-zero exit codes.
 - Captures stdout/stderr into context_updates.
-- Timeout: ``ATTRACTOR_TOOL_TIMEOUT`` seconds (default 300s).
+- Timeout: ``PIPELINE_TOOL_TIMEOUT`` seconds (default 300s).
 """
 from __future__ import annotations
 
@@ -36,12 +36,12 @@ class ToolHandler:
 
     Args:
         timeout_s: Subprocess timeout in seconds.  Defaults to the
-                   ``ATTRACTOR_TOOL_TIMEOUT`` env var or 300s.
+                   ``PIPELINE_TOOL_TIMEOUT`` env var or 300s.
     """
 
     def __init__(self, timeout_s: float | None = None) -> None:
         self._timeout_s = timeout_s or float(
-            os.environ.get("ATTRACTOR_TOOL_TIMEOUT", _DEFAULT_TOOL_TIMEOUT_S)
+            os.environ.get("PIPELINE_TOOL_TIMEOUT", _DEFAULT_TOOL_TIMEOUT_S)
         )
 
     async def execute(self, request: HandlerRequest) -> Outcome:

@@ -22,7 +22,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 # Import from the canonical module (not the deprecated scripts path)
-from cobuilder.attractor.pipeline_runner import (
+from cobuilder.engine.pipeline_runner import (
     AdvancedWorkerTracker,
     PipelineRunner,
     WorkerInfo,
@@ -83,8 +83,8 @@ def _make_runner(tmp_path: Path, dot_content: str = MINIMAL_DOT) -> PipelineRunn
     dot_file = tmp_path / "test.dot"
     dot_file.write_text(dot_content)
 
-    # Patch _load_attractor_env and save_checkpoint so they don't touch real files
-    with patch.object(PipelineRunner, "_load_attractor_env"):
+    # Patch _load_engine_env and save_checkpoint so they don't touch real files
+    with patch.object(PipelineRunner, "_load_engine_env"):
         runner = PipelineRunner(str(dot_file), resume=False)
 
     return runner
@@ -498,7 +498,7 @@ class TestEpicB:
         runner._force_status("node1", "failed")
 
         # Create a new runner instance from the same DOT file
-        with patch.object(PipelineRunner, "_load_attractor_env"):
+        with patch.object(PipelineRunner, "_load_engine_env"):
             runner2 = PipelineRunner(dot_path, resume=True)
 
         from cobuilder.engine.parser import parse_dot_string
@@ -555,8 +555,8 @@ class TestEpicC:
         # Set a very short timeout via env var
         with patch.dict(os.environ, {"VALIDATION_TIMEOUT": "1"}):
             # Mock SDK to be "available" but hang
-            with patch("cobuilder.attractor.pipeline_runner._SDK_AVAILABLE", True), \
-                 patch("cobuilder.attractor.pipeline_runner.claude_code_sdk") as mock_sdk:
+            with patch("cobuilder.engine.pipeline_runner._SDK_AVAILABLE", True), \
+                 patch("cobuilder.engine.pipeline_runner.claude_code_sdk") as mock_sdk:
 
                 # Make the SDK query hang forever (will hit timeout)
                 import asyncio
@@ -584,8 +584,8 @@ class TestEpicC:
         runner = _make_runner(tmp_path, IMPL_COMPLETE_DOT)
         os.makedirs(runner.signal_dir, exist_ok=True)
 
-        with patch("cobuilder.attractor.pipeline_runner._SDK_AVAILABLE", True), \
-             patch("cobuilder.attractor.pipeline_runner.claude_code_sdk") as mock_sdk:
+        with patch("cobuilder.engine.pipeline_runner._SDK_AVAILABLE", True), \
+             patch("cobuilder.engine.pipeline_runner.claude_code_sdk") as mock_sdk:
 
             # Make ClaudeCodeOptions raise to simulate a crash BEFORE the async for loop.
             # This triggers the outer Exception handler (Epic C) which writes a fail signal.
@@ -608,8 +608,8 @@ class TestEpicC:
         # Verify with a 2-second timeout that timeout triggers quickly
         start_time = time.time()
         with patch.dict(os.environ, {"VALIDATION_TIMEOUT": "2"}):
-            with patch("cobuilder.attractor.pipeline_runner._SDK_AVAILABLE", True), \
-                 patch("cobuilder.attractor.pipeline_runner.claude_code_sdk") as mock_sdk:
+            with patch("cobuilder.engine.pipeline_runner._SDK_AVAILABLE", True), \
+                 patch("cobuilder.engine.pipeline_runner.claude_code_sdk") as mock_sdk:
 
                 import asyncio
 
@@ -634,8 +634,8 @@ class TestEpicC:
         runner = _make_runner(tmp_path, IMPL_COMPLETE_DOT)
         os.makedirs(runner.signal_dir, exist_ok=True)
 
-        with patch("cobuilder.attractor.pipeline_runner._SDK_AVAILABLE", False), \
-             patch("cobuilder.attractor.pipeline_runner.claude_code_sdk", None):
+        with patch("cobuilder.engine.pipeline_runner._SDK_AVAILABLE", False), \
+             patch("cobuilder.engine.pipeline_runner.claude_code_sdk", None):
             runner._run_validation_subprocess("node1", "node1")
 
         signal_path = os.path.join(runner.signal_dir, "node1.json")

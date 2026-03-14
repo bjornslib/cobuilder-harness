@@ -9,7 +9,7 @@ Two modes:
 - ``supervisor`` (default): Spawns and monitors an orchestrator subprocess.
   Falls back to NotImplementedError if neither mode is configured.
 
-Depth is bounded by ``ATTRACTOR_MAX_MANAGER_DEPTH`` env var (default 5).
+Depth is bounded by ``PIPELINE_MAX_MANAGER_DEPTH`` env var (default 5).
 
 Security: All subprocess spawning uses asyncio.create_subprocess_exec (not
 shell=True) to prevent command injection. Arguments are passed as lists.
@@ -29,9 +29,9 @@ from cobuilder.engine.outcome import Outcome, OutcomeStatus
 
 logger = logging.getLogger(__name__)
 
-_MAX_MANAGER_DEPTH = int(os.environ.get("ATTRACTOR_MAX_MANAGER_DEPTH", "5"))
-_POLL_INTERVAL_S = float(os.environ.get("ATTRACTOR_MANAGER_POLL_INTERVAL", "15"))
-_DEFAULT_TIMEOUT_S = float(os.environ.get("ATTRACTOR_MANAGER_TIMEOUT", "7200"))
+_MAX_MANAGER_DEPTH = int(os.environ.get("PIPELINE_MAX_MANAGER_DEPTH", "5"))
+_POLL_INTERVAL_S = float(os.environ.get("PIPELINE_MANAGER_POLL_INTERVAL", "15"))
+_DEFAULT_TIMEOUT_S = float(os.environ.get("PIPELINE_MANAGER_TIMEOUT", "7200"))
 
 
 class ManagerLoopHandler:
@@ -105,7 +105,7 @@ class ManagerLoopHandler:
 
         # Spawn child EngineRunner as subprocess (exec, not shell)
         env = os.environ.copy()
-        env["ATTRACTOR_MANAGER_DEPTH"] = str(current_depth + 1)
+        env["PIPELINE_MANAGER_DEPTH"] = str(current_depth + 1)
 
         cmd = [
             sys.executable, "-m", "cobuilder.engine.runner",

@@ -226,7 +226,7 @@ A single command chains the complete definition pipeline from PRD to executable 
 | 1 | Initialize baseline (if missing) | `zerorepo init` |
 | 2 | Generate delta + export .dot | `zerorepo generate --format attractor-pipeline` |
 | 3 | Validate structure | `attractor validate` (automatic in step 2) |
-| 4 | Copy to pipelines directory | `.claude/attractor/pipelines/<PRD-ID>.dot` |
+| 4 | Copy to pipelines directory | `.pipelines/pipelines/<PRD-ID>.dot` |
 | 5 | Cross-reference with beads | `attractor annotate` |
 | 6 | Create completion promise | `attractor init-promise --execute` |
 | 7 | Save checkpoint | `attractor checkpoint save` |
@@ -249,8 +249,8 @@ A single command chains the complete definition pipeline from PRD to executable 
 
 | Artifact | Path |
 |----------|------|
-| Pipeline DOT | `.claude/attractor/pipelines/<PRD-ID>.dot` |
-| Checkpoint | `.claude/attractor/checkpoints/<PRD-ID>-definition.json` |
+| Pipeline DOT | `.pipelines/pipelines/<PRD-ID>.dot` |
+| Checkpoint | `.pipelines/checkpoints/<PRD-ID>-definition.json` |
 | ZeroRepo output | `.zerorepo/output/` (intermediate artifacts) |
 
 ### Example

@@ -61,7 +61,7 @@ class TestWorkerSystemPrompt:
 
     def test_contains_signal_dir_instruction(self):
         prompt = self._get_prompt()
-        assert "ATTRACTOR_SIGNAL_DIR" in prompt or "signal" in prompt.lower()
+        assert "PIPELINE_SIGNAL_DIR" in prompt or "signal" in prompt.lower()
 
     def test_no_pipeline_orchestration_docs(self):
         """System prompt must NOT contain pipeline orchestration content."""

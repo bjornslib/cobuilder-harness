@@ -2,13 +2,13 @@
 
 Tests:
     TestForbiddenToolGuard          - Edit/Write/MultiEdit blocked by pre_tool_use
-    TestRetryLimitGuard             - ATTRACTOR_MAX_RETRIES enforced
+    TestRetryLimitGuard             - PIPELINE_MAX_RETRIES enforced
     TestEvidenceStalenessGuard      - Stale evidence blocked pre-validation
     TestAuditChain                  - ChainedAuditWriter integration via post_tool_use
     TestImplementerSeparation       - Self-validation detection
     TestSpotCheckIntegration        - Spot-check audit entry written on validated
     TestOnStop                      - on_stop writes audit entry
-    TestEnvVarMaxRetries            - ATTRACTOR_MAX_RETRIES env var respected
+    TestEnvVarMaxRetries            - PIPELINE_MAX_RETRIES env var respected
 """
 
 from __future__ import annotations
@@ -22,8 +22,8 @@ import unittest
 
 # Ensure attractor package is importable
 
-from cobuilder.attractor.runner_hooks import RunnerHookError, RunnerHooks  # noqa: E402
-from cobuilder.attractor.runner_models import AuditEntry, RunnerState  # noqa: E402
+from cobuilder.engine.runner_hooks import RunnerHookError, RunnerHooks  # noqa: E402
+from cobuilder.engine.runner_models import AuditEntry, RunnerState  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -434,12 +434,12 @@ class TestSpotCheckIntegration(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# Environment variable: ATTRACTOR_MAX_RETRIES
+# Environment variable: PIPELINE_MAX_RETRIES
 # ---------------------------------------------------------------------------
 
 
 class TestEnvVarMaxRetries(unittest.TestCase):
-    """Verify that ATTRACTOR_MAX_RETRIES env var is read at module import.
+    """Verify that PIPELINE_MAX_RETRIES env var is read at module import.
 
     Note: The module-level MAX_RETRIES is read once at import time.
     We test the RunnerHooks behaviour with explicit state manipulation.
@@ -450,16 +450,16 @@ class TestEnvVarMaxRetries(unittest.TestCase):
         self._audit = os.path.join(self._tmp, "audit.jsonl")
 
     def test_default_max_retries_is_three(self) -> None:
-        """Without ATTRACTOR_MAX_RETRIES set, MAX_RETRIES should be 3."""
-        import cobuilder.attractor.runner_hooks as runner_hooks
-        # The env var is read at module load; if ATTRACTOR_MAX_RETRIES is not
+        """Without PIPELINE_MAX_RETRIES set, MAX_RETRIES should be 3."""
+        import cobuilder.engine.runner_hooks as runner_hooks
+        # The env var is read at module load; if PIPELINE_MAX_RETRIES is not
         # set in the test environment the default must be 3.
-        default = int(os.environ.get("ATTRACTOR_MAX_RETRIES", "3"))
+        default = int(os.environ.get("PIPELINE_MAX_RETRIES", "3"))
         self.assertEqual(runner_hooks.MAX_RETRIES, default)
 
     def test_retry_guard_uses_module_max_retries(self) -> None:
         """Ensure the guard compares against the module-level MAX_RETRIES."""
-        import cobuilder.attractor.runner_hooks as rh
+        import cobuilder.engine.runner_hooks as rh
         current_max = rh.MAX_RETRIES
 
         state = _make_state()

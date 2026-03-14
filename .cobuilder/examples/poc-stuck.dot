@@ -4,7 +4,7 @@
 // No path forward without System 3 intervention.
 // Expected runner action: signal_stuck
 //
-// Schema: .claude/attractor/schema.md
+// Schema: .pipelines/schema.md
 
 digraph "poc-stuck" {
     graph [

@@ -42,15 +42,15 @@ import pytest
 # ---------------------------------------------------------------------------
 
 
-from cobuilder.attractor.signal_protocol import (  # noqa: E402
+from cobuilder.engine.signal_protocol import (  # noqa: E402
     list_signals,
     move_to_processed,
     read_signal,
     wait_for_signal,
     write_signal,
 )
-import cobuilder.attractor.guardian as guardian  # noqa: E402
-import cobuilder.attractor.session_runner as runner  # noqa: E402
+import cobuilder.engine.guardian as guardian  # noqa: E402
+import cobuilder.engine.session_runner as runner  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -701,7 +701,7 @@ class TestRefineNodeDotGeneration:
         sd_file.write_text("# Test Solution Design\n\n## Auth Patterns\nUse FastAPI Depends.\n")
 
         # Import run_research from scripts dir
-        import cobuilder.attractor.run_research as run_research
+        import cobuilder.engine.run_research as run_research
 
         buf = io.StringIO()
         with pytest.raises(SystemExit) as exc_info:
@@ -783,7 +783,7 @@ class TestRefineNodePipeline:
             "gotchas": [],
         }))
 
-        import cobuilder.attractor.run_refine as run_refine
+        import cobuilder.engine.run_refine as run_refine
 
         buf = io.StringIO()
         with pytest.raises(SystemExit) as exc_info:
@@ -820,7 +820,7 @@ class TestRefineNodePipeline:
         evidence_file = tmp_path / "evidence.json"
         evidence_file.write_text("{}")
 
-        import cobuilder.attractor.run_refine as run_refine
+        import cobuilder.engine.run_refine as run_refine
 
         buf = io.StringIO()
         with pytest.raises(SystemExit):
@@ -945,7 +945,7 @@ class TestMonitorGuardianWithCompleteSignal:
                 poll_interval=0.1,
             )
 
-        with patch("cobuilder.attractor.guardian.wait_for_signal", mock_wait):
+        with patch("cobuilder.engine.guardian.wait_for_signal", mock_wait):
             result = guardian.monitor_guardian(
                 guardian_process=None,
                 dot_path="/tmp/pipeline.dot",
@@ -983,7 +983,7 @@ class TestMonitorGuardianWithEscalationSignal:
                 poll_interval=0.1,
             )
 
-        with patch("cobuilder.attractor.guardian.wait_for_signal", mock_wait):
+        with patch("cobuilder.engine.guardian.wait_for_signal", mock_wait):
             result = guardian.monitor_guardian(
                 guardian_process=None,
                 dot_path="/tmp/pipeline.dot",
@@ -1132,7 +1132,7 @@ class TestGuardianAgentDryRunIntegration:
     real DOT files created by the helpers."""
 
     def test_guardian_dry_run_with_real_dot(self, tmp_path):
-        """cobuilder.attractor.guardian.main() --dry-run with a real DOT file."""
+        """cobuilder.engine.guardian.main() --dry-run with a real DOT file."""
         import io
         from contextlib import redirect_stdout
 
@@ -1159,7 +1159,7 @@ class TestRunnerAgentDryRunIntegration:
     """Integration tests for runner dry-run mode."""
 
     def test_runner_dry_run(self, tmp_path):
-        """cobuilder.attractor.session_runner.main() --dry-run with standard args."""
+        """cobuilder.engine.session_runner.main() --dry-run with standard args."""
         import io
         from contextlib import redirect_stdout
 

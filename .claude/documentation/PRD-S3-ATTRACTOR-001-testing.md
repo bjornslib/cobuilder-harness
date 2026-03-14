@@ -18,19 +18,19 @@ Copy-paste commands to verify the core Attractor CLI is functional. All commands
 
 ```bash
 # 1. Parse a simple DOT pipeline to JSON
-python .claude/scripts/attractor/cli.py parse .claude/attractor/examples/simple-pipeline.dot --output json
+python .claude/scripts/attractor/cli.py parse .pipelines/examples/simple-pipeline.dot --output json
 # Expected: Valid JSON with 3 nodes, 2 edges
 
 # 2. Validate a full initiative DOT file
-python .claude/scripts/attractor/cli.py validate .claude/attractor/examples/full-initiative.dot
+python .claude/scripts/attractor/cli.py validate .pipelines/examples/full-initiative.dot
 # Expected: "VALID: passes all validation rules"
 
 # 3. Status summary of a full initiative
-python .claude/scripts/attractor/cli.py status .claude/attractor/examples/full-initiative.dot
+python .claude/scripts/attractor/cli.py status .pipelines/examples/full-initiative.dot
 # Expected: Table with 17 nodes. Summary: active=2, impl_complete=1, pending=11, validated=3
 
 # 4. Transition a node state
-cp .claude/attractor/examples/full-initiative.dot /tmp/smoke-test.dot
+cp .pipelines/examples/full-initiative.dot /tmp/smoke-test.dot
 python .claude/scripts/attractor/cli.py transition /tmp/smoke-test.dot impl_task active
 # Expected: "Transition applied: impl_task: pending -> active"
 
@@ -136,11 +136,11 @@ Verifies that System 3 reads pipeline status during its preflight checks:
 
 ```bash
 # Step 1: Ensure a valid pipeline DOT exists
-python .claude/scripts/attractor/cli.py validate .claude/attractor/examples/full-initiative.dot
+python .claude/scripts/attractor/cli.py validate .pipelines/examples/full-initiative.dot
 
 # Step 2: Check that S3 preflight step references attractor status
 # The system3-orchestrator SKILL.md should include a preflight step that runs:
-python .claude/scripts/attractor/cli.py status .claude/attractor/examples/full-initiative.dot
+python .claude/scripts/attractor/cli.py status .pipelines/examples/full-initiative.dot
 # Expected: S3 uses this output to determine which epics need attention
 ```
 

@@ -21,7 +21,7 @@ import pytest
 
 # Ensure attractor package is importable
 
-from cobuilder.attractor.identity_registry import (  # noqa: E402
+from cobuilder.engine.identity_registry import (  # noqa: E402
     create_identity,
     find_stale,
     list_all,

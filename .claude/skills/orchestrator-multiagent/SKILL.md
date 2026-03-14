@@ -378,20 +378,20 @@ git add acceptance-tests/ && git commit -m "test(PRD-AUTH-001): add acceptance t
 # Set solution_design attribute on each codergen node to point to its SD file
 cobuilder pipeline create \
     --prd PRD-AUTH-001 \
-    --output .claude/attractor/pipelines/auth-001.dot
+    --output .pipelines/pipelines/auth-001.dot
 # Set SD reference on nodes (so Runner can brief orchestrators with full context):
 cobuilder pipeline node-modify auth-001.dot impl_login \
     --set solution_design=.taskmaster/docs/SD-AUTH-001-login.md
 # Validate
 cobuilder pipeline validate \
-    .claude/attractor/pipelines/auth-001.dot
+    .pipelines/pipelines/auth-001.dot
 
 # 8. Review hierarchy (filter by uber-epic)
 bd list --parent=agencheck-001   # See only tasks under this initiative
 bd ready --parent=agencheck-001  # Ready tasks for this initiative only
 
 # 9. Commit planning artifacts (completes Phase 1)
-git add .beads/ .taskmaster/docs/ .claude/attractor/pipelines/ && \
+git add .beads/ .taskmaster/docs/ .pipelines/pipelines/ && \
     git commit -m "plan: initialize [initiative] hierarchy with SD documents"
 # Write progress summary to .claude/progress/
 ```

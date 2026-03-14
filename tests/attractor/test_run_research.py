@@ -8,7 +8,7 @@ import pytest
 
 # Ensure the attractor scripts directory is importable
 
-from cobuilder.attractor.run_research import build_research_prompt, parse_args
+from cobuilder.engine.run_research import build_research_prompt, parse_args
 
 
 class TestBuildResearchPrompt:
@@ -98,7 +98,7 @@ class TestDryRunMode:
         sd_file.write_text("# Test SD\n")
 
         with pytest.raises(SystemExit) as exc_info:
-            from cobuilder.attractor.run_research import main
+            from cobuilder.engine.run_research import main
             main([
                 "--node", "test_node",
                 "--prd", "PRD-TEST-001",
@@ -123,7 +123,7 @@ class TestDryRunMode:
         sd_file.write_text("# Test SD\n")
 
         with pytest.raises(SystemExit):
-            from cobuilder.attractor.run_research import main
+            from cobuilder.engine.run_research import main
             main([
                 "--node", "test_node",
                 "--prd", "PRD-TEST-001",

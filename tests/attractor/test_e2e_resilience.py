@@ -20,8 +20,8 @@ import pytest
 
 # Ensure the attractor package is importable
 
-import cobuilder.attractor.identity_registry as identity_registry
-from cobuilder.attractor.identity_registry import (
+import cobuilder.engine.identity_registry as identity_registry
+from cobuilder.engine.identity_registry import (
     create_identity,
     find_stale,
     list_all,
@@ -30,8 +30,8 @@ from cobuilder.attractor.identity_registry import (
     update_liveness,
 )
 
-import cobuilder.attractor.hook_manager as hook_manager
-from cobuilder.attractor.hook_manager import (
+import cobuilder.engine.hook_manager as hook_manager
+from cobuilder.engine.hook_manager import (
     build_wisdom_prompt_block,
     create_hook,
     read_hook,
@@ -39,12 +39,12 @@ from cobuilder.attractor.hook_manager import (
     update_resumption_instructions,
 )
 
-import cobuilder.attractor.merge_queue as merge_queue
-from cobuilder.attractor.merge_queue import _read_queue, enqueue, process_next
+import cobuilder.engine.merge_queue as merge_queue
+from cobuilder.engine.merge_queue import _read_queue, enqueue, process_next
 
-import cobuilder.attractor.session_runner as runner
-import cobuilder.attractor.spawn_orchestrator as spawn_orchestrator
-from cobuilder.attractor.spawn_orchestrator import respawn_orchestrator
+import cobuilder.engine.session_runner as runner
+import cobuilder.engine.spawn_orchestrator as spawn_orchestrator
+from cobuilder.engine.spawn_orchestrator import respawn_orchestrator
 
 
 # ---------------------------------------------------------------------------
@@ -252,7 +252,7 @@ class TestSpawnRunnerIntegration:
         return _side_effect
 
     def test_spawn_runner_creates_identity(self, tmp_path):
-        """cobuilder.attractor.session_runner.main() registers runner identity before Popen."""
+        """cobuilder.engine.session_runner.main() registers runner identity before Popen."""
         identity_dir = str(tmp_path / "identities")
         hooks_dir = str(tmp_path / "hooks")
         runner_state_dir = str(tmp_path / "runner-state")
@@ -260,13 +260,13 @@ class TestSpawnRunnerIntegration:
         mock_proc = MagicMock()
         mock_proc.pid = 12345
 
-        with patch("cobuilder.attractor.session_runner.subprocess.Popen", return_value=mock_proc) as mock_popen, \
-             patch("cobuilder.attractor.session_runner.identity_registry.create_identity",
+        with patch("cobuilder.engine.session_runner.subprocess.Popen", return_value=mock_proc) as mock_popen, \
+             patch("cobuilder.engine.session_runner.identity_registry.create_identity",
                    side_effect=self._make_identity_side_effect(identity_dir)) as mock_create_id, \
-             patch("cobuilder.attractor.session_runner.hook_manager.create_hook",
+             patch("cobuilder.engine.session_runner.hook_manager.create_hook",
                    side_effect=self._make_hook_side_effect(hooks_dir)), \
-             patch("cobuilder.attractor.session_runner._runner_state_dir", return_value=runner_state_dir), \
-             patch("sys.argv", ["cobuilder.attractor.session_runner.py", "--spawn",
+             patch("cobuilder.engine.session_runner._runner_state_dir", return_value=runner_state_dir), \
+             patch("sys.argv", ["cobuilder.engine.session_runner.py", "--spawn",
                                 "--node", "test_node",
                                 "--prd", "PRD-TEST-001",
                                 "--target-dir", str(tmp_path)]):
@@ -287,7 +287,7 @@ class TestSpawnRunnerIntegration:
         assert identity_data["name"] == "test_node"
 
     def test_spawn_runner_creates_hook(self, tmp_path):
-        """cobuilder.attractor.session_runner.main() creates hook with phase=planning before Popen."""
+        """cobuilder.engine.session_runner.main() creates hook with phase=planning before Popen."""
         identity_dir = str(tmp_path / "identities")
         hooks_dir = str(tmp_path / "hooks")
         runner_state_dir = str(tmp_path / "runner-state")
@@ -295,13 +295,13 @@ class TestSpawnRunnerIntegration:
         mock_proc = MagicMock()
         mock_proc.pid = 99999
 
-        with patch("cobuilder.attractor.session_runner.subprocess.Popen", return_value=mock_proc), \
-             patch("cobuilder.attractor.session_runner.identity_registry.create_identity",
+        with patch("cobuilder.engine.session_runner.subprocess.Popen", return_value=mock_proc), \
+             patch("cobuilder.engine.session_runner.identity_registry.create_identity",
                    side_effect=self._make_identity_side_effect(identity_dir)), \
-             patch("cobuilder.attractor.session_runner.hook_manager.create_hook",
+             patch("cobuilder.engine.session_runner.hook_manager.create_hook",
                    side_effect=self._make_hook_side_effect(hooks_dir)) as mock_create_hook, \
-             patch("cobuilder.attractor.session_runner._runner_state_dir", return_value=runner_state_dir), \
-             patch("sys.argv", ["cobuilder.attractor.session_runner.py", "--spawn",
+             patch("cobuilder.engine.session_runner._runner_state_dir", return_value=runner_state_dir), \
+             patch("sys.argv", ["cobuilder.engine.session_runner.py", "--spawn",
                                 "--node", "hook_test_node",
                                 "--prd", "PRD-TEST-002",
                                 "--target-dir", str(tmp_path)]):
@@ -323,7 +323,7 @@ class TestSpawnRunnerIntegration:
         assert hook_data["phase"] == "planning"
 
     def test_spawn_runner_writes_state_with_pid(self, tmp_path):
-        """cobuilder.attractor.session_runner.main() writes state file with runner_pid field."""
+        """cobuilder.engine.session_runner.main() writes state file with runner_pid field."""
         runner_state_dir = str(tmp_path / "runner-state")
         identity_dir = str(tmp_path / "identities")
         hooks_dir = str(tmp_path / "hooks")
@@ -331,13 +331,13 @@ class TestSpawnRunnerIntegration:
         mock_proc = MagicMock()
         mock_proc.pid = 54321
 
-        with patch("cobuilder.attractor.session_runner.subprocess.Popen", return_value=mock_proc), \
-             patch("cobuilder.attractor.session_runner.identity_registry.create_identity",
+        with patch("cobuilder.engine.session_runner.subprocess.Popen", return_value=mock_proc), \
+             patch("cobuilder.engine.session_runner.identity_registry.create_identity",
                    side_effect=self._make_identity_side_effect(identity_dir)), \
-             patch("cobuilder.attractor.session_runner.hook_manager.create_hook",
+             patch("cobuilder.engine.session_runner.hook_manager.create_hook",
                    side_effect=self._make_hook_side_effect(hooks_dir)), \
-             patch("cobuilder.attractor.session_runner._runner_state_dir", return_value=runner_state_dir), \
-             patch("sys.argv", ["cobuilder.attractor.session_runner.py", "--spawn",
+             patch("cobuilder.engine.session_runner._runner_state_dir", return_value=runner_state_dir), \
+             patch("sys.argv", ["cobuilder.engine.session_runner.py", "--spawn",
                                 "--node", "pid_test_node",
                                 "--prd", "PRD-TEST-003",
                                 "--target-dir", str(tmp_path)]):
@@ -455,14 +455,14 @@ class TestRespawnWisdomE2E:
         hook = read_hook("orchestrator", "auth_node", state_dir=hooks_dir)
 
         # Patch hook_manager.read_hook to return our controlled hook
-        with patch("cobuilder.attractor.spawn_orchestrator.check_orchestrator_alive", return_value=False), \
-             patch("cobuilder.attractor.spawn_orchestrator.subprocess.run") as mock_run, \
-             patch("cobuilder.attractor.spawn_orchestrator.time.sleep"), \
-             patch("cobuilder.attractor.spawn_orchestrator._tmux_send") as mock_send, \
-             patch("cobuilder.attractor.spawn_orchestrator.hook_manager.read_hook", return_value=hook), \
-             patch("cobuilder.attractor.spawn_orchestrator.identity_registry.create_identity",
+        with patch("cobuilder.engine.spawn_orchestrator.check_orchestrator_alive", return_value=False), \
+             patch("cobuilder.engine.spawn_orchestrator.subprocess.run") as mock_run, \
+             patch("cobuilder.engine.spawn_orchestrator.time.sleep"), \
+             patch("cobuilder.engine.spawn_orchestrator._tmux_send") as mock_send, \
+             patch("cobuilder.engine.spawn_orchestrator.hook_manager.read_hook", return_value=hook), \
+             patch("cobuilder.engine.spawn_orchestrator.identity_registry.create_identity",
                    return_value={"agent_id": "test-id"}), \
-             patch("cobuilder.attractor.spawn_orchestrator.hook_manager.create_hook",
+             patch("cobuilder.engine.spawn_orchestrator.hook_manager.create_hook",
                    return_value={"hook_id": "test-hook-id"}):
             mock_run.return_value = MagicMock(returncode=0)
             result = respawn_orchestrator(
@@ -518,14 +518,14 @@ class TestRespawnWisdomE2E:
 
     def test_respawn_without_hook_sends_no_wisdom(self):
         """When no existing hook, respawn sends only launch and output-style commands."""
-        with patch("cobuilder.attractor.spawn_orchestrator.check_orchestrator_alive", return_value=False), \
-             patch("cobuilder.attractor.spawn_orchestrator.subprocess.run") as mock_run, \
-             patch("cobuilder.attractor.spawn_orchestrator.time.sleep"), \
-             patch("cobuilder.attractor.spawn_orchestrator._tmux_send") as mock_send, \
-             patch("cobuilder.attractor.spawn_orchestrator.hook_manager.read_hook", return_value=None), \
-             patch("cobuilder.attractor.spawn_orchestrator.identity_registry.create_identity",
+        with patch("cobuilder.engine.spawn_orchestrator.check_orchestrator_alive", return_value=False), \
+             patch("cobuilder.engine.spawn_orchestrator.subprocess.run") as mock_run, \
+             patch("cobuilder.engine.spawn_orchestrator.time.sleep"), \
+             patch("cobuilder.engine.spawn_orchestrator._tmux_send") as mock_send, \
+             patch("cobuilder.engine.spawn_orchestrator.hook_manager.read_hook", return_value=None), \
+             patch("cobuilder.engine.spawn_orchestrator.identity_registry.create_identity",
                    return_value={"agent_id": "test-id"}), \
-             patch("cobuilder.attractor.spawn_orchestrator.hook_manager.create_hook",
+             patch("cobuilder.engine.spawn_orchestrator.hook_manager.create_hook",
                    return_value={"hook_id": "test-hook-id"}):
             mock_run.return_value = MagicMock(returncode=0)
             result = respawn_orchestrator("orch-nobook", "/tmp", "nobook_node", None, 0, 3)

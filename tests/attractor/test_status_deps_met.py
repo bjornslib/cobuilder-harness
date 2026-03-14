@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from cobuilder.attractor.status import build_predecessors, get_status_table
+from cobuilder.engine.status import build_predecessors, get_status_table
 
 
 # ---------------------------------------------------------------------------

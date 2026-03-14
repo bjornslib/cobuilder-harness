@@ -174,7 +174,7 @@ BEAD_ID=$(bd list --title="FIX-X1" --json | jq -r '.[0].id')
 **Update DOT node:**
 ```bash
 python3 .claude/scripts/attractor/cli.py node-modify \
-    --dot-file .claude/attractor/pipelines/PRD-{ID}.dot \
+    --dot-file .pipelines/pipelines/PRD-{ID}.dot \
     --node-id fix_gap_x1 \
     --set bead_id="$BEAD_ID"
 ```
@@ -185,7 +185,7 @@ python3 .claude/scripts/attractor/cli.py node-modify \
 python3 .claude/scripts/attractor/runner.py --spawn \
     --node fix_gap_x1 \
     --prd PRD-{ID} \
-    --dot-file .claude/attractor/pipelines/PRD-{ID}.dot
+    --dot-file .pipelines/pipelines/PRD-{ID}.dot
 ```
 
 Worker receives:
@@ -203,7 +203,7 @@ behave acceptance-tests/PRD-{ID}/{scenario}.feature:S3
 
 # If passes:
 python3 .claude/scripts/attractor/cli.py node-modify \
-    --dot-file .claude/attractor/pipelines/PRD-{ID}.dot \
+    --dot-file .pipelines/pipelines/PRD-{ID}.dot \
     --node-id revalidate_gap_x1 \
     --set status=validated
 

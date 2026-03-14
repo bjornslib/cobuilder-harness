@@ -52,7 +52,7 @@ grep -E "^#|^##|acceptance|criteria|epic|feature" /path/to/impl-repo/.taskmaster
 
 ```bash
 # No existing headless worker process or signal files for same initiative
-ls .claude/attractor/signals/*-s3-{initiative}-*.json 2>/dev/null && echo "WARNING: active signals exist" || echo "OK: no conflict"
+ls .pipelines/signals/*-s3-{initiative}-*.json 2>/dev/null && echo "WARNING: active signals exist" || echo "OK: no conflict"
 
 # No existing acceptance tests (or confirm overwrite intent)
 ls acceptance-tests/PRD-{ID}/ 2>/dev/null && echo "WARNING: tests exist, will be overwritten" || echo "OK: fresh"
@@ -288,7 +288,7 @@ Adjust monitoring frequency based on signal file content:
 
 ```bash
 # Check signal files for the initiative (headless mode — DEFAULT)
-SIGNAL_DIR=".claude/attractor/signals"
+SIGNAL_DIR=".pipelines/signals"
 LATEST_SIGNAL=$(ls -t "${SIGNAL_DIR}"/*-s3-${INITIATIVE}-*.json 2>/dev/null | head -1)
 
 if [ -n "$LATEST_SIGNAL" ]; then
@@ -500,7 +500,7 @@ For each gap decided for autonomous closure:
    python3 .claude/scripts/attractor/runner.py --spawn \
        --node fix_gap_x1 \
        --prd PRD-{ID} \
-       --dot-file .claude/attractor/pipelines/PRD-{ID}.dot
+       --dot-file .pipelines/pipelines/PRD-{ID}.dot
    ```
 
 5. **Re-validate after fix completes**
@@ -510,7 +510,7 @@ For each gap decided for autonomous closure:
 
    # If passes:
    python3 .claude/scripts/attractor/cli.py node-modify \
-       --dot-file .claude/attractor/pipelines/PRD-{ID}.dot \
+       --dot-file .pipelines/pipelines/PRD-{ID}.dot \
        --node-id revalidate_gap_x1 \
        --set status=validated
 
@@ -965,7 +965,7 @@ After validation is complete (regardless of verdict):
 
 ```bash
 # Check if headless worker process is still running (DEFAULT)
-SIGNAL_DIR=".claude/attractor/signals"
+SIGNAL_DIR=".pipelines/signals"
 ls "${SIGNAL_DIR}"/*-s3-${INITIATIVE}-*.json 2>/dev/null && echo "Active signals exist" || echo "Process likely complete"
 
 # Clean up signal files after validation
@@ -1107,7 +1107,7 @@ For automated pipelines, use `launch_guardian.py`:
 
 ```bash
 python3 .claude/scripts/attractor/launch_guardian.py \
-    --dot-file .claude/attractor/pipelines/${INITIATIVE}.dot \
+    --dot-file .pipelines/pipelines/${INITIATIVE}.dot \
     --target-dir /path/to/target \
     --model claude-sonnet-4-6 \
     --max-turns 200
@@ -1201,7 +1201,7 @@ digraph research_batch {
 
 ```bash
 python3 .claude/scripts/attractor/launch_guardian.py \
-    --dot-file .claude/attractor/pipelines/verify-check-002-research-batch.dot \
+    --dot-file .pipelines/pipelines/verify-check-002-research-batch.dot \
     --target-dir /path/to/impl-repo \
     --model claude-sonnet-4-6 \
     --max-turns 100
@@ -1249,7 +1249,7 @@ wisdom = mcp__hindsight__reflect(
 When a DOT pipeline exists, identify dispatchable nodes before spawning:
 
 ```bash
-PIPELINE="/path/to/impl-repo/.claude/attractor/pipelines/${INITIATIVE}.dot"
+PIPELINE="/path/to/impl-repo/.pipelines/pipelines/${INITIATIVE}.dot"
 CLI="python3 /path/to/impl-repo/.claude/scripts/attractor/cli.py"
 
 # Find nodes with all upstream deps validated
@@ -1290,7 +1290,7 @@ Layer 3 (IDENTITY): env vars (WORKER_NODE_ID, PIPELINE_ID, etc.)
 **Pattern 3 — Monitor via signal files, not process polling**:
 ```bash
 # Check for completion/error signals
-SIGNAL_DIR=".claude/attractor/signals"
+SIGNAL_DIR=".pipelines/signals"
 cat "${SIGNAL_DIR}"/*-${NODE_ID}-*.json 2>/dev/null | python3 -c "import json,sys; print(json.load(sys.stdin).get('signal_type',''))"
 ```
 
@@ -1477,7 +1477,7 @@ Guardian ──monitors──► Orchestrator ──delegates──► Workers (
 
 | Action | Headless Mode (Default) | Legacy tmux Mode |
 |--------|------------------------|-----------------|
-| Monitor output | Signal files (`.claude/attractor/signals/`) | `tmux capture-pane` |
+| Monitor output | Signal files (`.pipelines/signals/`) | `tmux capture-pane` |
 | Send guidance | Re-launch with updated prompt | `tmux send-keys` |
 | Detect completion | Process exit + JSON stdout | `tmux capture-pane` + grep |
 
@@ -1560,7 +1560,7 @@ bd create \
 
 ## Evidence
 Identified during validation of PRD-{ID} at score {score}.
-Validation report: .claude/attractor/validation/{PRD_ID}-report.md
+Validation report: .pipelines/validation/{PRD_ID}-report.md
 
 ## Context
 Fix-it node will be dispatched via pipeline_runner.py.
@@ -1575,7 +1575,7 @@ Capture the returned `bead_id` for use in the DOT node attribute.
 For each fix-it bead, append a codergen node to the pipeline DOT file. The `bead_id` attribute links the node to the bead for traceability:
 
 ```dot
-# Append to .claude/attractor/pipelines/${INITIATIVE}.dot
+# Append to .pipelines/pipelines/${INITIATIVE}.dot
 
 fixup_<gap_slug> [
     label="fixup_<gap_slug>",
@@ -1596,7 +1596,7 @@ After adding fix-it nodes, re-invoke the runner to process only the new nodes:
 
 ```bash
 python pipeline_runner.py \
-    --dot-file .claude/attractor/pipelines/${INITIATIVE}.dot \
+    --dot-file .pipelines/pipelines/${INITIATIVE}.dot \
     --prd ${PRD_REF} \
     --filter-status pending \
     --solution-design ${SD_PATH}
@@ -1647,7 +1647,7 @@ Once all fix-it nodes reach `validated` state (or are explicitly deferred), clos
 bd close <epic-bead-id> \
   --comment "Epic complete. Validation score: {score} ({ACCEPT|INVESTIGATE}).
 Fix-it nodes dispatched: {count}. All fix-its validated.
-Evidence: .claude/attractor/validation/{PRD_ID}-report.md
+Evidence: .pipelines/validation/{PRD_ID}-report.md
 Completion promise: ${PROMISE_ID}"
 ```
 
@@ -1662,12 +1662,12 @@ When ALL codergen nodes reach `validated` or `failed`:
 ```bash
 # Save final checkpoint
 cobuilder pipeline checkpoint-save \
-    .claude/attractor/pipelines/${INITIATIVE}.dot \
-    --output=.claude/attractor/checkpoints/${PRD_ID}-final.json
+    .pipelines/pipelines/${INITIATIVE}.dot \
+    --output=.pipelines/checkpoints/${PRD_ID}-final.json
 
 # Verify the completion promise
 cs-verify --promise ${PROMISE_ID} --type e2e \
-    --proof "Pipeline complete. Checkpoint: .claude/attractor/checkpoints/${PRD_ID}-final.json"
+    --proof "Pipeline complete. Checkpoint: .pipelines/checkpoints/${PRD_ID}-final.json"
 ```
 
 Then retain the outcome to Hindsight and report to user.

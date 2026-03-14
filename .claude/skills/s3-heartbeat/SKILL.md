@@ -191,11 +191,11 @@ GCHAT_REPLY_RECEIVED:
 
 ### Target 7: Pipeline Lifecycle Status
 
-Detect stalled or newly-finalized Attractor pipelines in the `.claude/attractor/pipelines/` directory.
+Detect stalled or newly-finalized Attractor pipelines in the `.pipelines/pipelines/` directory.
 
 ```bash
 # List all active pipeline DOT files
-PIPELINE_DIR="$CLAUDE_PROJECT_DIR/.claude/attractor/pipelines"
+PIPELINE_DIR="$CLAUDE_PROJECT_DIR/.pipelines/pipelines"
 ls "$PIPELINE_DIR"/*.dot 2>/dev/null
 
 # For each pipeline, query the dashboard

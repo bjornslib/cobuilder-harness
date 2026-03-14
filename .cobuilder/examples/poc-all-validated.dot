@@ -2,7 +2,7 @@
 //
 // Expected runner action: signal_finalize for finalize node
 //
-// Schema: .claude/attractor/schema.md
+// Schema: .pipelines/schema.md
 
 digraph "poc-all-validated" {
     graph [

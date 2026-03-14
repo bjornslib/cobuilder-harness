@@ -3,7 +3,7 @@
 // State: impl_backend is at impl_complete (done, awaiting validation).
 // Expected runner action: dispatch_validation for validate_backend
 //
-// Schema: .claude/attractor/schema.md
+// Schema: .pipelines/schema.md
 
 digraph "poc-needs-validation" {
     graph [

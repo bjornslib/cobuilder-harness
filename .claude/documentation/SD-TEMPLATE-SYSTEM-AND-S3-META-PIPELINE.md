@@ -39,7 +39,7 @@ Every pipeline is either hand-crafted DOT or generated from beads via `generate.
 A template is a **directory** (not a single file):
 
 ```
-.claude/attractor/templates/
+.pipelines/templates/
 ├── hub-spoke/
 │   ├── template.dot.j2          # Jinja2-parameterized DOT
 │   ├── manifest.yaml             # Parameters, constraints, metadata
@@ -539,15 +539,15 @@ attractor templates show hub-spoke
 attractor templates create hub-spoke \
     --prd PRD-AUTH-001 \
     --param 'workers=[...]' \
-    --output .claude/attractor/pipelines/PRD-AUTH-001.dot
+    --output .pipelines/pipelines/PRD-AUTH-001.dot
 
 # Instantiate from a params file (preferred for complex templates)
 attractor templates create hub-spoke \
     --params-file params.yaml \
-    --output .claude/attractor/pipelines/PRD-AUTH-001.dot
+    --output .pipelines/pipelines/PRD-AUTH-001.dot
 
 # Validate constraints on an already-instantiated DOT file
-attractor validate --constraints .claude/attractor/pipelines/PRD-AUTH-001.dot
+attractor validate --constraints .pipelines/pipelines/PRD-AUTH-001.dot
 ```
 
 **`params.yaml` example**:
@@ -689,7 +689,7 @@ The key insight: **System 3 itself runs as a DOT pipeline** — specifically, th
 |                                                                        |
 |  Watches: streaming JSON from Claude Code workers                      |
 |  Watches: signal files in signals/ directory                           |
-|  Produces: .claude/attractor/state/{pipeline-id}-summary.md            |
+|  Produces: .pipelines/state/{pipeline-id}-summary.md            |
 |  Model: Haiku (or local LLM) — cost-efficient continuous summarization |
 |                                                                        |
 |  S3's EXECUTE node reads the summary after child pipeline completes.   |
@@ -699,7 +699,7 @@ The key insight: **System 3 itself runs as a DOT pipeline** — specifically, th
 ### 2.3 The S3 Lifecycle Template
 
 ```yaml
-# .claude/attractor/templates/s3-lifecycle/manifest.yaml
+# .pipelines/templates/s3-lifecycle/manifest.yaml
 template:
   name: s3-lifecycle
   version: "1.0"

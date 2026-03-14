@@ -20,7 +20,7 @@ import pytest
 # ---------------------------------------------------------------------------
 import sys
 
-from cobuilder.attractor.merge_queue import (  # noqa: E402
+from cobuilder.engine.merge_queue import (  # noqa: E402
     _empty_queue,
     _find_git_root,
     _queue_path,
@@ -82,10 +82,10 @@ def test_queue_path_with_state_dir(state_dir):
 
 
 def test_queue_path_env_override(tmp_path, monkeypatch):
-    monkeypatch.setenv("ATTRACTOR_MERGE_QUEUE_DIR", str(tmp_path))
+    monkeypatch.setenv("PIPELINE_MERGE_QUEUE_DIR", str(tmp_path))
     path = _queue_path()
     assert path == os.path.join(str(tmp_path), "merge-queue.json")
-    monkeypatch.delenv("ATTRACTOR_MERGE_QUEUE_DIR")
+    monkeypatch.delenv("PIPELINE_MERGE_QUEUE_DIR")
 
 
 # ---------------------------------------------------------------------------
@@ -228,7 +228,7 @@ def _make_proc(returncode=0, stdout="", stderr=""):
     return proc
 
 
-@patch("cobuilder.attractor.merge_queue.subprocess.run")
+@patch("cobuilder.engine.merge_queue.subprocess.run")
 def test_rebase_and_test_success(mock_run):
     """All subprocess calls succeed → success=True."""
     mock_run.return_value = _make_proc(returncode=0)
@@ -242,7 +242,7 @@ def test_rebase_and_test_success(mock_run):
     assert result["error"] is None
 
 
-@patch("cobuilder.attractor.merge_queue.subprocess.run")
+@patch("cobuilder.engine.merge_queue.subprocess.run")
 def test_rebase_and_test_checkout_failure(mock_run):
     """Checkout failure → success=False, abort not called."""
     mock_run.return_value = _make_proc(returncode=1, stderr="branch not found")
@@ -256,7 +256,7 @@ def test_rebase_and_test_checkout_failure(mock_run):
     assert "checkout" in result["error"]
 
 
-@patch("cobuilder.attractor.merge_queue.subprocess.run")
+@patch("cobuilder.engine.merge_queue.subprocess.run")
 def test_rebase_and_test_rebase_failure_calls_abort(mock_run):
     """Rebase failure → abort is called, returns success=False."""
     # checkout succeeds, rebase fails, abort succeeds
@@ -278,7 +278,7 @@ def test_rebase_and_test_rebase_failure_calls_abort(mock_run):
     assert "--abort" in abort_call[0][0]
 
 
-@patch("cobuilder.attractor.merge_queue.subprocess.run")
+@patch("cobuilder.engine.merge_queue.subprocess.run")
 def test_rebase_and_test_pytest_failure(mock_run):
     """Pytest failure → success=False with pytest output in error."""
     mock_run.side_effect = [
@@ -301,7 +301,7 @@ def test_rebase_and_test_pytest_failure(mock_run):
 # ---------------------------------------------------------------------------
 
 
-@patch("cobuilder.attractor.merge_queue.subprocess.run")
+@patch("cobuilder.engine.merge_queue.subprocess.run")
 def test_merge_branch_success(mock_run):
     mock_run.return_value = _make_proc(returncode=0)
     entry = {
@@ -314,7 +314,7 @@ def test_merge_branch_success(mock_run):
     assert result["error"] is None
 
 
-@patch("cobuilder.attractor.merge_queue.subprocess.run")
+@patch("cobuilder.engine.merge_queue.subprocess.run")
 def test_merge_branch_checkout_main_failure(mock_run):
     mock_run.return_value = _make_proc(returncode=1, stderr="no main branch")
     entry = {
@@ -327,7 +327,7 @@ def test_merge_branch_checkout_main_failure(mock_run):
     assert "checkout main" in result["error"]
 
 
-@patch("cobuilder.attractor.merge_queue.subprocess.run")
+@patch("cobuilder.engine.merge_queue.subprocess.run")
 def test_merge_branch_merge_failure(mock_run):
     mock_run.side_effect = [
         _make_proc(returncode=0),                         # git checkout main
@@ -343,7 +343,7 @@ def test_merge_branch_merge_failure(mock_run):
     assert "merge" in result["error"]
 
 
-@patch("cobuilder.attractor.merge_queue.subprocess.run")
+@patch("cobuilder.engine.merge_queue.subprocess.run")
 def test_merge_branch_uses_no_ff(mock_run):
     """Verify --no-ff flag is passed to git merge."""
     mock_run.return_value = _make_proc(returncode=0)
@@ -369,8 +369,8 @@ def test_process_next_returns_none_entry_when_queue_empty(state_dir):
     assert result["error"] is None
 
 
-@patch("cobuilder.attractor.merge_queue.rebase_and_test")
-@patch("cobuilder.attractor.merge_queue.merge_branch")
+@patch("cobuilder.engine.merge_queue.rebase_and_test")
+@patch("cobuilder.engine.merge_queue.merge_branch")
 def test_process_next_success_path(mock_merge, mock_rebase, state_dir):
     mock_rebase.return_value = {"success": True, "error": None}
     mock_merge.return_value = {"success": True, "error": None}
@@ -387,8 +387,8 @@ def test_process_next_success_path(mock_merge, mock_rebase, state_dir):
     assert data["entries"][0]["status"] == "completed"
 
 
-@patch("cobuilder.attractor.merge_queue.rebase_and_test")
-@patch("cobuilder.attractor.merge_queue.merge_branch")
+@patch("cobuilder.engine.merge_queue.rebase_and_test")
+@patch("cobuilder.engine.merge_queue.merge_branch")
 def test_process_next_rebase_failure_marks_failed(mock_merge, mock_rebase, state_dir):
     mock_rebase.return_value = {"success": False, "error": "rebase conflict"}
     mock_merge.return_value = {"success": True, "error": None}
@@ -408,8 +408,8 @@ def test_process_next_rebase_failure_marks_failed(mock_merge, mock_rebase, state
     assert data["entries"][0]["error"] == "rebase conflict"
 
 
-@patch("cobuilder.attractor.merge_queue.rebase_and_test")
-@patch("cobuilder.attractor.merge_queue.merge_branch")
+@patch("cobuilder.engine.merge_queue.rebase_and_test")
+@patch("cobuilder.engine.merge_queue.merge_branch")
 def test_process_next_merge_failure_marks_failed(mock_merge, mock_rebase, state_dir):
     mock_rebase.return_value = {"success": True, "error": None}
     mock_merge.return_value = {"success": False, "error": "merge conflict"}
@@ -424,8 +424,8 @@ def test_process_next_merge_failure_marks_failed(mock_merge, mock_rebase, state_
     assert data["entries"][0]["status"] == "failed"
 
 
-@patch("cobuilder.attractor.merge_queue.rebase_and_test")
-@patch("cobuilder.attractor.merge_queue.merge_branch")
+@patch("cobuilder.engine.merge_queue.rebase_and_test")
+@patch("cobuilder.engine.merge_queue.merge_branch")
 def test_process_next_processes_fifo(mock_merge, mock_rebase, state_dir):
     """process_next should process entries in FIFO order."""
     mock_rebase.return_value = {"success": True, "error": None}

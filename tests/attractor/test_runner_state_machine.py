@@ -17,10 +17,10 @@ import unittest
 from unittest.mock import MagicMock, patch, call
 
 # Ensure attractor package is importable
-import cobuilder.attractor as _attractor_pkg
+import cobuilder.engine as _attractor_pkg
 
-# Resolve the cobuilder/attractor package directory for scripts_dir references
-_ATTRACTOR_DIR = os.path.dirname(os.path.abspath(_attractor_pkg.__file__))
+# Resolve the cobuilder/engine package directory for scripts_dir references
+_ENGINE_DIR = os.path.dirname(os.path.abspath(_attractor_pkg.__file__))
 
 
 # ---------------------------------------------------------------------------
@@ -32,7 +32,7 @@ _PRD = "PRD-AUTH-001"
 _SESSION = "orch-auth-001"
 _TARGET = "/tmp/project"
 _DOT = "/tmp/pipeline.dot"
-_SCRIPTS = _ATTRACTOR_DIR
+_SCRIPTS = _ENGINE_DIR
 
 
 def _make_machine(**overrides):
@@ -43,7 +43,7 @@ def _make_machine(**overrides):
     (runner.runner_tools) since RunnerStateMachine imports runner_tools in
     __init__ via the module-level import of runner.
     """
-    from cobuilder.attractor.session_runner import RunnerStateMachine
+    from cobuilder.engine.session_runner import RunnerStateMachine
     return RunnerStateMachine(
         node_id=overrides.get("node_id", _NODE),
         prd_ref=overrides.get("prd_ref", _PRD),
@@ -66,19 +66,19 @@ class TestRunnerMode(unittest.TestCase):
     """Tests for RunnerMode constants."""
 
     def test_monitor_constant(self) -> None:
-        from cobuilder.attractor.session_runner import RunnerMode
+        from cobuilder.engine.session_runner import RunnerMode
         self.assertEqual(RunnerMode.MONITOR, "MONITOR")
 
     def test_complete_constant(self) -> None:
-        from cobuilder.attractor.session_runner import RunnerMode
+        from cobuilder.engine.session_runner import RunnerMode
         self.assertEqual(RunnerMode.COMPLETE, "COMPLETE")
 
     def test_failed_constant(self) -> None:
-        from cobuilder.attractor.session_runner import RunnerMode
+        from cobuilder.engine.session_runner import RunnerMode
         self.assertEqual(RunnerMode.FAILED, "FAILED")
 
     def test_constants_are_distinct(self) -> None:
-        from cobuilder.attractor.session_runner import RunnerMode
+        from cobuilder.engine.session_runner import RunnerMode
         values = {RunnerMode.MONITOR, RunnerMode.COMPLETE, RunnerMode.FAILED}
         self.assertEqual(len(values), 3)
 
@@ -92,7 +92,7 @@ class TestBuildMonitorPrompt(unittest.TestCase):
     """Tests for build_monitor_prompt()."""
 
     def _call(self, **kwargs) -> str:
-        from cobuilder.attractor.session_runner import build_monitor_prompt
+        from cobuilder.engine.session_runner import build_monitor_prompt
         return build_monitor_prompt(
             node_id=kwargs.get("node_id", _NODE),
             session_name=kwargs.get("session_name", _SESSION),
@@ -149,7 +149,7 @@ class TestRunnerStateMachineInit(unittest.TestCase):
         #   import signal_protocol as _sp  (cached, no filesystem)
         #   self._scripts_dir = resolve_scripts_dir()  (returns _THIS_DIR constant)
         # No mocking is required — instantiation has no side-effects.
-        from cobuilder.attractor.session_runner import RunnerStateMachine
+        from cobuilder.engine.session_runner import RunnerStateMachine
         return RunnerStateMachine(
             node_id=kwargs.get("node_id", _NODE),
             prd_ref=kwargs.get("prd_ref", _PRD),
@@ -163,7 +163,7 @@ class TestRunnerStateMachineInit(unittest.TestCase):
         )
 
     def test_mode_starts_as_monitor(self) -> None:
-        from cobuilder.attractor.session_runner import RunnerMode
+        from cobuilder.engine.session_runner import RunnerMode
         machine = self._make()
         self.assertEqual(machine.mode, RunnerMode.MONITOR)
 
@@ -214,7 +214,7 @@ class TestDoMonitorMode(unittest.TestCase):
 
     def _make_machine_with_mocks(self, asyncio_run_side_effect=None):
         """Return a machine and configure asyncio.run and build_options mocks."""
-        from cobuilder.attractor.session_runner import RunnerStateMachine
+        from cobuilder.engine.session_runner import RunnerStateMachine
         machine = RunnerStateMachine.__new__(RunnerStateMachine)
         machine.node_id = _NODE
         machine.prd_ref = _PRD
@@ -264,9 +264,9 @@ class TestDoMonitorMode(unittest.TestCase):
             except Exception:
                 pass
 
-        with patch("cobuilder.attractor.session_runner.build_monitor_prompt", return_value="test prompt"), \
-             patch("cobuilder.attractor.session_runner.build_options", return_value=MagicMock()), \
-             patch("cobuilder.attractor.session_runner.asyncio.run") as mock_run:
+        with patch("cobuilder.engine.session_runner.build_monitor_prompt", return_value="test prompt"), \
+             patch("cobuilder.engine.session_runner.build_options", return_value=MagicMock()), \
+             patch("cobuilder.engine.session_runner.asyncio.run") as mock_run:
 
             # Side effect: after asyncio.run is called, the text_blocks list
             # inside _do_monitor_mode is populated by the mock.
@@ -287,7 +287,7 @@ class TestDoMonitorMode(unittest.TestCase):
 
     def test_completed_when_status_completed_in_output(self) -> None:
         """Returns 'COMPLETED' when LLM output contains 'STATUS: COMPLETED'."""
-        from cobuilder.attractor.session_runner import RunnerStateMachine
+        from cobuilder.engine.session_runner import RunnerStateMachine
         machine = RunnerStateMachine.__new__(RunnerStateMachine)
         machine.node_id = _NODE
         machine.prd_ref = _PRD
@@ -305,9 +305,9 @@ class TestDoMonitorMode(unittest.TestCase):
         async def fake_run_with_capture():
             pass  # text_blocks is populated by asyncio.run mock
 
-        with patch("cobuilder.attractor.session_runner.build_monitor_prompt", return_value="test prompt"), \
-             patch("cobuilder.attractor.session_runner.build_options", return_value=mock_options), \
-             patch("cobuilder.attractor.session_runner.asyncio") as mock_asyncio:
+        with patch("cobuilder.engine.session_runner.build_monitor_prompt", return_value="test prompt"), \
+             patch("cobuilder.engine.session_runner.build_options", return_value=mock_options), \
+             patch("cobuilder.engine.session_runner.asyncio") as mock_asyncio:
 
             # After asyncio.run is called, text_blocks inside the closure is empty.
             # We need to inject text. Patch the whole _do_monitor_mode approach:
@@ -336,7 +336,7 @@ class TestDoMonitorMode(unittest.TestCase):
 
     def test_do_monitor_returns_completed_string(self) -> None:
         """_do_monitor_mode() returns the string 'COMPLETED' on STATUS: COMPLETED."""
-        from cobuilder.attractor.session_runner import RunnerStateMachine, RunnerMode
+        from cobuilder.engine.session_runner import RunnerStateMachine, RunnerMode
 
         machine = RunnerStateMachine.__new__(RunnerStateMachine)
         machine.node_id = _NODE
@@ -360,7 +360,7 @@ class TestDoMonitorMode(unittest.TestCase):
 
     def test_do_monitor_returns_failed_string(self) -> None:
         """_do_monitor_mode() returning 'FAILED' causes run() to return FAILED."""
-        from cobuilder.attractor.session_runner import RunnerStateMachine, RunnerMode
+        from cobuilder.engine.session_runner import RunnerStateMachine, RunnerMode
 
         machine = RunnerStateMachine.__new__(RunnerStateMachine)
         machine.node_id = _NODE
@@ -383,7 +383,7 @@ class TestDoMonitorMode(unittest.TestCase):
 
     def test_do_monitor_in_progress_continues_loop(self) -> None:
         """'IN_PROGRESS' keeps the state machine in MONITOR mode (until cycles exceed)."""
-        from cobuilder.attractor.session_runner import RunnerStateMachine, RunnerMode
+        from cobuilder.engine.session_runner import RunnerStateMachine, RunnerMode
 
         machine = RunnerStateMachine.__new__(RunnerStateMachine)
         machine.node_id = _NODE
@@ -415,7 +415,7 @@ class TestWriteSafetyNet(unittest.TestCase):
     """Tests for RunnerStateMachine._write_safety_net_if_needed()."""
 
     def _make_machine(self, mode: str, signals_dir: str | None = None):
-        from cobuilder.attractor.session_runner import RunnerStateMachine, RunnerMode
+        from cobuilder.engine.session_runner import RunnerStateMachine, RunnerMode
         machine = RunnerStateMachine.__new__(RunnerStateMachine)
         machine.node_id = _NODE
         machine.prd_ref = _PRD
@@ -435,28 +435,28 @@ class TestWriteSafetyNet(unittest.TestCase):
 
     def test_writes_signal_when_mode_is_failed(self) -> None:
         """Safety net writes RUNNER_EXITED signal when mode is FAILED."""
-        from cobuilder.attractor.session_runner import RunnerMode
+        from cobuilder.engine.session_runner import RunnerMode
         machine, mock_sp = self._make_machine(RunnerMode.FAILED)
         machine._write_safety_net_if_needed()
         mock_sp.write_runner_exited.assert_called_once()
 
     def test_writes_signal_when_mode_is_monitor(self) -> None:
         """Safety net writes RUNNER_EXITED signal when mode is still MONITOR."""
-        from cobuilder.attractor.session_runner import RunnerMode
+        from cobuilder.engine.session_runner import RunnerMode
         machine, mock_sp = self._make_machine(RunnerMode.MONITOR)
         machine._write_safety_net_if_needed()
         mock_sp.write_runner_exited.assert_called_once()
 
     def test_does_not_write_signal_when_mode_is_complete(self) -> None:
         """Safety net does NOT write signal when mode is COMPLETE."""
-        from cobuilder.attractor.session_runner import RunnerMode
+        from cobuilder.engine.session_runner import RunnerMode
         machine, mock_sp = self._make_machine(RunnerMode.COMPLETE)
         machine._write_safety_net_if_needed()
         mock_sp.write_runner_exited.assert_not_called()
 
     def test_payload_contains_node_id(self) -> None:
         """Safety net signal contains the node_id in the call."""
-        from cobuilder.attractor.session_runner import RunnerMode
+        from cobuilder.engine.session_runner import RunnerMode
         machine, mock_sp = self._make_machine(RunnerMode.FAILED)
         machine._write_safety_net_if_needed()
         call_kwargs = mock_sp.write_runner_exited.call_args
@@ -466,7 +466,7 @@ class TestWriteSafetyNet(unittest.TestCase):
 
     def test_payload_contains_prd_ref(self) -> None:
         """Safety net signal contains the prd_ref in the call."""
-        from cobuilder.attractor.session_runner import RunnerMode
+        from cobuilder.engine.session_runner import RunnerMode
         machine, mock_sp = self._make_machine(RunnerMode.FAILED)
         machine._write_safety_net_if_needed()
         call_kwargs = mock_sp.write_runner_exited.call_args
@@ -475,7 +475,7 @@ class TestWriteSafetyNet(unittest.TestCase):
 
     def test_signals_dir_passed_through(self, tmp_path=None) -> None:
         """Safety net passes signals_dir to write_runner_exited."""
-        from cobuilder.attractor.session_runner import RunnerMode
+        from cobuilder.engine.session_runner import RunnerMode
         machine, mock_sp = self._make_machine(RunnerMode.FAILED, signals_dir="/tmp/sigs")
         machine._write_safety_net_if_needed()
         call_kwargs = mock_sp.write_runner_exited.call_args
@@ -484,7 +484,7 @@ class TestWriteSafetyNet(unittest.TestCase):
 
     def test_swallows_signal_write_exception(self) -> None:
         """Safety net does not raise if write_runner_exited() raises."""
-        from cobuilder.attractor.session_runner import RunnerMode
+        from cobuilder.engine.session_runner import RunnerMode
         machine, mock_sp = self._make_machine(RunnerMode.FAILED)
         mock_sp.write_runner_exited.side_effect = OSError("disk full")
         # Should not raise
@@ -503,7 +503,7 @@ class TestRunnerStateMachineRun(unittest.TestCase):
     """Tests for RunnerStateMachine.run()."""
 
     def _make_machine(self, max_cycles: int = 3):
-        from cobuilder.attractor.session_runner import RunnerStateMachine, RunnerMode
+        from cobuilder.engine.session_runner import RunnerStateMachine, RunnerMode
         machine = RunnerStateMachine.__new__(RunnerStateMachine)
         machine.node_id = _NODE
         machine.prd_ref = _PRD
@@ -520,21 +520,21 @@ class TestRunnerStateMachineRun(unittest.TestCase):
         return machine
 
     def test_run_returns_complete_when_monitor_says_completed(self) -> None:
-        from cobuilder.attractor.session_runner import RunnerMode
+        from cobuilder.engine.session_runner import RunnerMode
         machine = self._make_machine()
         with patch.object(machine, "_do_monitor_mode", return_value="COMPLETED"):
             result = machine.run()
         self.assertEqual(result, RunnerMode.COMPLETE)
 
     def test_run_returns_failed_when_monitor_says_failed(self) -> None:
-        from cobuilder.attractor.session_runner import RunnerMode
+        from cobuilder.engine.session_runner import RunnerMode
         machine = self._make_machine()
         with patch.object(machine, "_do_monitor_mode", return_value="FAILED"):
             result = machine.run()
         self.assertEqual(result, RunnerMode.FAILED)
 
     def test_run_returns_failed_when_max_cycles_exceeded(self) -> None:
-        from cobuilder.attractor.session_runner import RunnerMode
+        from cobuilder.engine.session_runner import RunnerMode
         machine = self._make_machine(max_cycles=2)
         with patch.object(machine, "_do_monitor_mode", return_value="IN_PROGRESS"):
             result = machine.run()
@@ -542,7 +542,7 @@ class TestRunnerStateMachineRun(unittest.TestCase):
 
     def test_run_calls_do_monitor_mode_until_terminal(self) -> None:
         """run() calls _do_monitor_mode repeatedly until a terminal status."""
-        from cobuilder.attractor.session_runner import RunnerMode
+        from cobuilder.engine.session_runner import RunnerMode
         machine = self._make_machine()
         responses = ["IN_PROGRESS", "IN_PROGRESS", "COMPLETED"]
         with patch.object(machine, "_do_monitor_mode", side_effect=responses):
@@ -576,7 +576,7 @@ class TestRunnerStateMachineRun(unittest.TestCase):
 
     def test_run_mode_is_complete_before_safety_net_on_success(self) -> None:
         """After COMPLETED, mode is set to COMPLETE before _write_safety_net_if_needed."""
-        from cobuilder.attractor.session_runner import RunnerMode
+        from cobuilder.engine.session_runner import RunnerMode
         machine = self._make_machine()
         mode_at_safety_net_call = []
 
@@ -610,7 +610,7 @@ class TestDotFileInDryRunConfig(unittest.TestCase):
         import io
         import json
         from contextlib import redirect_stdout
-        import cobuilder.attractor.session_runner as runner
+        import cobuilder.engine.session_runner as runner
 
         base_args = [
             "--node", "n1", "--prd", "PRD-X-001",

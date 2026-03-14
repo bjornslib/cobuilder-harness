@@ -19,7 +19,7 @@ import pytest
 
 # Ensure attractor package is importable
 
-from cobuilder.attractor.hook_manager import (  # noqa: E402
+from cobuilder.engine.hook_manager import (  # noqa: E402
     VALID_PHASES,
     create_hook,
     mark_merged,

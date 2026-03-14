@@ -69,10 +69,10 @@ class CodergenHandler:
         self._spawner = spawner                # None → import at call time
         self._signal_poller = signal_poller    # None → default filesystem poller
         self._timeout_s = timeout_s or float(
-            os.environ.get("ATTRACTOR_HANDLER_TIMEOUT", _DEFAULT_TIMEOUT_S)
+            os.environ.get("PIPELINE_HANDLER_TIMEOUT", _DEFAULT_TIMEOUT_S)
         )
         self._poll_interval_s = poll_interval_s or float(
-            os.environ.get("ATTRACTOR_SIGNAL_POLL_INTERVAL", _DEFAULT_POLL_INTERVAL_S)
+            os.environ.get("PIPELINE_SIGNAL_POLL_INTERVAL", _DEFAULT_POLL_INTERVAL_S)
         )
 
     async def execute(self, request: HandlerRequest) -> Outcome:

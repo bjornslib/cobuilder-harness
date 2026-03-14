@@ -329,7 +329,7 @@ This separation means:
 All inter-layer communication uses atomic JSON signal files. No databases, no message queues, no network services — just the filesystem with rename-on-close atomicity.
 
 ```
-.claude/attractor/signals/
+.pipelines/signals/
 ├── 20260224T143052Z-runner-guardian-NEEDS_REVIEW.json
 ├── 20260224T143120Z-guardian-runner-VALIDATION_PASSED.json
 ├── processed/

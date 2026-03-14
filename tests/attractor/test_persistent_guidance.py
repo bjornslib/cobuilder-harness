@@ -31,7 +31,7 @@ def guidance_dir(tmp_path):
 class TestLoadPersistedGuidance:
     def test_loads_existing_guidance(self, guidance_dir):
         """Guidance file exists and is readable."""
-        from cobuilder.attractor.pipeline_runner import PipelineRunner
+        from cobuilder.engine.pipeline_runner import PipelineRunner
 
         runner = PipelineRunner.__new__(PipelineRunner)
         runner.signal_dir = str(guidance_dir)
@@ -42,7 +42,7 @@ class TestLoadPersistedGuidance:
 
     def test_returns_none_for_missing_node(self, guidance_dir):
         """No guidance file for this node."""
-        from cobuilder.attractor.pipeline_runner import PipelineRunner
+        from cobuilder.engine.pipeline_runner import PipelineRunner
 
         runner = PipelineRunner.__new__(PipelineRunner)
         runner.signal_dir = str(guidance_dir)
@@ -54,7 +54,7 @@ class TestLoadPersistedGuidance:
         """Empty guidance file should return None."""
         (guidance_dir / "guidance" / "empty_node.txt").write_text("")
 
-        from cobuilder.attractor.pipeline_runner import PipelineRunner
+        from cobuilder.engine.pipeline_runner import PipelineRunner
 
         runner = PipelineRunner.__new__(PipelineRunner)
         runner.signal_dir = str(guidance_dir)
@@ -64,7 +64,7 @@ class TestLoadPersistedGuidance:
 
     def test_does_not_delete_file(self, guidance_dir):
         """Loading guidance should NOT delete the file (persists across retries)."""
-        from cobuilder.attractor.pipeline_runner import PipelineRunner
+        from cobuilder.engine.pipeline_runner import PipelineRunner
 
         runner = PipelineRunner.__new__(PipelineRunner)
         runner.signal_dir = str(guidance_dir)

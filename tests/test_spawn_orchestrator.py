@@ -13,16 +13,16 @@ import os
 import unittest
 from unittest.mock import MagicMock, patch, call
 
-# Add the attractor package root so spawn_orchestrator is importable.
-_ATTRACTOR_DIR = os.path.join(
+# Add the engine package root so spawn_orchestrator is importable.
+_ENGINE_DIR = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
     "..",
     ".claude",
     "scripts",
-    "attractor",
+    "engine",
 )
-if _ATTRACTOR_DIR not in sys.path:
-    sys.path.insert(0, _ATTRACTOR_DIR)
+if _ENGINE_DIR not in sys.path:
+    sys.path.insert(0, _ENGINE_DIR)
 
 from spawn_orchestrator import cleanup_orchestrator
 

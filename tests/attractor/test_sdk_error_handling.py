@@ -32,7 +32,7 @@ import pytest
 
 def _make_runner(signal_dir: str) -> object:
     """Create a PipelineRunner bypassing __init__, with just the attrs we need."""
-    from cobuilder.attractor.pipeline_runner import PipelineRunner
+    from cobuilder.engine.pipeline_runner import PipelineRunner
 
     runner = PipelineRunner.__new__(PipelineRunner)
     runner.signal_dir = signal_dir
@@ -79,7 +79,7 @@ class TestStreamErrorHandlerNoResult:
         We invoke _dispatch_via_sdk directly by mocking ``claude_code_sdk.query``
         to yield a handshake message then raise a rate-limit exception.
         """
-        from cobuilder.attractor import pipeline_runner as pr_mod
+        from cobuilder.engine import pipeline_runner as pr_mod
 
         signal_dir = str(tmp_path / "signals")
         os.makedirs(signal_dir, exist_ok=True)
@@ -124,7 +124,7 @@ class TestStreamErrorHandlerNoResult:
 
     def test_stream_error_without_result_message_contains_error_info(self, tmp_path):
         """Failure message from stream error contains event count and error text."""
-        from cobuilder.attractor import pipeline_runner as pr_mod
+        from cobuilder.engine import pipeline_runner as pr_mod
 
         signal_dir = str(tmp_path / "signals")
         os.makedirs(signal_dir, exist_ok=True)
@@ -179,7 +179,7 @@ class TestStreamErrorHandlerWithResult:
 
     def test_stream_error_after_result_yields_success_if_signal_file_exists(self, tmp_path):
         """When result_text is set AND signal file exists, success is preserved."""
-        from cobuilder.attractor import pipeline_runner as pr_mod
+        from cobuilder.engine import pipeline_runner as pr_mod
 
         signal_dir = str(tmp_path / "signals")
         os.makedirs(signal_dir, exist_ok=True)
@@ -238,7 +238,7 @@ class TestStreamErrorNoMessages:
 
     def test_stream_error_no_messages_results_in_failed(self, tmp_path):
         """Zero-message stream errors propagate → outer except catches → status=failed."""
-        from cobuilder.attractor import pipeline_runner as pr_mod
+        from cobuilder.engine import pipeline_runner as pr_mod
 
         signal_dir = str(tmp_path / "signals")
         os.makedirs(signal_dir, exist_ok=True)
@@ -291,7 +291,7 @@ class TestValidationStreamError:
 
     def test_validation_stream_error_returns_fail(self, tmp_path):
         """When the validation SDK stream raises, result is fail not pass."""
-        from cobuilder.attractor import pipeline_runner as pr_mod
+        from cobuilder.engine import pipeline_runner as pr_mod
 
         signal_dir = str(tmp_path / "signals")
         os.makedirs(signal_dir, exist_ok=True)
@@ -342,7 +342,7 @@ class TestValidationStreamError:
 
     def test_validation_stream_error_reason_contains_exception_text(self, tmp_path):
         """Fail reason includes the exception message text."""
-        from cobuilder.attractor import pipeline_runner as pr_mod
+        from cobuilder.engine import pipeline_runner as pr_mod
 
         signal_dir = str(tmp_path / "signals")
         os.makedirs(signal_dir, exist_ok=True)
@@ -396,7 +396,7 @@ class TestSignalFileExistsPreservesSuccess:
 
     def test_signal_file_exists_preserves_success(self, tmp_path):
         """Normal happy path: worker writes signal file, SDK returns success → stays success."""
-        from cobuilder.attractor import pipeline_runner as pr_mod
+        from cobuilder.engine import pipeline_runner as pr_mod
 
         signal_dir = str(tmp_path / "signals")
         os.makedirs(signal_dir, exist_ok=True)
@@ -443,7 +443,7 @@ class TestSignalFileExistsPreservesSuccess:
 
     def test_signal_file_missing_converts_success_to_failed(self, tmp_path):
         """When signal file is ABSENT and SDK reports success, result becomes failed."""
-        from cobuilder.attractor import pipeline_runner as pr_mod
+        from cobuilder.engine import pipeline_runner as pr_mod
 
         signal_dir = str(tmp_path / "signals")
         os.makedirs(signal_dir, exist_ok=True)
@@ -492,12 +492,12 @@ class TestSignalFileExistsPreservesSuccess:
 
 
 class TestLoadAttractorEnvPath:
-    """dispatch_worker.load_attractor_env() must find cobuilder/attractor/.env
+    """dispatch_worker.load_engine_env() must find cobuilder/engine/.env
     co-located with the module."""
 
-    def test_load_attractor_env_finds_dotenv(self, tmp_path):
-        """load_attractor_env() reads from the directory next to the module."""
-        from cobuilder.attractor import dispatch_worker as dw_mod
+    def test_load_engine_env_finds_dotenv(self, tmp_path):
+        """load_engine_env() reads from the directory next to the module."""
+        from cobuilder.engine import dispatch_worker as dw_mod
 
         # Create a fake .env in a temp dir
         dot_env = tmp_path / ".env"
@@ -512,7 +512,7 @@ class TestLoadAttractorEnvPath:
         original_this_dir = dw_mod._this_dir
         try:
             dw_mod._this_dir = tmp_path
-            result = dw_mod.load_attractor_env()
+            result = dw_mod.load_engine_env()
         finally:
             dw_mod._this_dir = original_this_dir
 
@@ -520,14 +520,14 @@ class TestLoadAttractorEnvPath:
         assert result.get("ANTHROPIC_MODEL") == "qwen-test-model"
         assert "UNRELATED_KEY" not in result, "Non-allowlisted keys must not be returned"
 
-    def test_load_attractor_env_returns_empty_if_missing(self, tmp_path):
-        """When .env is absent, load_attractor_env() returns {} without error."""
-        from cobuilder.attractor import dispatch_worker as dw_mod
+    def test_load_engine_env_returns_empty_if_missing(self, tmp_path):
+        """When .env is absent, load_engine_env() returns {} without error."""
+        from cobuilder.engine import dispatch_worker as dw_mod
 
         original_this_dir = dw_mod._this_dir
         try:
             dw_mod._this_dir = tmp_path  # no .env here
-            result = dw_mod.load_attractor_env()
+            result = dw_mod.load_engine_env()
         finally:
             dw_mod._this_dir = original_this_dir
 
@@ -540,11 +540,11 @@ class TestLoadAttractorEnvPath:
 
 
 class TestPipelineRunnerEnvOverride:
-    """_load_attractor_env must OVERRIDE existing env vars, not skip them."""
+    """_load_engine_env must OVERRIDE existing env vars, not skip them."""
 
     def test_pipeline_runner_env_override(self, tmp_path):
         """If ANTHROPIC_MODEL is already set in os.environ, .env must override it."""
-        from cobuilder.attractor.pipeline_runner import PipelineRunner
+        from cobuilder.engine.pipeline_runner import PipelineRunner
 
         # Create .env in tmp_path (simulating the co-located .env)
         env_file = tmp_path / ".env"
@@ -555,14 +555,14 @@ class TestPipelineRunnerEnvOverride:
         old_val = os.environ.get("ANTHROPIC_MODEL")
         os.environ["ANTHROPIC_MODEL"] = "original-model"
         try:
-            # Mock __file__ resolution so _load_attractor_env finds our temp .env
+            # Mock __file__ resolution so _load_engine_env finds our temp .env
             with patch(
-                "cobuilder.attractor.pipeline_runner.os.path.abspath",
+                "cobuilder.engine.pipeline_runner.os.path.abspath",
                 return_value=str(tmp_path / "pipeline_runner.py"),
             ):
-                runner._load_attractor_env()
+                runner._load_engine_env()
             assert os.environ.get("ANTHROPIC_MODEL") == "overridden-model", (
-                "_load_attractor_env must override existing env vars; "
+                "_load_engine_env must override existing env vars; "
                 f"got {os.environ.get('ANTHROPIC_MODEL')!r}"
             )
         finally:
@@ -579,7 +579,7 @@ class TestPipelineRunnerEnvOverride:
 
 def _make_runner_for_retry(signal_dir: str) -> object:
     """Minimal PipelineRunner suitable for retry tests."""
-    from cobuilder.attractor.pipeline_runner import PipelineRunner
+    from cobuilder.engine.pipeline_runner import PipelineRunner
 
     runner = PipelineRunner.__new__(PipelineRunner)
     runner.signal_dir = signal_dir
@@ -602,7 +602,7 @@ class TestRateLimitRetry:
 
     def test_rate_limit_retry_succeeds_on_second_attempt(self, tmp_path):
         """When the first dispatch fails with rate_limit, a second attempt succeeds."""
-        from cobuilder.attractor import pipeline_runner as pr_mod
+        from cobuilder.engine import pipeline_runner as pr_mod
 
         signal_dir = str(tmp_path / "signals")
         os.makedirs(signal_dir, exist_ok=True)
@@ -635,11 +635,11 @@ class TestRateLimitRetry:
 
         runner._write_node_signal = _fake_write_node_signal
 
-        old_retries = os.environ.get("ATTRACTOR_RATE_LIMIT_RETRIES")
-        old_backoff = os.environ.get("ATTRACTOR_RATE_LIMIT_BACKOFF")
+        old_retries = os.environ.get("PIPELINE_RATE_LIMIT_RETRIES")
+        old_backoff = os.environ.get("PIPELINE_RATE_LIMIT_BACKOFF")
         try:
-            os.environ["ATTRACTOR_RATE_LIMIT_RETRIES"] = "3"
-            os.environ["ATTRACTOR_RATE_LIMIT_BACKOFF"] = "0"  # no sleeping in tests
+            os.environ["PIPELINE_RATE_LIMIT_RETRIES"] = "3"
+            os.environ["PIPELINE_RATE_LIMIT_BACKOFF"] = "0"  # no sleeping in tests
             pr_mod._SDK_AVAILABLE = True
 
             # Call _dispatch_agent_sdk directly (the public method with the retry loop)
@@ -650,13 +650,13 @@ class TestRateLimitRetry:
             )
         finally:
             if old_retries is None:
-                os.environ.pop("ATTRACTOR_RATE_LIMIT_RETRIES", None)
+                os.environ.pop("PIPELINE_RATE_LIMIT_RETRIES", None)
             else:
-                os.environ["ATTRACTOR_RATE_LIMIT_RETRIES"] = old_retries
+                os.environ["PIPELINE_RATE_LIMIT_RETRIES"] = old_retries
             if old_backoff is None:
-                os.environ.pop("ATTRACTOR_RATE_LIMIT_BACKOFF", None)
+                os.environ.pop("PIPELINE_RATE_LIMIT_BACKOFF", None)
             else:
-                os.environ["ATTRACTOR_RATE_LIMIT_BACKOFF"] = old_backoff
+                os.environ["PIPELINE_RATE_LIMIT_BACKOFF"] = old_backoff
 
         assert call_count["n"] == 2, f"Expected 2 dispatch attempts, got {call_count['n']}"
         # The final signal in the signal file should be success
@@ -667,7 +667,7 @@ class TestRateLimitRetry:
 
     def test_rate_limit_retry_gives_up_after_max(self, tmp_path):
         """When every attempt returns rate_limit, retry stops after MAX_RETRIES."""
-        from cobuilder.attractor import pipeline_runner as pr_mod
+        from cobuilder.engine import pipeline_runner as pr_mod
 
         signal_dir = str(tmp_path / "signals")
         os.makedirs(signal_dir, exist_ok=True)
@@ -697,11 +697,11 @@ class TestRateLimitRetry:
 
         runner._write_node_signal = _fake_write_node_signal
 
-        old_retries = os.environ.get("ATTRACTOR_RATE_LIMIT_RETRIES")
-        old_backoff = os.environ.get("ATTRACTOR_RATE_LIMIT_BACKOFF")
+        old_retries = os.environ.get("PIPELINE_RATE_LIMIT_RETRIES")
+        old_backoff = os.environ.get("PIPELINE_RATE_LIMIT_BACKOFF")
         try:
-            os.environ["ATTRACTOR_RATE_LIMIT_RETRIES"] = "3"
-            os.environ["ATTRACTOR_RATE_LIMIT_BACKOFF"] = "0"
+            os.environ["PIPELINE_RATE_LIMIT_RETRIES"] = "3"
+            os.environ["PIPELINE_RATE_LIMIT_BACKOFF"] = "0"
             pr_mod._SDK_AVAILABLE = True
 
             runner._dispatch_agent_sdk(
@@ -711,13 +711,13 @@ class TestRateLimitRetry:
             )
         finally:
             if old_retries is None:
-                os.environ.pop("ATTRACTOR_RATE_LIMIT_RETRIES", None)
+                os.environ.pop("PIPELINE_RATE_LIMIT_RETRIES", None)
             else:
-                os.environ["ATTRACTOR_RATE_LIMIT_RETRIES"] = old_retries
+                os.environ["PIPELINE_RATE_LIMIT_RETRIES"] = old_retries
             if old_backoff is None:
-                os.environ.pop("ATTRACTOR_RATE_LIMIT_BACKOFF", None)
+                os.environ.pop("PIPELINE_RATE_LIMIT_BACKOFF", None)
             else:
-                os.environ["ATTRACTOR_RATE_LIMIT_BACKOFF"] = old_backoff
+                os.environ["PIPELINE_RATE_LIMIT_BACKOFF"] = old_backoff
 
         assert call_count["n"] == 3, (
             f"Expected exactly MAX_RETRIES=3 attempts, got {call_count['n']}"
@@ -741,7 +741,7 @@ class TestSignalWatcherRaceCondition:
 
     def test_sdk_skips_signal_write_when_node_already_advanced(self, tmp_path):
         """When node is impl_complete (signal watcher processed), SDK must not write signal."""
-        from cobuilder.attractor import pipeline_runner as pr_mod
+        from cobuilder.engine import pipeline_runner as pr_mod
 
         signal_dir = str(tmp_path / "signals")
         os.makedirs(signal_dir, exist_ok=True)
@@ -800,7 +800,7 @@ class TestSignalWatcherRaceCondition:
 
     def test_sdk_writes_signal_when_node_still_active(self, tmp_path):
         """When node is still active (signal watcher hasn't processed), SDK SHOULD write signal."""
-        from cobuilder.attractor import pipeline_runner as pr_mod
+        from cobuilder.engine import pipeline_runner as pr_mod
 
         signal_dir = str(tmp_path / "signals")
         os.makedirs(signal_dir, exist_ok=True)

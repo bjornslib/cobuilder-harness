@@ -268,8 +268,8 @@ This creates a continuous monitoring cycle with predictable wake-up intervals an
 - `MONITOR_GATE_WAITING`: A `wait.system3` or `wait.human` gate is active (`.gate-wait` marker detected) → System 3 handles gate response
 
 **Monitoring Mechanism**:
-- **Signal directory polling**: Monitor `.claude/attractor/signals/` for new/modified `.json` files with status changes
-- **DOT file monitoring**: Track `.claude/attractor/pipelines/*.dot` mtime for state transitions
+- **Signal directory polling**: Monitor `.pipelines/signals/` for new/modified `.json` files with status changes
+- **DOT file monitoring**: Track `.pipelines/pipelines/*.dot` mtime for state transitions
 - **Stall detection**: If no state change for >stall_threshold (default 5 minutes), report stall
 
 ### Creating a New Pipeline

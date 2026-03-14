@@ -1,12 +1,12 @@
 """30-day backward-compatibility shim. Expires 2026-04-11.
-Real code lives at cobuilder/attractor/session_runner.py
+Real code lives at cobuilder/engine/session_runner.py
 """
 import warnings
 
 warnings.warn(
     "Importing from .claude/scripts/attractor/runner.py is deprecated. "
-    "Use cobuilder.attractor.session_runner instead.",
+    "Use cobuilder.engine.session_runner instead.",
     DeprecationWarning,
     stacklevel=2,
 )
-from cobuilder.attractor.session_runner import *  # noqa: F401,F403
+from cobuilder.engine.session_runner import *  # noqa: F401,F403

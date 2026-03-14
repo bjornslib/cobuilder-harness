@@ -12,12 +12,12 @@ from __future__ import annotations
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from cobuilder.attractor.gchat_adapter import (
+from cobuilder.engine.gchat_adapter import (
     GChatAdapter,
     _strip_mention,
     _extract_space_from_name,
 )
-from cobuilder.attractor.channel_adapter import InboundMessage, OutboundMessage
+from cobuilder.engine.channel_adapter import InboundMessage, OutboundMessage
 
 
 # ---------------------------------------------------------------------------

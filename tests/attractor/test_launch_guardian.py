@@ -28,8 +28,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 # Ensure the attractor package root is on sys.path (mirrors conftest.py).
 
-import cobuilder.attractor.guardian as guardian  # noqa: E402
-from cobuilder.attractor.guardian import (  # noqa: E402
+import cobuilder.engine.guardian as guardian  # noqa: E402
+from cobuilder.engine.guardian import (  # noqa: E402
     build_env_config,
     build_initial_prompt,
     build_system_prompt,
@@ -276,7 +276,7 @@ class TestBuildSystemPrompt(unittest.TestCase):
 
     def test_matches_guardian_agent_output(self) -> None:
         """build_system_prompt is in merged guardian module."""
-        import cobuilder.attractor.guardian as guardian
+        import cobuilder.engine.guardian as guardian
 
         expected = guardian.build_system_prompt(
             dot_path=_DOT_PATH,
@@ -346,7 +346,7 @@ class TestBuildInitialPrompt(unittest.TestCase):
 
     def test_matches_guardian_agent_output(self) -> None:
         """build_initial_prompt is in merged guardian module."""
-        import cobuilder.attractor.guardian as guardian
+        import cobuilder.engine.guardian as guardian
 
         expected = guardian.build_initial_prompt(
             dot_path=_DOT_PATH,
@@ -411,21 +411,21 @@ class TestResolveScriptsDir(unittest.TestCase):
         result = resolve_scripts_dir()
         self.assertTrue(
             os.path.exists(os.path.join(result, "guardian.py")),
-            f"cobuilder.attractor.guardian.py not found in {result}",
+            f"cobuilder.engine.guardian.py not found in {result}",
         )
 
     def test_contains_guardian_agent(self) -> None:
         result = resolve_scripts_dir()
         self.assertTrue(
             os.path.exists(os.path.join(result, "guardian.py")),
-            f"cobuilder.attractor.guardian.py not found in {result}",
+            f"cobuilder.engine.guardian.py not found in {result}",
         )
 
     def test_contains_signal_protocol(self) -> None:
         result = resolve_scripts_dir()
         self.assertTrue(
             os.path.exists(os.path.join(result, "signal_protocol.py")),
-            f"cobuilder.attractor.signal_protocol.py not found in {result}",
+            f"cobuilder.engine.signal_protocol.py not found in {result}",
         )
 
     def test_consistent_across_calls(self) -> None:
@@ -517,7 +517,7 @@ class TestLaunchGuardianDryRun(unittest.TestCase):
 
     def test_does_not_call_run_agent(self) -> None:
         """dry_run must never invoke _run_agent()."""
-        with patch("cobuilder.attractor.guardian._run_agent") as mock_run:
+        with patch("cobuilder.engine.guardian._run_agent") as mock_run:
             self._call_dry()
             mock_run.assert_not_called()
 
@@ -592,7 +592,7 @@ class TestLaunchMultipleGuardians(unittest.TestCase):
             {"dot_path": "/tmp/p.dot", "project_root": "/tmp", "pipeline_id": "another-good", "dry_run": False},
         ]
 
-        with patch("cobuilder.attractor.guardian._launch_guardian_async", side_effect=fake_launch):
+        with patch("cobuilder.engine.guardian._launch_guardian_async", side_effect=fake_launch):
             results = guardian.launch_multiple_guardians(configs)
 
         self.assertEqual(len(results), 3)
@@ -607,7 +607,7 @@ class TestLaunchMultipleGuardians(unittest.TestCase):
             raise RuntimeError("always fails")
 
         configs = [{"dot_path": "/tmp/p.dot", "project_root": "/tmp", "pipeline_id": "fail-pipe"}]
-        with patch("cobuilder.attractor.guardian._launch_guardian_async", side_effect=always_fail):
+        with patch("cobuilder.engine.guardian._launch_guardian_async", side_effect=always_fail):
             results = guardian.launch_multiple_guardians(configs)
 
         self.assertEqual(results[0]["status"], "error")
@@ -634,7 +634,7 @@ class TestMonitorGuardian(unittest.TestCase):
                 raise TimeoutError("No signal within 1s")
             return signal_data
 
-        with patch("cobuilder.attractor.guardian.wait_for_signal", mock_wait_for_signal):
+        with patch("cobuilder.engine.guardian.wait_for_signal", mock_wait_for_signal):
             return monitor_guardian(
                 guardian_process=None,
                 dot_path="/tmp/pipeline.dot",
@@ -677,7 +677,7 @@ class TestMonitorGuardian(unittest.TestCase):
         def mock_wait(**kwargs):
             raise OSError("disk error")
 
-        with patch("cobuilder.attractor.guardian.wait_for_signal", mock_wait):
+        with patch("cobuilder.engine.guardian.wait_for_signal", mock_wait):
             result = monitor_guardian(None, "/tmp/pipeline.dot")
 
         self.assertEqual(result["status"], "error")
@@ -940,7 +940,7 @@ class TestCLIIntegrationDryRun(unittest.TestCase):
 
     def test_dry_run_does_not_call_run_agent(self) -> None:
         """Dry-run must never invoke the SDK _run_agent()."""
-        with patch("cobuilder.attractor.guardian._run_agent") as mock_run:
+        with patch("cobuilder.engine.guardian._run_agent") as mock_run:
             buf = io.StringIO()
             with self.assertRaises(SystemExit):
                 with redirect_stdout(buf):
@@ -1158,7 +1158,7 @@ class TestMonitorGuardianValidationComplete(unittest.TestCase):
         def mock_wait_for_signal(**wait_kwargs):
             return signal_data
 
-        with patch("cobuilder.attractor.guardian.wait_for_signal", mock_wait_for_signal):
+        with patch("cobuilder.engine.guardian.wait_for_signal", mock_wait_for_signal):
             return monitor_guardian(
                 guardian_process=None,
                 dot_path="/tmp/pipeline.dot",
@@ -1227,8 +1227,8 @@ class TestIdentityRegistration(unittest.TestCase):
                 "--pipeline-id", "test-pipeline",
                 "--target-dir", tmp_dir,
             ]
-            with patch("cobuilder.attractor.guardian.launch_guardian") as mock_launch, \
-                 patch("cobuilder.attractor.guardian.identity_registry") as mock_registry:
+            with patch("cobuilder.engine.guardian.launch_guardian") as mock_launch, \
+                 patch("cobuilder.engine.guardian.identity_registry") as mock_registry:
                 mock_launch.return_value = {"status": "ok", "pipeline_id": "test-pipeline", "dot_path": dot_path}
                 buf = io.StringIO()
                 try:
@@ -1248,8 +1248,8 @@ class TestIdentityRegistration(unittest.TestCase):
                 "--pipeline-id", "test-pipeline",
                 "--target-dir", tmp_dir,
             ]
-            with patch("cobuilder.attractor.guardian.launch_guardian") as mock_launch, \
-                 patch("cobuilder.attractor.guardian.identity_registry") as mock_registry:
+            with patch("cobuilder.engine.guardian.launch_guardian") as mock_launch, \
+                 patch("cobuilder.engine.guardian.identity_registry") as mock_registry:
                 mock_launch.return_value = {"status": "ok", "pipeline_id": "test-pipeline", "dot_path": dot_path}
                 buf = io.StringIO()
                 try:
@@ -1274,8 +1274,8 @@ class TestIdentityRegistration(unittest.TestCase):
                 "--pipeline-id", "test-pipeline",
                 "--target-dir", tmp_dir,
             ]
-            with patch("cobuilder.attractor.guardian.launch_guardian") as mock_launch, \
-                 patch("cobuilder.attractor.guardian.identity_registry") as mock_registry:
+            with patch("cobuilder.engine.guardian.launch_guardian") as mock_launch, \
+                 patch("cobuilder.engine.guardian.identity_registry") as mock_registry:
                 mock_launch.return_value = {"status": "ok", "pipeline_id": "test-pipeline", "dot_path": dot_path}
                 buf = io.StringIO()
                 try:
@@ -1298,7 +1298,7 @@ class TestIdentityRegistration(unittest.TestCase):
                 "--target-dir", tmp_dir,
                 "--dry-run",
             ]
-            with patch("cobuilder.attractor.guardian.identity_registry") as mock_registry:
+            with patch("cobuilder.engine.guardian.identity_registry") as mock_registry:
                 buf = io.StringIO()
                 with self.assertRaises(SystemExit):
                     with redirect_stdout(buf):

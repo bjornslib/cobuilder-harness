@@ -22,7 +22,7 @@ Signal File Format:
 
 Directory Resolution (in order of precedence):
     1. Explicit ``signals_dir`` argument
-    2. ``ATTRACTOR_SIGNALS_DIR`` environment variable
+    2. ``PIPELINE_SIGNALS_DIR`` environment variable
     3. ``{git_root}/.claude/attractor/signals/`` (found via .git walk)
     4. ``~/.claude/attractor/signals/`` (fallback)
 """
@@ -85,7 +85,7 @@ def _find_git_root(start: str) -> Optional[str]:
 
 def _default_signals_dir() -> str:
     """Resolve the default signals directory using env var or git root."""
-    env_dir = os.environ.get("ATTRACTOR_SIGNALS_DIR")
+    env_dir = os.environ.get("PIPELINE_SIGNALS_DIR")
     if env_dir:
         return env_dir
 

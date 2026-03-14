@@ -12,7 +12,7 @@ AC-F8:
 - Returns ``Outcome(status=WAITING)`` when no signal received within poll cycle.
 - On ``INPUT_RESPONSE`` with ``response="approve"``: returns SUCCESS.
 - On ``INPUT_RESPONSE`` with ``response="reject"``: returns FAILURE.
-- Respects ``ATTRACTOR_HUMAN_GATE_TIMEOUT`` (default: indefinite).
+- Respects ``PIPELINE_HUMAN_GATE_TIMEOUT`` (default: indefinite).
 """
 from __future__ import annotations
 
@@ -49,8 +49,8 @@ class WaitHumanHandler:
         timeout_s: float | None = None,
         poll_interval_s: float | None = None,
     ) -> None:
-        # AC-F8: default = indefinite (ATTRACTOR_HUMAN_GATE_TIMEOUT env var)
-        env_timeout = os.environ.get("ATTRACTOR_HUMAN_GATE_TIMEOUT", "")
+        # AC-F8: default = indefinite (PIPELINE_HUMAN_GATE_TIMEOUT env var)
+        env_timeout = os.environ.get("PIPELINE_HUMAN_GATE_TIMEOUT", "")
         if timeout_s is not None:
             self._timeout_s = timeout_s
         elif env_timeout:

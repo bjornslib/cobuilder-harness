@@ -16,8 +16,8 @@ import sys
 import pytest
 
 
-from cobuilder.attractor.parser import parse_dot
-from cobuilder.attractor.validator import validate, WARNING_ATTRS, VALID_HANDLERS, HANDLER_SHAPE_MAP, REQUIRED_ATTRS
+from cobuilder.engine.dispatch_parser import parse_dot
+from cobuilder.engine.validator import validate, WARNING_ATTRS, VALID_HANDLERS, HANDLER_SHAPE_MAP, REQUIRED_ATTRS
 
 # ---------------------------------------------------------------------------
 # Test fixtures (DOT strings)

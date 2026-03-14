@@ -6,7 +6,7 @@
 //
 // Validates with: dot -Tpng full-initiative.dot -o full-initiative.png
 //
-// Schema: .claude/attractor/schema.md
+// Schema: .pipelines/schema.md
 // PRD: PRD-AUTH-001 (Login Feature)
 
 digraph "PRD-AUTH-001" {

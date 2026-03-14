@@ -20,8 +20,8 @@ from unittest.mock import patch
 
 # Ensure the attractor package root is on sys.path (mirrors conftest.py).
 
-import cobuilder.attractor.guardian as guardian  # noqa: E402
-from cobuilder.attractor.guardian import (  # noqa: E402
+import cobuilder.engine.guardian as guardian  # noqa: E402
+from cobuilder.engine.guardian import (  # noqa: E402
     build_env_config,
     build_initial_prompt,
     build_options,
@@ -509,7 +509,7 @@ class TestDryRunMode(unittest.TestCase):
         import io
         from contextlib import redirect_stdout
 
-        with patch("cobuilder.attractor.guardian._run_agent") as mock_run:
+        with patch("cobuilder.engine.guardian._run_agent") as mock_run:
             buf = io.StringIO()
             with self.assertRaises(SystemExit):
                 with redirect_stdout(buf):
@@ -544,7 +544,7 @@ class TestResolveScriptsDir(unittest.TestCase):
         result = resolve_scripts_dir()
         self.assertTrue(
             os.path.exists(os.path.join(result, "guardian.py")),
-            f"cobuilder.attractor.guardian.py not found in {result}",
+            f"cobuilder.engine.guardian.py not found in {result}",
         )
 
     def test_contains_wait_for_signal(self) -> None:
@@ -564,7 +564,7 @@ class TestResolveScriptsDir(unittest.TestCase):
         result = resolve_scripts_dir()
         self.assertTrue(
             os.path.exists(os.path.join(result, "session_runner.py")),
-            f"cobuilder.attractor.session_runner.py not found in {result}",
+            f"cobuilder.engine.session_runner.py not found in {result}",
         )
 
 

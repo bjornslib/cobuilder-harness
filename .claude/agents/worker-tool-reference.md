@@ -391,11 +391,11 @@ mcp__serena__replace_symbol_body(name_path="ClassName/method_name", relative_pat
 The validation-test-agent commits on your behalf after successful validation.
 This ensures commits are only made for validated, scoped work.
 
-On task completion, write a signal file to `$ATTRACTOR_SIGNAL_DIR/{node_id}.json`:
+On task completion, write a signal file to `$PIPELINE_SIGNAL_DIR/{node_id}.json`:
 
 ```bash
 # First, check the signal directory path
-Bash(command="echo $ATTRACTOR_SIGNAL_DIR", description="Get signal directory path")
+Bash(command="echo $PIPELINE_SIGNAL_DIR", description="Get signal directory path")
 ```
 
 Then write the signal (this is a NEW file, so Write is correct):

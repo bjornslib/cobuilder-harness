@@ -16,12 +16,12 @@ import os
 import subprocess
 import sys
 
-import cobuilder.attractor as _attractor_pkg
+import cobuilder.engine as _attractor_pkg
 
 # Directory containing the CLI scripts
-_ATTRACTOR_DIR = os.path.dirname(os.path.abspath(_attractor_pkg.__file__))
+_ENGINE_DIR = os.path.dirname(os.path.abspath(_attractor_pkg.__file__))
 # Project root (parent of cobuilder/) for PYTHONPATH injection in subprocesses
-_PROJECT_ROOT = os.path.dirname(os.path.dirname(_ATTRACTOR_DIR))
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(_ENGINE_DIR))
 
 
 def _run_cli(script_name: str, args: list, env_overrides: dict = None,
@@ -37,7 +37,7 @@ def _run_cli(script_name: str, args: list, env_overrides: dict = None,
     Returns:
         Tuple of (returncode, stdout_str, stderr_str)
     """
-    script_path = os.path.join(_ATTRACTOR_DIR, script_name)
+    script_path = os.path.join(_ENGINE_DIR, script_name)
     cmd = [sys.executable, script_path] + args
 
     env = os.environ.copy()
@@ -81,7 +81,7 @@ class TestSignalGuardianCLI:
         rc, stdout, _ = _run_cli(
             "signal_guardian.py",
             ["NEEDS_REVIEW", "--node", "impl_auth", "--evidence", "/tmp/ev"],
-            env_overrides={"ATTRACTOR_SIGNALS_DIR": signals_dir},
+            env_overrides={"PIPELINE_SIGNALS_DIR": signals_dir},
         )
 
         assert rc == 0, f"Expected exit 0, got {rc}. stdout={stdout}"
@@ -98,7 +98,7 @@ class TestSignalGuardianCLI:
             "signal_guardian.py",
             ["NEEDS_REVIEW", "--node", "impl_auth",
              "--commit", "abc123", "--summary", "auth module complete"],
-            env_overrides={"ATTRACTOR_SIGNALS_DIR": signals_dir},
+            env_overrides={"PIPELINE_SIGNALS_DIR": signals_dir},
         )
 
         assert rc == 0
@@ -121,7 +121,7 @@ class TestSignalGuardianCLI:
         rc, stdout, _ = _run_cli(
             "signal_guardian.py",
             ["STUCK", "--node", "impl_auth", "--reason", "cannot proceed"],
-            env_overrides={"ATTRACTOR_SIGNALS_DIR": signals_dir},
+            env_overrides={"PIPELINE_SIGNALS_DIR": signals_dir},
         )
         assert rc == 0
         data = _parse_json_output(stdout)
@@ -135,7 +135,7 @@ class TestSignalGuardianCLI:
             "signal_guardian.py",
             ["NEEDS_REVIEW", "--node", "n1",
              "--options", '{"retry": true, "strategy": "A"}'],
-            env_overrides={"ATTRACTOR_SIGNALS_DIR": signals_dir},
+            env_overrides={"PIPELINE_SIGNALS_DIR": signals_dir},
         )
         assert rc == 0
         data = _parse_json_output(stdout)
@@ -150,7 +150,7 @@ class TestSignalGuardianCLI:
         rc, stdout, _ = _run_cli(
             "signal_guardian.py",
             ["NEEDS_REVIEW", "--node", "n1", "--options", "not valid json"],
-            env_overrides={"ATTRACTOR_SIGNALS_DIR": signals_dir},
+            env_overrides={"PIPELINE_SIGNALS_DIR": signals_dir},
         )
         assert rc == 1
         data = _parse_json_output(stdout)
@@ -162,7 +162,7 @@ class TestSignalGuardianCLI:
         rc, stdout, stderr = _run_cli(
             "signal_guardian.py",
             ["NEEDS_REVIEW"],
-            env_overrides={"ATTRACTOR_SIGNALS_DIR": signals_dir},
+            env_overrides={"PIPELINE_SIGNALS_DIR": signals_dir},
         )
         # argparse error: exits with code 2
         assert rc != 0
@@ -175,7 +175,7 @@ class TestSignalGuardianCLI:
             ["VALIDATION_COMPLETE", "--node", "impl_auth",
              "--summary", "Node impl_auth validated",
              "--target", "terminal"],
-            env_overrides={"ATTRACTOR_SIGNALS_DIR": signals_dir},
+            env_overrides={"PIPELINE_SIGNALS_DIR": signals_dir},
         )
         assert rc == 0, f"Expected exit 0, got {rc}. stdout={stdout}"
         data = _parse_json_output(stdout)
@@ -195,7 +195,7 @@ class TestSignalGuardianCLI:
         rc, stdout, _ = _run_cli(
             "signal_guardian.py",
             ["NEEDS_REVIEW", "--node", "impl_auth"],
-            env_overrides={"ATTRACTOR_SIGNALS_DIR": signals_dir},
+            env_overrides={"PIPELINE_SIGNALS_DIR": signals_dir},
         )
         assert rc == 0
         data = _parse_json_output(stdout)
@@ -210,7 +210,7 @@ class TestSignalGuardianCLI:
         rc, stdout, stderr = _run_cli(
             "signal_guardian.py",
             ["NEEDS_REVIEW", "--node", "impl_auth", "--target", "invalid_target"],
-            env_overrides={"ATTRACTOR_SIGNALS_DIR": signals_dir},
+            env_overrides={"PIPELINE_SIGNALS_DIR": signals_dir},
         )
         assert rc != 0
 
@@ -220,7 +220,7 @@ class TestSignalGuardianCLI:
         rc, stdout, _ = _run_cli(
             "signal_guardian.py",
             ["NEEDS_REVIEW", "--node", "impl_auth", "--target", "guardian"],
-            env_overrides={"ATTRACTOR_SIGNALS_DIR": signals_dir},
+            env_overrides={"PIPELINE_SIGNALS_DIR": signals_dir},
         )
         assert rc == 0
         data = _parse_json_output(stdout)
@@ -245,7 +245,7 @@ class TestReadSignalCLI:
         _, create_stdout, _ = _run_cli(
             "signal_guardian.py",
             ["NEEDS_REVIEW", "--node", "impl_auth"],
-            env_overrides={"ATTRACTOR_SIGNALS_DIR": signals_dir},
+            env_overrides={"PIPELINE_SIGNALS_DIR": signals_dir},
         )
         signal_path = _parse_json_output(create_stdout)["signal_file"]
 
@@ -292,7 +292,7 @@ class TestWaitForSignalCLI:
         rc, stdout, _ = _run_cli(
             "wait_for_signal.py",
             ["--target", "guardian", "--timeout", "0.1", "--poll", "0.05"],
-            env_overrides={"ATTRACTOR_SIGNALS_DIR": signals_dir},
+            env_overrides={"PIPELINE_SIGNALS_DIR": signals_dir},
             timeout=10,
         )
 
@@ -309,13 +309,13 @@ class TestWaitForSignalCLI:
         _run_cli(
             "signal_guardian.py",
             ["NEEDS_REVIEW", "--node", "impl_auth"],
-            env_overrides={"ATTRACTOR_SIGNALS_DIR": signals_dir},
+            env_overrides={"PIPELINE_SIGNALS_DIR": signals_dir},
         )
 
         rc, stdout, _ = _run_cli(
             "wait_for_signal.py",
             ["--target", "guardian", "--timeout", "5.0", "--poll", "0.1"],
-            env_overrides={"ATTRACTOR_SIGNALS_DIR": signals_dir},
+            env_overrides={"PIPELINE_SIGNALS_DIR": signals_dir},
             timeout=15,
         )
 
@@ -333,14 +333,14 @@ class TestSpawnRunnerCLI:
     """Tests for runner.py."""
 
     def test_basic_invocation_succeeds(self, tmp_path):
-        """cobuilder.attractor.session_runner.py --node ... --prd ... outputs valid JSON."""
+        """cobuilder.engine.session_runner.py --node ... --prd ... outputs valid JSON."""
         # Use a custom git root to avoid writing to real repo
         rc, stdout, _ = _run_cli(
             "session_runner.py",
             ["--spawn", "--node", "impl_auth", "--prd", "PRD-TEST-001",
              "--target-dir", str(tmp_path)],
             env_overrides={
-                "ATTRACTOR_SIGNALS_DIR": str(tmp_path / "signals"),
+                "PIPELINE_SIGNALS_DIR": str(tmp_path / "signals"),
             },
         )
 
@@ -351,7 +351,7 @@ class TestSpawnRunnerCLI:
         assert data["prd"] == "PRD-TEST-001"
 
     def test_runner_config_in_output(self, tmp_path):
-        """cobuilder.attractor.session_runner.py includes runner_config in output."""
+        """cobuilder.engine.session_runner.py includes runner_config in output."""
         rc, stdout, _ = _run_cli(
             "session_runner.py",
             ["--spawn", "--node", "impl_auth", "--prd", "PRD-TEST-001",
@@ -359,7 +359,7 @@ class TestSpawnRunnerCLI:
              "--solution-design", "/tmp/design.md",
              "--bead-id", "BEAD-42"],
             env_overrides={
-                "ATTRACTOR_SIGNALS_DIR": str(tmp_path / "signals"),
+                "PIPELINE_SIGNALS_DIR": str(tmp_path / "signals"),
             },
         )
 
@@ -373,14 +373,14 @@ class TestSpawnRunnerCLI:
         assert cfg["bead_id"] == "BEAD-42"
 
     def test_all_optional_fields(self, tmp_path):
-        """cobuilder.attractor.session_runner.py accepts all optional arguments."""
+        """cobuilder.engine.session_runner.py accepts all optional arguments."""
         rc, stdout, _ = _run_cli(
             "session_runner.py",
             ["--spawn", "--node", "impl_auth", "--prd", "PRD-TEST-001",
              "--acceptance", "All tests pass",
              "--target-dir", str(tmp_path)],
             env_overrides={
-                "ATTRACTOR_SIGNALS_DIR": str(tmp_path / "signals"),
+                "PIPELINE_SIGNALS_DIR": str(tmp_path / "signals"),
             },
         )
 
@@ -390,13 +390,13 @@ class TestSpawnRunnerCLI:
         assert data["runner_config"]["target_dir"] == str(tmp_path)
 
     def test_missing_required_args_exits_nonzero(self, tmp_path):
-        """cobuilder.attractor.session_runner.py without required args exits with non-zero code."""
+        """cobuilder.engine.session_runner.py without required args exits with non-zero code."""
         rc, stdout, stderr = _run_cli("session_runner.py", ["--node", "impl_auth"])
         # Missing --prd
         assert rc != 0
 
     def test_help_flag_works(self):
-        """cobuilder.attractor.session_runner.py --help exits with code 0."""
+        """cobuilder.engine.session_runner.py --help exits with code 0."""
         rc, stdout, _ = _run_cli("session_runner.py", ["--help"])
         assert rc == 0
 

@@ -86,7 +86,7 @@ Phase 1 is the foundation delivered by PRD-S3-ATTRACTOR-001. All graph interacti
 9. System 3 runs `cs-verify --promise` for the triple-gate finalization.
 
 **What exists after Phase 1:**
-- DOT vocabulary and schema (`.claude/attractor/schema.md`)
+- DOT vocabulary and schema (`.pipelines/schema.md`)
 - CLI tools: `attractor parse`, `validate`, `status`, `transition`, `checkpoint`
 - Completion promise integration (`cs-init`, `cs-promise`, `cs-verify`)
 - Checkpoint/restore for crash recovery
@@ -123,7 +123,7 @@ Phase 2 introduces a **Pipeline Runner Agent** -- a purpose-built agent that rea
 │  │  PIPELINE RUNNER AGENT (Sonnet via PydanticAI)                 │  │
 │  │                                                                 │  │
 │  │  Input: pipeline.dot path                                      │  │
-│  │  State: .claude/attractor/state/{pipeline-id}.json             │  │
+│  │  State: .pipelines/state/{pipeline-id}.json             │  │
 │  │                                                                 │  │
 │  │  Loop:                                                          │  │
 │  │    1. attractor status --json -> identify ready nodes           │  │
@@ -379,7 +379,7 @@ Gate 3: Independent Verify (ground truth)
 | `e2e` | Full end-to-end workflow completion with timestamped artifacts |
 | `manual` | Human-provided approval with signed reason |
 
-7. **Audit trail**: Every transition is logged to `.claude/attractor/state/{pipeline-id}-audit.jsonl` with: timestamp, node_id, from_status, to_status, agent_id, evidence_hash, checkpoint_id. This trail is immutable (append-only).
+7. **Audit trail**: Every transition is logged to `.pipelines/state/{pipeline-id}-audit.jsonl` with: timestamp, node_id, from_status, to_status, agent_id, evidence_hash, checkpoint_id. This trail is immutable (append-only).
 
 ---
 
@@ -433,7 +433,7 @@ Build a minimal Pipeline Runner agent that reads a DOT file, evaluates current s
 
 ### POC Scope
 
-**Input**: Path to a DOT pipeline file (e.g., `.claude/attractor/examples/simple-pipeline.dot`)
+**Input**: Path to a DOT pipeline file (e.g., `.pipelines/examples/simple-pipeline.dot`)
 
 **Output**: An ordered list of `(node_id, action)` tuples representing what the runner would do next.
 
@@ -586,9 +586,9 @@ if __name__ == "__main__":
 |------|---------|
 | `.claude/scripts/attractor/poc_pipeline_runner.py` | POC agent implementation |
 | `.claude/scripts/attractor/poc_test_scenarios.py` | Test scenario runner |
-| `.claude/attractor/examples/poc-fresh.dot` | Test: all nodes pending |
-| `.claude/attractor/examples/poc-midway.dot` | Test: mid-execution state |
-| `.claude/attractor/examples/poc-stuck.dot` | Test: failed node scenario |
+| `.pipelines/examples/poc-fresh.dot` | Test: all nodes pending |
+| `.pipelines/examples/poc-midway.dot` | Test: mid-execution state |
+| `.pipelines/examples/poc-stuck.dot` | Test: failed node scenario |
 
 ### From POC to Production
 
@@ -695,7 +695,7 @@ This keeps the runner simple and avoids race conditions between graph modificati
 | Document | Path | Relationship |
 |----------|------|-------------|
 | PRD-S3-ATTRACTOR-001 | `.taskmaster/docs/PRD-S3-ATTRACTOR-001.md` | Parent PRD (current phase) |
-| Attractor DOT Schema | `.claude/attractor/schema.md` | DOT vocabulary definition |
+| Attractor DOT Schema | `.pipelines/schema.md` | DOT vocabulary definition |
 | System 3 Output Style | `.claude/output-styles/system3-meta-orchestrator.md` | S3 navigation approach |
 | Dual Closure Gate | `.claude/documentation/DUAL_CLOSURE_GATE.md` | Independent validation protocol |
 | Completion Promise CLI | `.claude/skills/system3-orchestrator/references/completion-promise-cli.md` | Promise management |

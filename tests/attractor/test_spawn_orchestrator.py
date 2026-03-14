@@ -16,10 +16,10 @@ import sys
 import unittest
 from unittest.mock import MagicMock, call, patch
 
-# Ensure the attractor package root is on sys.path.
+# Ensure the engine package root is on sys.path.
 
-import cobuilder.attractor.spawn_orchestrator as spawn_orchestrator
-from cobuilder.attractor.spawn_orchestrator import (
+import cobuilder.engine.spawn_orchestrator as spawn_orchestrator
+from cobuilder.engine.spawn_orchestrator import (
     check_orchestrator_alive,
     respawn_orchestrator,
     main,
@@ -38,7 +38,7 @@ class TestCheckOrchestratorAlive(unittest.TestCase):
         """check_orchestrator_alive returns True when tmux exits with 0."""
         mock_result = MagicMock()
         mock_result.returncode = 0
-        with patch("cobuilder.attractor.spawn_orchestrator.subprocess.run", return_value=mock_result) as mock_run:
+        with patch("cobuilder.engine.spawn_orchestrator.subprocess.run", return_value=mock_result) as mock_run:
             result = check_orchestrator_alive("orch-auth")
         self.assertTrue(result)
         mock_run.assert_called_once_with(
@@ -50,7 +50,7 @@ class TestCheckOrchestratorAlive(unittest.TestCase):
         """check_orchestrator_alive returns False when tmux exits with non-zero."""
         mock_result = MagicMock()
         mock_result.returncode = 1
-        with patch("cobuilder.attractor.spawn_orchestrator.subprocess.run", return_value=mock_result):
+        with patch("cobuilder.engine.spawn_orchestrator.subprocess.run", return_value=mock_result):
             result = check_orchestrator_alive("orch-missing")
         self.assertFalse(result)
 
@@ -58,7 +58,7 @@ class TestCheckOrchestratorAlive(unittest.TestCase):
         """Any non-zero exit code means session does not exist."""
         mock_result = MagicMock()
         mock_result.returncode = 127
-        with patch("cobuilder.attractor.spawn_orchestrator.subprocess.run", return_value=mock_result):
+        with patch("cobuilder.engine.spawn_orchestrator.subprocess.run", return_value=mock_result):
             result = check_orchestrator_alive("orch-ghost")
         self.assertFalse(result)
 
@@ -66,7 +66,7 @@ class TestCheckOrchestratorAlive(unittest.TestCase):
         """Must use tmux has-session command."""
         mock_result = MagicMock()
         mock_result.returncode = 0
-        with patch("cobuilder.attractor.spawn_orchestrator.subprocess.run", return_value=mock_result) as mock_run:
+        with patch("cobuilder.engine.spawn_orchestrator.subprocess.run", return_value=mock_result) as mock_run:
             check_orchestrator_alive("my-session")
         args_used = mock_run.call_args[0][0]
         self.assertIn("tmux", args_used)
@@ -84,14 +84,14 @@ class TestRespawnOrchestrator(unittest.TestCase):
 
     def test_returns_already_alive_if_session_exists(self) -> None:
         """If session already exists, return already_alive without spawning."""
-        with patch("cobuilder.attractor.spawn_orchestrator.check_orchestrator_alive", return_value=True):
+        with patch("cobuilder.engine.spawn_orchestrator.check_orchestrator_alive", return_value=True):
             result = respawn_orchestrator("orch-auth", "/tmp", "auth", None, 0, 3)
         self.assertEqual(result["status"], "already_alive")
         self.assertEqual(result["session"], "orch-auth")
 
     def test_returns_error_when_max_respawn_reached(self) -> None:
         """If respawn_count >= max_respawn, return error."""
-        with patch("cobuilder.attractor.spawn_orchestrator.check_orchestrator_alive", return_value=False):
+        with patch("cobuilder.engine.spawn_orchestrator.check_orchestrator_alive", return_value=False):
             result = respawn_orchestrator("orch-auth", "/tmp", "auth", None, 3, 3)
         self.assertEqual(result["status"], "error")
         self.assertIn("Max respawn limit reached", result["message"])
@@ -99,17 +99,17 @@ class TestRespawnOrchestrator(unittest.TestCase):
 
     def test_returns_error_when_respawn_count_exceeds_max(self) -> None:
         """If respawn_count > max_respawn, return error."""
-        with patch("cobuilder.attractor.spawn_orchestrator.check_orchestrator_alive", return_value=False):
+        with patch("cobuilder.engine.spawn_orchestrator.check_orchestrator_alive", return_value=False):
             result = respawn_orchestrator("orch-auth", "/tmp", "auth", None, 5, 3)
         self.assertEqual(result["status"], "error")
         self.assertIn("Max respawn limit reached", result["message"])
 
     def test_respawns_dead_session_successfully(self) -> None:
         """Successfully respawn a dead session."""
-        with patch("cobuilder.attractor.spawn_orchestrator.check_orchestrator_alive", return_value=False), \
-             patch("cobuilder.attractor.spawn_orchestrator.subprocess.run") as mock_run, \
-             patch("cobuilder.attractor.spawn_orchestrator.time.sleep"), \
-             patch("cobuilder.attractor.spawn_orchestrator._tmux_send"):
+        with patch("cobuilder.engine.spawn_orchestrator.check_orchestrator_alive", return_value=False), \
+             patch("cobuilder.engine.spawn_orchestrator.subprocess.run") as mock_run, \
+             patch("cobuilder.engine.spawn_orchestrator.time.sleep"), \
+             patch("cobuilder.engine.spawn_orchestrator._tmux_send"):
             mock_run.return_value = MagicMock(returncode=0)
             result = respawn_orchestrator("orch-auth", "/tmp/work", "auth", None, 0, 3)
         self.assertEqual(result["status"], "respawned")
@@ -118,20 +118,20 @@ class TestRespawnOrchestrator(unittest.TestCase):
 
     def test_increments_respawn_count(self) -> None:
         """respawn_count in result should be respawn_count + 1."""
-        with patch("cobuilder.attractor.spawn_orchestrator.check_orchestrator_alive", return_value=False), \
-             patch("cobuilder.attractor.spawn_orchestrator.subprocess.run") as mock_run, \
-             patch("cobuilder.attractor.spawn_orchestrator.time.sleep"), \
-             patch("cobuilder.attractor.spawn_orchestrator._tmux_send"):
+        with patch("cobuilder.engine.spawn_orchestrator.check_orchestrator_alive", return_value=False), \
+             patch("cobuilder.engine.spawn_orchestrator.subprocess.run") as mock_run, \
+             patch("cobuilder.engine.spawn_orchestrator.time.sleep"), \
+             patch("cobuilder.engine.spawn_orchestrator._tmux_send"):
             mock_run.return_value = MagicMock(returncode=0)
             result = respawn_orchestrator("orch-auth", "/tmp", "auth", None, 1, 3)
         self.assertEqual(result["respawn_count"], 2)
 
     def test_sends_prompt_when_provided(self) -> None:
         """When prompt is provided, _tmux_send should be called with it."""
-        with patch("cobuilder.attractor.spawn_orchestrator.check_orchestrator_alive", return_value=False), \
-             patch("cobuilder.attractor.spawn_orchestrator.subprocess.run") as mock_run, \
-             patch("cobuilder.attractor.spawn_orchestrator.time.sleep"), \
-             patch("cobuilder.attractor.spawn_orchestrator._tmux_send") as mock_send:
+        with patch("cobuilder.engine.spawn_orchestrator.check_orchestrator_alive", return_value=False), \
+             patch("cobuilder.engine.spawn_orchestrator.subprocess.run") as mock_run, \
+             patch("cobuilder.engine.spawn_orchestrator.time.sleep"), \
+             patch("cobuilder.engine.spawn_orchestrator._tmux_send") as mock_send:
             mock_run.return_value = MagicMock(returncode=0)
             result = respawn_orchestrator("orch-auth", "/tmp", "auth", "Hello Claude", 0, 3)
         # Should have been called with the prompt
@@ -141,11 +141,11 @@ class TestRespawnOrchestrator(unittest.TestCase):
 
     def test_no_prompt_sent_when_none(self) -> None:
         """When prompt is None and no existing hook, should NOT send a prompt key."""
-        with patch("cobuilder.attractor.spawn_orchestrator.check_orchestrator_alive", return_value=False), \
-             patch("cobuilder.attractor.spawn_orchestrator.subprocess.run") as mock_run, \
-             patch("cobuilder.attractor.spawn_orchestrator.time.sleep"), \
-             patch("cobuilder.attractor.spawn_orchestrator._tmux_send") as mock_send, \
-             patch("cobuilder.attractor.spawn_orchestrator.hook_manager.read_hook", return_value=None):
+        with patch("cobuilder.engine.spawn_orchestrator.check_orchestrator_alive", return_value=False), \
+             patch("cobuilder.engine.spawn_orchestrator.subprocess.run") as mock_run, \
+             patch("cobuilder.engine.spawn_orchestrator.time.sleep"), \
+             patch("cobuilder.engine.spawn_orchestrator._tmux_send") as mock_send, \
+             patch("cobuilder.engine.spawn_orchestrator.hook_manager.read_hook", return_value=None):
             mock_run.return_value = MagicMock(returncode=0)
             respawn_orchestrator("orch-auth", "/tmp", "auth", None, 0, 3)
         # Only 2 send calls expected: "unset CLAUDECODE && claude" + "/output-style orchestrator"
@@ -153,10 +153,10 @@ class TestRespawnOrchestrator(unittest.TestCase):
 
     def test_uses_same_tmux_config(self) -> None:
         """Respawn should use -x 220 -y 50 exec zsh same as original."""
-        with patch("cobuilder.attractor.spawn_orchestrator.check_orchestrator_alive", return_value=False), \
-             patch("cobuilder.attractor.spawn_orchestrator.subprocess.run") as mock_run, \
-             patch("cobuilder.attractor.spawn_orchestrator.time.sleep"), \
-             patch("cobuilder.attractor.spawn_orchestrator._tmux_send"):
+        with patch("cobuilder.engine.spawn_orchestrator.check_orchestrator_alive", return_value=False), \
+             patch("cobuilder.engine.spawn_orchestrator.subprocess.run") as mock_run, \
+             patch("cobuilder.engine.spawn_orchestrator.time.sleep"), \
+             patch("cobuilder.engine.spawn_orchestrator._tmux_send"):
             mock_run.return_value = MagicMock(returncode=0)
             respawn_orchestrator("orch-auth", "/tmp/work", "auth", None, 0, 3)
         # subprocess.run should have been called with tmux new-session
@@ -230,7 +230,7 @@ class TestSessionNameValidation(unittest.TestCase):
 
         buf = io.StringIO()
         exit_code = 0
-        argv = ["cobuilder.attractor.spawn_orchestrator.py"] + extra_args
+        argv = ["cobuilder.engine.spawn_orchestrator.py"] + extra_args
         with patch("sys.argv", argv):
             try:
                 with redirect_stdout(buf):
@@ -266,11 +266,11 @@ class TestSessionNameValidation(unittest.TestCase):
 
     def test_accepts_orch_prefix(self) -> None:
         """orch- prefix sessions should not be rejected by name validation."""
-        with patch("cobuilder.attractor.spawn_orchestrator.subprocess.run") as mock_run, \
-             patch("cobuilder.attractor.spawn_orchestrator.time.sleep"), \
-             patch("cobuilder.attractor.spawn_orchestrator.check_orchestrator_alive", return_value=True), \
-             patch("cobuilder.attractor.spawn_orchestrator._tmux_send"), \
-             patch("sys.argv", ["cobuilder.attractor.spawn_orchestrator.py",
+        with patch("cobuilder.engine.spawn_orchestrator.subprocess.run") as mock_run, \
+             patch("cobuilder.engine.spawn_orchestrator.time.sleep"), \
+             patch("cobuilder.engine.spawn_orchestrator.check_orchestrator_alive", return_value=True), \
+             patch("cobuilder.engine.spawn_orchestrator._tmux_send"), \
+             patch("sys.argv", ["cobuilder.engine.spawn_orchestrator.py",
                                 "--node", "impl_auth",
                                 "--prd", "PRD-AUTH-001",
                                 "--worktree", "/tmp",
@@ -293,11 +293,11 @@ class TestSessionNameValidation(unittest.TestCase):
 
     def test_default_session_name_uses_orch_prefix(self) -> None:
         """Default session name (orch-<node>) should not be rejected."""
-        with patch("cobuilder.attractor.spawn_orchestrator.subprocess.run") as mock_run, \
-             patch("cobuilder.attractor.spawn_orchestrator.time.sleep"), \
-             patch("cobuilder.attractor.spawn_orchestrator.check_orchestrator_alive", return_value=True), \
-             patch("cobuilder.attractor.spawn_orchestrator._tmux_send"), \
-             patch("sys.argv", ["cobuilder.attractor.spawn_orchestrator.py",
+        with patch("cobuilder.engine.spawn_orchestrator.subprocess.run") as mock_run, \
+             patch("cobuilder.engine.spawn_orchestrator.time.sleep"), \
+             patch("cobuilder.engine.spawn_orchestrator.check_orchestrator_alive", return_value=True), \
+             patch("cobuilder.engine.spawn_orchestrator._tmux_send"), \
+             patch("sys.argv", ["cobuilder.engine.spawn_orchestrator.py",
                                 "--node", "impl_auth",
                                 "--prd", "PRD-AUTH-001",
                                 "--worktree", "/tmp"]):
@@ -330,13 +330,13 @@ class TestOutputIncludesRespawnCount(unittest.TestCase):
         import io
         from contextlib import redirect_stdout
 
-        argv = ["cobuilder.attractor.spawn_orchestrator.py",
+        argv = ["cobuilder.engine.spawn_orchestrator.py",
                 "--node", "impl_auth", "--prd", "PRD-AUTH-001", "--worktree", "/tmp"]
         with patch("sys.argv", argv), \
-             patch("cobuilder.attractor.spawn_orchestrator.subprocess.run") as mock_run, \
-             patch("cobuilder.attractor.spawn_orchestrator.time.sleep"), \
-             patch("cobuilder.attractor.spawn_orchestrator.check_orchestrator_alive", return_value=True), \
-             patch("cobuilder.attractor.spawn_orchestrator._tmux_send"):
+             patch("cobuilder.engine.spawn_orchestrator.subprocess.run") as mock_run, \
+             patch("cobuilder.engine.spawn_orchestrator.time.sleep"), \
+             patch("cobuilder.engine.spawn_orchestrator.check_orchestrator_alive", return_value=True), \
+             patch("cobuilder.engine.spawn_orchestrator._tmux_send"):
             mock_run.return_value = MagicMock(returncode=0)
             buf = io.StringIO()
             try:
@@ -373,13 +373,13 @@ class TestOutputIncludesRespawnCount(unittest.TestCase):
             except StopIteration:
                 return True
 
-        argv = ["cobuilder.attractor.spawn_orchestrator.py",
+        argv = ["cobuilder.engine.spawn_orchestrator.py",
                 "--node", "impl_auth", "--prd", "PRD-AUTH-001", "--worktree", "/tmp"]
         with patch("sys.argv", argv), \
-             patch("cobuilder.attractor.spawn_orchestrator.subprocess.run") as mock_run, \
-             patch("cobuilder.attractor.spawn_orchestrator.time.sleep"), \
-             patch("cobuilder.attractor.spawn_orchestrator.check_orchestrator_alive", side_effect=mock_alive_fn), \
-             patch("cobuilder.attractor.spawn_orchestrator._tmux_send"):
+             patch("cobuilder.engine.spawn_orchestrator.subprocess.run") as mock_run, \
+             patch("cobuilder.engine.spawn_orchestrator.time.sleep"), \
+             patch("cobuilder.engine.spawn_orchestrator.check_orchestrator_alive", side_effect=mock_alive_fn), \
+             patch("cobuilder.engine.spawn_orchestrator._tmux_send"):
             mock_run.return_value = MagicMock(returncode=0)
             buf = io.StringIO()
             try:
@@ -405,11 +405,11 @@ class TestRespawnWisdomInjection(unittest.TestCase):
 
     def _patch_respawn(self, hook_data, prompt):
         """Helper to run respawn_orchestrator with hook_data mocked."""
-        with patch("cobuilder.attractor.spawn_orchestrator.check_orchestrator_alive", return_value=False), \
-             patch("cobuilder.attractor.spawn_orchestrator.subprocess.run") as mock_run, \
-             patch("cobuilder.attractor.spawn_orchestrator.time.sleep"), \
-             patch("cobuilder.attractor.spawn_orchestrator._tmux_send") as mock_send, \
-             patch("cobuilder.attractor.spawn_orchestrator.hook_manager.read_hook", return_value=hook_data):
+        with patch("cobuilder.engine.spawn_orchestrator.check_orchestrator_alive", return_value=False), \
+             patch("cobuilder.engine.spawn_orchestrator.subprocess.run") as mock_run, \
+             patch("cobuilder.engine.spawn_orchestrator.time.sleep"), \
+             patch("cobuilder.engine.spawn_orchestrator._tmux_send") as mock_send, \
+             patch("cobuilder.engine.spawn_orchestrator.hook_manager.read_hook", return_value=hook_data):
             mock_run.return_value = MagicMock(returncode=0)
             result = respawn_orchestrator("orch-auth", "/tmp", "auth", prompt, 0, 3)
         return result, mock_send
@@ -500,7 +500,7 @@ class TestModeFlag(unittest.TestCase):
         import io
         from contextlib import redirect_stdout
 
-        base = ["cobuilder.attractor.spawn_orchestrator.py",
+        base = ["cobuilder.engine.spawn_orchestrator.py",
                 "--node", "impl_auth",
                 "--prd", "PRD-AUTH-001",
                 "--worktree", "/tmp/work"]
@@ -508,10 +508,10 @@ class TestModeFlag(unittest.TestCase):
         buf = io.StringIO()
         exit_code = 0
         with patch("sys.argv", argv), \
-             patch("cobuilder.attractor.spawn_orchestrator.subprocess.run") as mock_run, \
-             patch("cobuilder.attractor.spawn_orchestrator.time.sleep"), \
-             patch("cobuilder.attractor.spawn_orchestrator.check_orchestrator_alive", return_value=True), \
-             patch("cobuilder.attractor.spawn_orchestrator._tmux_send") as mock_send:
+             patch("cobuilder.engine.spawn_orchestrator.subprocess.run") as mock_run, \
+             patch("cobuilder.engine.spawn_orchestrator.time.sleep"), \
+             patch("cobuilder.engine.spawn_orchestrator.check_orchestrator_alive", return_value=True), \
+             patch("cobuilder.engine.spawn_orchestrator._tmux_send") as mock_send:
             mock_run.return_value = MagicMock(returncode=0)
             try:
                 with redirect_stdout(buf):
@@ -558,16 +558,16 @@ class TestModeFlag(unittest.TestCase):
         # Run without --mode at all
         import io
         from contextlib import redirect_stdout
-        argv = ["cobuilder.attractor.spawn_orchestrator.py",
+        argv = ["cobuilder.engine.spawn_orchestrator.py",
                 "--node", "impl_auth",
                 "--prd", "PRD-AUTH-001",
                 "--worktree", "/tmp/work"]
         buf = io.StringIO()
         with patch("sys.argv", argv), \
-             patch("cobuilder.attractor.spawn_orchestrator.subprocess.run") as mock_run, \
-             patch("cobuilder.attractor.spawn_orchestrator.time.sleep"), \
-             patch("cobuilder.attractor.spawn_orchestrator.check_orchestrator_alive", return_value=True), \
-             patch("cobuilder.attractor.spawn_orchestrator._tmux_send") as mock_send:
+             patch("cobuilder.engine.spawn_orchestrator.subprocess.run") as mock_run, \
+             patch("cobuilder.engine.spawn_orchestrator.time.sleep"), \
+             patch("cobuilder.engine.spawn_orchestrator.check_orchestrator_alive", return_value=True), \
+             patch("cobuilder.engine.spawn_orchestrator._tmux_send") as mock_send:
             mock_run.return_value = MagicMock(returncode=0)
             try:
                 with redirect_stdout(buf):
@@ -585,18 +585,18 @@ class TestModeFlag(unittest.TestCase):
         """--mode sdk → identity_registry.create_identity called with worktree=''."""
         import io
         from contextlib import redirect_stdout
-        argv = ["cobuilder.attractor.spawn_orchestrator.py",
+        argv = ["cobuilder.engine.spawn_orchestrator.py",
                 "--node", "impl_auth",
                 "--prd", "PRD-AUTH-001",
                 "--worktree", "/tmp/work",
                 "--mode", "sdk"]
         buf = io.StringIO()
         with patch("sys.argv", argv), \
-             patch("cobuilder.attractor.spawn_orchestrator.subprocess.run") as mock_run, \
-             patch("cobuilder.attractor.spawn_orchestrator.time.sleep"), \
-             patch("cobuilder.attractor.spawn_orchestrator.check_orchestrator_alive", return_value=True), \
-             patch("cobuilder.attractor.spawn_orchestrator._tmux_send"), \
-             patch("cobuilder.attractor.spawn_orchestrator.identity_registry.create_identity") as mock_identity:
+             patch("cobuilder.engine.spawn_orchestrator.subprocess.run") as mock_run, \
+             patch("cobuilder.engine.spawn_orchestrator.time.sleep"), \
+             patch("cobuilder.engine.spawn_orchestrator.check_orchestrator_alive", return_value=True), \
+             patch("cobuilder.engine.spawn_orchestrator._tmux_send"), \
+             patch("cobuilder.engine.spawn_orchestrator.identity_registry.create_identity") as mock_identity:
             mock_run.return_value = MagicMock(returncode=0)
             mock_identity.return_value = {"agent_id": "test-id"}
             try:
@@ -614,18 +614,18 @@ class TestModeFlag(unittest.TestCase):
         """--mode tmux → identity worktree should be '.claude/worktrees/<node_id>'."""
         import io
         from contextlib import redirect_stdout
-        argv = ["cobuilder.attractor.spawn_orchestrator.py",
+        argv = ["cobuilder.engine.spawn_orchestrator.py",
                 "--node", "impl_auth",
                 "--prd", "PRD-AUTH-001",
                 "--worktree", "/tmp/work",
                 "--mode", "tmux"]
         buf = io.StringIO()
         with patch("sys.argv", argv), \
-             patch("cobuilder.attractor.spawn_orchestrator.subprocess.run") as mock_run, \
-             patch("cobuilder.attractor.spawn_orchestrator.time.sleep"), \
-             patch("cobuilder.attractor.spawn_orchestrator.check_orchestrator_alive", return_value=True), \
-             patch("cobuilder.attractor.spawn_orchestrator._tmux_send"), \
-             patch("cobuilder.attractor.spawn_orchestrator.identity_registry.create_identity") as mock_identity:
+             patch("cobuilder.engine.spawn_orchestrator.subprocess.run") as mock_run, \
+             patch("cobuilder.engine.spawn_orchestrator.time.sleep"), \
+             patch("cobuilder.engine.spawn_orchestrator.check_orchestrator_alive", return_value=True), \
+             patch("cobuilder.engine.spawn_orchestrator._tmux_send"), \
+             patch("cobuilder.engine.spawn_orchestrator.identity_registry.create_identity") as mock_identity:
             mock_run.return_value = MagicMock(returncode=0)
             mock_identity.return_value = {"agent_id": "test-id"}
             try:
@@ -654,18 +654,18 @@ class TestModeFlag(unittest.TestCase):
             except StopIteration:
                 return True
 
-        argv = ["cobuilder.attractor.spawn_orchestrator.py",
+        argv = ["cobuilder.engine.spawn_orchestrator.py",
                 "--node", "impl_auth",
                 "--prd", "PRD-AUTH-001",
                 "--worktree", "/tmp/work",
                 "--mode", "sdk"]
         buf = io.StringIO()
         with patch("sys.argv", argv), \
-             patch("cobuilder.attractor.spawn_orchestrator.subprocess.run") as mock_run, \
-             patch("cobuilder.attractor.spawn_orchestrator.time.sleep"), \
-             patch("cobuilder.attractor.spawn_orchestrator.check_orchestrator_alive", side_effect=mock_alive), \
-             patch("cobuilder.attractor.spawn_orchestrator._tmux_send") as mock_send, \
-             patch("cobuilder.attractor.spawn_orchestrator.respawn_orchestrator",
+             patch("cobuilder.engine.spawn_orchestrator.subprocess.run") as mock_run, \
+             patch("cobuilder.engine.spawn_orchestrator.time.sleep"), \
+             patch("cobuilder.engine.spawn_orchestrator.check_orchestrator_alive", side_effect=mock_alive), \
+             patch("cobuilder.engine.spawn_orchestrator._tmux_send") as mock_send, \
+             patch("cobuilder.engine.spawn_orchestrator.respawn_orchestrator",
                    wraps=spawn_orchestrator.respawn_orchestrator) as mock_respawn:
             mock_run.return_value = MagicMock(returncode=0)
             try:
@@ -681,11 +681,11 @@ class TestModeFlag(unittest.TestCase):
 
     def test_sdk_mode_respawn_no_worktree_in_command(self) -> None:
         """respawn_orchestrator(mode='sdk') → claude command has no --worktree."""
-        with patch("cobuilder.attractor.spawn_orchestrator.check_orchestrator_alive", return_value=False), \
-             patch("cobuilder.attractor.spawn_orchestrator.subprocess.run") as mock_run, \
-             patch("cobuilder.attractor.spawn_orchestrator.time.sleep"), \
-             patch("cobuilder.attractor.spawn_orchestrator._tmux_send") as mock_send, \
-             patch("cobuilder.attractor.spawn_orchestrator.hook_manager.read_hook", return_value=None):
+        with patch("cobuilder.engine.spawn_orchestrator.check_orchestrator_alive", return_value=False), \
+             patch("cobuilder.engine.spawn_orchestrator.subprocess.run") as mock_run, \
+             patch("cobuilder.engine.spawn_orchestrator.time.sleep"), \
+             patch("cobuilder.engine.spawn_orchestrator._tmux_send") as mock_send, \
+             patch("cobuilder.engine.spawn_orchestrator.hook_manager.read_hook", return_value=None):
             mock_run.return_value = MagicMock(returncode=0)
             result = respawn_orchestrator("orch-auth", "/tmp", "auth", None, 0, 3, mode="sdk")
         self.assertEqual(result["status"], "respawned")
@@ -696,11 +696,11 @@ class TestModeFlag(unittest.TestCase):
 
     def test_tmux_mode_respawn_has_worktree_in_command(self) -> None:
         """respawn_orchestrator(mode='tmux') → claude command includes --worktree."""
-        with patch("cobuilder.attractor.spawn_orchestrator.check_orchestrator_alive", return_value=False), \
-             patch("cobuilder.attractor.spawn_orchestrator.subprocess.run") as mock_run, \
-             patch("cobuilder.attractor.spawn_orchestrator.time.sleep"), \
-             patch("cobuilder.attractor.spawn_orchestrator._tmux_send") as mock_send, \
-             patch("cobuilder.attractor.spawn_orchestrator.hook_manager.read_hook", return_value=None):
+        with patch("cobuilder.engine.spawn_orchestrator.check_orchestrator_alive", return_value=False), \
+             patch("cobuilder.engine.spawn_orchestrator.subprocess.run") as mock_run, \
+             patch("cobuilder.engine.spawn_orchestrator.time.sleep"), \
+             patch("cobuilder.engine.spawn_orchestrator._tmux_send") as mock_send, \
+             patch("cobuilder.engine.spawn_orchestrator.hook_manager.read_hook", return_value=None):
             mock_run.return_value = MagicMock(returncode=0)
             result = respawn_orchestrator("orch-auth", "/tmp", "auth", None, 0, 3, mode="tmux")
         self.assertEqual(result["status"], "respawned")
@@ -753,7 +753,7 @@ class TestModeFlag(unittest.TestCase):
         """Environment variables should be loaded when the module is imported."""
         # The module loads environment variables at import time
         # which is verified by the fact that dispatch_worker is imported and its
-        # load_attractor_env function is called
+        # load_engine_env function is called
         self.assertTrue(hasattr(spawn_orchestrator, '_build_claude_cmd'))
         # We can test the actual function behavior as in the tests above
 
@@ -768,8 +768,8 @@ class TestTmuxSendPostPause(unittest.TestCase):
 
     def test_no_post_pause_calls_sleep_once(self) -> None:
         """When post_pause=0.0 (default), time.sleep is called exactly once (for pause)."""
-        with patch("cobuilder.attractor.spawn_orchestrator.subprocess.run"), \
-             patch("cobuilder.attractor.spawn_orchestrator.time.sleep") as mock_sleep:
+        with patch("cobuilder.engine.spawn_orchestrator.subprocess.run"), \
+             patch("cobuilder.engine.spawn_orchestrator.time.sleep") as mock_sleep:
             spawn_orchestrator._tmux_send("orch-auth", "some text", pause=2.0, post_pause=0.0)
         self.assertEqual(mock_sleep.call_count, 1)
         mock_sleep.assert_called_once_with(2.0)
@@ -777,8 +777,8 @@ class TestTmuxSendPostPause(unittest.TestCase):
     def test_post_pause_calls_sleep_twice_in_order(self) -> None:
         """When post_pause=5.0, time.sleep is called twice: first pause then post_pause."""
         sleep_calls = []
-        with patch("cobuilder.attractor.spawn_orchestrator.subprocess.run"), \
-             patch("cobuilder.attractor.spawn_orchestrator.time.sleep", side_effect=lambda s: sleep_calls.append(s)):
+        with patch("cobuilder.engine.spawn_orchestrator.subprocess.run"), \
+             patch("cobuilder.engine.spawn_orchestrator.time.sleep", side_effect=lambda s: sleep_calls.append(s)):
             spawn_orchestrator._tmux_send("orch-auth", "some text", pause=2.0, post_pause=5.0)
         self.assertEqual(len(sleep_calls), 2)
         self.assertEqual(sleep_calls[0], 2.0)
@@ -794,13 +794,13 @@ class TestTmuxSendPostPause(unittest.TestCase):
         def recording_tmux_send(session, text, pause=2.0, post_pause=0.0):
             captured_calls.append({"text": text, "pause": pause, "post_pause": post_pause})
 
-        argv = ["cobuilder.attractor.spawn_orchestrator.py",
+        argv = ["cobuilder.engine.spawn_orchestrator.py",
                 "--node", "impl_auth", "--prd", "PRD-AUTH-001", "--worktree", "/tmp"]
         with patch("sys.argv", argv), \
-             patch("cobuilder.attractor.spawn_orchestrator.subprocess.run") as mock_run, \
-             patch("cobuilder.attractor.spawn_orchestrator.time.sleep"), \
-             patch("cobuilder.attractor.spawn_orchestrator.check_orchestrator_alive", return_value=True), \
-             patch("cobuilder.attractor.spawn_orchestrator._tmux_send", side_effect=recording_tmux_send):
+             patch("cobuilder.engine.spawn_orchestrator.subprocess.run") as mock_run, \
+             patch("cobuilder.engine.spawn_orchestrator.time.sleep"), \
+             patch("cobuilder.engine.spawn_orchestrator.check_orchestrator_alive", return_value=True), \
+             patch("cobuilder.engine.spawn_orchestrator._tmux_send", side_effect=recording_tmux_send):
             mock_run.return_value = MagicMock(returncode=0)
             buf = io.StringIO()
             try:
@@ -824,11 +824,11 @@ class TestTmuxSendPostPause(unittest.TestCase):
         def recording_tmux_send(session, text, pause=2.0, post_pause=0.0):
             captured_calls.append({"text": text, "pause": pause, "post_pause": post_pause})
 
-        with patch("cobuilder.attractor.spawn_orchestrator.check_orchestrator_alive", return_value=False), \
-             patch("cobuilder.attractor.spawn_orchestrator.subprocess.run") as mock_run, \
-             patch("cobuilder.attractor.spawn_orchestrator.time.sleep"), \
-             patch("cobuilder.attractor.spawn_orchestrator._tmux_send", side_effect=recording_tmux_send), \
-             patch("cobuilder.attractor.spawn_orchestrator.hook_manager.read_hook", return_value=None):
+        with patch("cobuilder.engine.spawn_orchestrator.check_orchestrator_alive", return_value=False), \
+             patch("cobuilder.engine.spawn_orchestrator.subprocess.run") as mock_run, \
+             patch("cobuilder.engine.spawn_orchestrator.time.sleep"), \
+             patch("cobuilder.engine.spawn_orchestrator._tmux_send", side_effect=recording_tmux_send), \
+             patch("cobuilder.engine.spawn_orchestrator.hook_manager.read_hook", return_value=None):
             mock_run.return_value = MagicMock(returncode=0)
             respawn_orchestrator("orch-auth", "/tmp", "auth", None, 0, 3)
 
@@ -857,7 +857,7 @@ class TestRepoRootValidation(unittest.TestCase):
         from contextlib import redirect_stdout, redirect_stderr
 
         argv = [
-            "cobuilder.attractor.spawn_orchestrator.py",
+            "cobuilder.engine.spawn_orchestrator.py",
             "--node", "impl_auth",
             "--prd", "PRD-AUTH-001",
             "--repo-root", repo_root,
@@ -870,10 +870,10 @@ class TestRepoRootValidation(unittest.TestCase):
         exit_code = 0
 
         with patch("sys.argv", argv), \
-             patch("cobuilder.attractor.spawn_orchestrator.subprocess.run") as mock_run, \
-             patch("cobuilder.attractor.spawn_orchestrator.time.sleep"), \
-             patch("cobuilder.attractor.spawn_orchestrator.check_orchestrator_alive", return_value=True), \
-             patch("cobuilder.attractor.spawn_orchestrator._tmux_send"):
+             patch("cobuilder.engine.spawn_orchestrator.subprocess.run") as mock_run, \
+             patch("cobuilder.engine.spawn_orchestrator.time.sleep"), \
+             patch("cobuilder.engine.spawn_orchestrator.check_orchestrator_alive", return_value=True), \
+             patch("cobuilder.engine.spawn_orchestrator._tmux_send"):
             mock_run.return_value = MagicMock(returncode=0)
             try:
                 with redirect_stdout(stdout_buf), redirect_stderr(stderr_buf):

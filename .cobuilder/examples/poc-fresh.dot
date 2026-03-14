@@ -3,7 +3,7 @@
 // Expected runner action: spawn_orchestrator for impl_backend
 // (the first codergen node whose only dependency, start, is validated)
 //
-// Schema: .claude/attractor/schema.md
+// Schema: .pipelines/schema.md
 
 digraph "poc-fresh" {
     graph [

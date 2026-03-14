@@ -95,3 +95,6 @@ temp/
 # CoBuilder runtime state (pipelines, signals, checkpoints, runner-state)
 .cobuilder/*
 !.cobuilder/examples/
+
+# Pipeline runtime state — never commit
+.pipelines/

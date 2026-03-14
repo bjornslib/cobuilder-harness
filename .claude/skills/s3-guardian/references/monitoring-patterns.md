@@ -14,12 +14,12 @@ Commands, signal detection, intervention protocols, and red flags for continuous
 
 ## 1. Signal File Monitoring (Default)
 
-In headless mode, orchestrators communicate via signal files in `.claude/attractor/signals/`. The guardian polls these files instead of capturing terminal output.
+In headless mode, orchestrators communicate via signal files in `.pipelines/signals/`. The guardian polls these files instead of capturing terminal output.
 
 ### Basic Signal Checks
 
 ```bash
-SIGNAL_DIR=".claude/attractor/signals"
+SIGNAL_DIR=".pipelines/signals"
 
 # List all recent signals (sorted by time)
 ls -lt "${SIGNAL_DIR}"/*.json 2>/dev/null | head -20
@@ -35,7 +35,7 @@ ls -lt "${SIGNAL_DIR}"/*-${NODE_ID}-*.json 2>/dev/null
 ### Targeted Signal Detection
 
 ```bash
-SIGNAL_DIR=".claude/attractor/signals"
+SIGNAL_DIR=".pipelines/signals"
 
 # Check for completion signals
 ls "${SIGNAL_DIR}"/*.json 2>/dev/null | xargs grep -l '"signal_type": "NODE_COMPLETE"' 2>/dev/null
@@ -61,7 +61,7 @@ fi
 ```bash
 # Check if orchestrator subprocess is still running (headless mode)
 # spawn_orchestrator.py writes PID to state file
-STATE_FILE=".claude/attractor/runner-state-${NODE_ID}.json"
+STATE_FILE=".pipelines/runner-state-${NODE_ID}.json"
 if [ -f "$STATE_FILE" ]; then
     PID=$(python3 -c "import json; print(json.load(open('$STATE_FILE')).get('pid',''))")
     if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
@@ -255,7 +255,7 @@ Claude Code sessions have finite context windows. In headless mode, context exha
 
 ```bash
 # Check process exit status and output size
-STATE_FILE=".claude/attractor/runner-state-${NODE_ID}.json"
+STATE_FILE=".pipelines/runner-state-${NODE_ID}.json"
 if [ -f "$STATE_FILE" ]; then
     python3 -c "
 import json
@@ -286,7 +286,7 @@ When monitoring multiple orchestrators in parallel:
 ### Signal-Based Round-Robin
 
 ```bash
-SIGNAL_DIR=".claude/attractor/signals"
+SIGNAL_DIR=".pipelines/signals"
 
 # Check all active nodes in one pass
 for NODE_ID in node1 node2 node3; do
@@ -296,7 +296,7 @@ for NODE_ID in node1 node2 node3; do
         python3 -c "import json; d=json.load(open('$LATEST')); print(f'{d[\"signal_type\"]}: {d.get(\"payload\",{}).get(\"summary\",\"no summary\")}')"
     else
         # Check if process is running
-        STATE_FILE=".claude/attractor/runner-state-${NODE_ID}.json"
+        STATE_FILE=".pipelines/runner-state-${NODE_ID}.json"
         if [ -f "$STATE_FILE" ]; then
             PID=$(python3 -c "import json; print(json.load(open('$STATE_FILE')).get('pid',''))")
             kill -0 "$PID" 2>/dev/null && echo "Running (no signals yet)" || echo "DEAD (no signals)"
@@ -365,14 +365,14 @@ Task(
 | `MONITOR_ANOMALY` | Unexpected state | Investigate, may need manual DOT edit |
 
 **Monitoring Mechanism**:
-1. **Signal directory polling**: Monitor `.claude/attractor/signals/` for new/modified `.json` files
+1. **Signal directory polling**: Monitor `.pipelines/signals/` for new/modified `.json` files
    - Record `os.stat(signal_dir).st_mtime` at start
    - Every 30s: check if mtime changed
    - If changed: scan for new/modified `.json` files
    - Parse each signal: check `status` field for `error` or `failed`
    - Count nodes by status: pending, active, impl_complete, validated, failed
 
-2. **DOT file monitoring**: Track `.claude/attractor/pipelines/*.dot` mtime for state transitions
+2. **DOT file monitoring**: Track `.pipelines/pipelines/*.dot` mtime for state transitions
    - Record DOT file mtime at start
    - Every 30s: check if mtime changed
    - If changed: re-read DOT file, extract node status attributes
@@ -420,7 +420,7 @@ This pattern allows System 3 to focus on other work while the lightweight monito
 ### Core Monitoring Loop
 
 ```bash
-SIGNAL_DIR=".claude/attractor/signals"
+SIGNAL_DIR=".pipelines/signals"
 
 # Check for actionable signals (per orchestrator node)
 for NODE_ID in ${ACTIVE_NODES}; do
@@ -496,7 +496,7 @@ while not orchestrator_complete:
     )
 
     # Check signals
-    output = Bash(f'ls -t .claude/attractor/signals/*-{node_id}-*.json 2>/dev/null | head -1 | xargs cat 2>/dev/null')
+    output = Bash(f'ls -t .pipelines/signals/*-{node_id}-*.json 2>/dev/null | head -1 | xargs cat 2>/dev/null')
     if "NODE_COMPLETE" in output or "ORCHESTRATOR_STUCK" in output:
         break
     # Adjust pause_seconds based on signals found

@@ -16,9 +16,9 @@ import sys
 import pytest
 
 # Import from canonical cobuilder modules
-from cobuilder.attractor.pipeline_runner import PipelineRunner, SIGNAL_TRANSITIONS, _SignalFileHandler
-from cobuilder.attractor.parser import parse_dot
-from cobuilder.attractor.transition import VALID_TRANSITIONS, STATUS_COLORS
+from cobuilder.engine.pipeline_runner import PipelineRunner, SIGNAL_TRANSITIONS, _SignalFileHandler
+from cobuilder.engine.dispatch_parser import parse_dot
+from cobuilder.engine.transition import VALID_TRANSITIONS, STATUS_COLORS
 
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -131,7 +131,7 @@ class TestPipelineRunnerCLI:
     """AC-7.2.1: pipeline_runner.py exists, imports, --help works."""
 
     def test_file_exists(self):
-        path = os.path.join(_PROJECT_ROOT, "cobuilder", "attractor", "pipeline_runner.py")
+        path = os.path.join(_PROJECT_ROOT, "cobuilder", "engine", "pipeline_runner.py")
         assert os.path.isfile(path), f"pipeline_runner.py not found at {path}"
 
     def test_imports_cleanly(self):
@@ -142,7 +142,7 @@ class TestPipelineRunnerCLI:
     def test_help_flag(self):
         """--help shows expected options."""
         result = subprocess.run(
-            [sys.executable, os.path.join(_PROJECT_ROOT, "cobuilder", "attractor", "pipeline_runner.py"), "--help"],
+            [sys.executable, os.path.join(_PROJECT_ROOT, "cobuilder", "engine", "pipeline_runner.py"), "--help"],
             capture_output=True, text=True, timeout=10,
         )
         assert result.returncode == 0
@@ -151,7 +151,7 @@ class TestPipelineRunnerCLI:
 
     def test_no_anthropic_import(self):
         """pipeline_runner.py must NOT import anthropic (zero LLM)."""
-        path = os.path.join(_PROJECT_ROOT, "cobuilder", "attractor", "pipeline_runner.py")
+        path = os.path.join(_PROJECT_ROOT, "cobuilder", "engine", "pipeline_runner.py")
         content = open(path).read()
         assert "anthropic.Anthropic" not in content, "Found anthropic.Anthropic — runner must be zero LLM"
         assert "messages.create" not in content, "Found messages.create — runner must be zero LLM"
@@ -223,7 +223,7 @@ class TestZeroLLMGraphTraversal:
 
     def test_no_llm_in_main_loop(self):
         """The main run() loop must not contain LLM API calls."""
-        path = os.path.join(_PROJECT_ROOT, "cobuilder", "attractor", "pipeline_runner.py")
+        path = os.path.join(_PROJECT_ROOT, "cobuilder", "engine", "pipeline_runner.py")
         content = open(path).read()
 
         llm_patterns = [
@@ -239,7 +239,7 @@ class TestZeroLLMGraphTraversal:
 
     def test_watchdog_import(self):
         """Runner should use watchdog for file monitoring."""
-        path = os.path.join(_PROJECT_ROOT, "cobuilder", "attractor", "pipeline_runner.py")
+        path = os.path.join(_PROJECT_ROOT, "cobuilder", "engine", "pipeline_runner.py")
         content = open(path).read()
         assert "watchdog" in content, "Runner should use watchdog for file monitoring"
 
@@ -259,13 +259,13 @@ class TestWatchdogMonitoring:
 
     def test_uses_observer(self):
         """Should use watchdog.observers.Observer."""
-        path = os.path.join(_PROJECT_ROOT, "cobuilder", "attractor", "pipeline_runner.py")
+        path = os.path.join(_PROJECT_ROOT, "cobuilder", "engine", "pipeline_runner.py")
         content = open(path).read()
         assert "Observer" in content, "Should use watchdog Observer"
 
     def test_no_sleep_polling(self):
         """Main loop should NOT use time.sleep for polling."""
-        path = os.path.join(_PROJECT_ROOT, "cobuilder", "attractor", "pipeline_runner.py")
+        path = os.path.join(_PROJECT_ROOT, "cobuilder", "engine", "pipeline_runner.py")
         content = open(path).read()
         assert "Event" in content or "event" in content, (
             "Should use threading.Event for wake mechanism"
@@ -314,7 +314,7 @@ class TestAgentSDKDispatch:
 
     def test_uses_claude_code_sdk(self):
         """Dispatch should reference claude_code_sdk."""
-        path = os.path.join(_PROJECT_ROOT, "cobuilder", "attractor", "pipeline_runner.py")
+        path = os.path.join(_PROJECT_ROOT, "cobuilder", "engine", "pipeline_runner.py")
         content = open(path).read()
         assert "claude_code_sdk" in content, (
             "pipeline_runner.py should use claude_code_sdk for worker dispatch"
@@ -322,7 +322,7 @@ class TestAgentSDKDispatch:
 
     def test_no_headless_cli(self):
         """Must NOT use headless claude -p CLI for dispatch."""
-        path = os.path.join(_PROJECT_ROOT, "cobuilder", "attractor", "pipeline_runner.py")
+        path = os.path.join(_PROJECT_ROOT, "cobuilder", "engine", "pipeline_runner.py")
         content = open(path).read()
         # _dispatch_via_subprocess should have been removed (dead code cleanup)
         assert "_dispatch_via_subprocess" not in content, (

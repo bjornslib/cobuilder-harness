@@ -4,7 +4,7 @@
 // Expected runner action: spawn_orchestrator for impl_frontend
 // (the next codergen node whose dependency, impl_backend, is now validated)
 //
-// Schema: .claude/attractor/schema.md
+// Schema: .pipelines/schema.md
 
 digraph "poc-midway" {
     graph [

@@ -3,7 +3,7 @@
 // Demonstrates the simplest valid pipeline: start -> one task -> finish.
 // Validates with: dot -Tpng simple-pipeline.dot -o simple-pipeline.png
 //
-// Schema: .claude/attractor/schema.md
+// Schema: .pipelines/schema.md
 
 digraph "simple-example" {
     graph [
@@ -35,7 +35,7 @@ digraph "simple-example" {
         worker_type="backend-solutions-engineer"
         acceptance="GET /api/health returns JSON with status='healthy' and HTTP 200"
         promise_ac="AC-1"
-        solution_design=".claude/attractor/schema.md"
+        solution_design=".pipelines/schema.md"
         status="validated"
         style=filled
         fillcolor="lightgreen"

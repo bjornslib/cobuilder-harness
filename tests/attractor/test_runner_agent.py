@@ -25,8 +25,8 @@ from unittest.mock import MagicMock, patch
 
 # Ensure the attractor package root is on sys.path (mirrors conftest.py).
 
-import cobuilder.attractor.session_runner as runner  # noqa: E402
-from cobuilder.attractor.session_runner import (  # noqa: E402
+import cobuilder.engine.session_runner as runner  # noqa: E402
+from cobuilder.engine.session_runner import (  # noqa: E402
     build_env_config,
     build_initial_prompt,
     build_options,
@@ -468,7 +468,7 @@ class TestDryRunMode(unittest.TestCase):
         import io
         from contextlib import redirect_stdout
 
-        with patch("cobuilder.attractor.session_runner._run_agent") as mock_run:
+        with patch("cobuilder.engine.session_runner._run_agent") as mock_run:
             buf = io.StringIO()
             with self.assertRaises(SystemExit):
                 with redirect_stdout(buf):
@@ -555,7 +555,7 @@ class TestResolveScriptsDir(unittest.TestCase):
         result = resolve_scripts_dir()
         self.assertTrue(
             os.path.exists(os.path.join(result, "session_runner.py")),
-            f"cobuilder.attractor.session_runner.py not found in {result}",
+            f"cobuilder.engine.session_runner.py not found in {result}",
         )
 
 
@@ -793,7 +793,7 @@ class TestEmitEvent(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
-def _make_machine(**overrides) -> "cobuilder.attractor.session_runner.RunnerStateMachine":
+def _make_machine(**overrides) -> "cobuilder.engine.session_runner.RunnerStateMachine":
     """Construct a RunnerStateMachine with signal_protocol mocked out.
 
     signal_protocol is imported lazily inside RunnerStateMachine.__init__
@@ -802,7 +802,7 @@ def _make_machine(**overrides) -> "cobuilder.attractor.session_runner.RunnerStat
     then overwrite the instance attribute immediately after construction
     so _write_safety_net_if_needed is also fully mocked.
     """
-    from cobuilder.attractor.session_runner import RunnerStateMachine
+    from cobuilder.engine.session_runner import RunnerStateMachine
 
     kwargs = dict(
         node_id="impl_auth",
@@ -824,7 +824,7 @@ def _make_machine(**overrides) -> "cobuilder.attractor.session_runner.RunnerStat
 class TestRunnerStateMachineEvents(unittest.TestCase):
     """Tests that RunnerStateMachine.run() emits the expected JSONL events."""
 
-    def _run_and_collect(self, machine: "cobuilder.attractor.session_runner.RunnerStateMachine") -> list[dict]:
+    def _run_and_collect(self, machine: "cobuilder.engine.session_runner.RunnerStateMachine") -> list[dict]:
         """Execute machine.run() and return a list of parsed JSONL event dicts."""
         buf = io.StringIO()
         with redirect_stdout(buf):
