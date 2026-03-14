@@ -278,7 +278,13 @@ class TestValidateGraph:
 
 class TestValidationPerformance:
     def test_performance_100_nodes(self):
-        """Validation must complete in < 2 seconds for 100-node pipelines."""
+        """Validation must complete in < 2 seconds for 100-node pipelines.
+
+        Note: The synthetic test graph intentionally uses box-shaped nodes without
+        Epic 5 attributes (sd_path, downstream wait.system3, etc.), so it will
+        generate many RuleViolation entries. This is expected—the test measures
+        performance, not correctness.
+        """
         nodes = [make_node("start", shape="Mdiamond")] + [
             make_node(f"node_{i}", shape="box", label=f"Task {i}", prompt=f"Task {i}")
             for i in range(98)
@@ -295,4 +301,5 @@ class TestValidationPerformance:
         elapsed = time.monotonic() - start
 
         assert elapsed < 2.0, f"Validation took {elapsed:.2f}s for 100 nodes (limit: 2s)"
-        assert result.is_valid, f"Unexpected violations: {result.violations}"
+        # Graph will have violations (missing sd_path, wait.system3, etc.) due to Epic 5 rules
+        assert len(result.violations) > 0, "Expected violations from Epic 5 rules"

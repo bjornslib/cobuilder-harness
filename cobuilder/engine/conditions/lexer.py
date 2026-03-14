@@ -23,6 +23,13 @@ import warnings
 from cobuilder.engine.conditions.ast import ConditionLexError, Token, TokenType
 
 
+# Simple labels that are valid as standalone conditions (no comparison operator needed).
+# These are used for decision routing in DOT pipelines (e.g., condition="pass").
+_SIMPLE_LABELS: frozenset[str] = frozenset(
+    {"pass", "fail", "partial", "success", "error"}
+)
+
+
 class ConditionLexer:
     """Tokenizes a condition expression string.
 
@@ -196,12 +203,15 @@ class ConditionLexer:
                 elif word.lower() == 'false':
                     tokens.append(Token(TokenType.BOOLEAN, False, word_start))
                 else:
-                    warnings.warn(
-                        f"Deprecation: unquoted string '{word}' in condition "
-                        f'expression. Use "{word}" for clarity.',
-                        DeprecationWarning,
-                        stacklevel=2,
-                    )
+                    # Simple labels (pass, fail, etc.) are valid for decision routing
+                    # and do not trigger deprecation warnings.
+                    if word not in _SIMPLE_LABELS:
+                        warnings.warn(
+                            f"Deprecation: unquoted string '{word}' in condition "
+                            f'expression. Use "{word}" for clarity.',
+                            DeprecationWarning,
+                            stacklevel=2,
+                        )
                     tokens.append(Token(TokenType.BARE_WORD, word, word_start))
                 continue
 
