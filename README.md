@@ -30,7 +30,13 @@ A complete configuration framework for multi-agent AI orchestration using Claude
    # Edit .mcp.json and add your API keys
    ```
 
-4. **Run tests to verify setup**
+4. **Configure CoBuilder engine credentials**
+   ```bash
+   cp cobuilder/engine/.env.example cobuilder/engine/.env
+   # Edit .env with your LLM provider credentials (DashScope or Anthropic)
+   ```
+
+5. **Run tests to verify setup**
    ```bash
    pytest tests/ -v
    ```
@@ -48,6 +54,40 @@ This harness uses several MCP (Model Context Protocol) servers:
 | `serena` | IDE assistant patterns | None |
 | `hindsight` | Long-term memory | None (local HTTP) |
 | `logfire-mcp` | Observability queries | `LOGFIRE_READ_TOKEN` |
+
+### External Dependencies
+
+The harness relies on several external tools. Install them before first use:
+
+#### Required (Core Pipeline Functionality)
+
+| Dependency | Install Command | Purpose |
+|-----------|----------------|---------|
+| Claude Code SDK | `pip install claude-code-sdk` | AgentSDK worker dispatch (pipeline_runner.py uses this) |
+| Pydantic Logfire | `pip install logfire` | Pipeline observability — span tracing for all worker dispatches |
+| Logfire MCP | `uvx logfire-mcp@latest` | Query Logfire traces from Claude Code sessions |
+
+#### Required MCP Servers (configured in `.mcp.json`)
+
+| Server | Install | Required Key | Purpose |
+|--------|---------|-------------|---------|
+| Context7 | `npx -y @upstash/context7-mcp@latest` | None | Framework documentation lookup (used by research nodes) |
+| Hindsight | Local HTTP server on `localhost:8888` | None | Long-term institutional memory across sessions |
+| Serena | `uvx --from git+https://github.com/oraios/serena serena-mcp-server` | None | Semantic code navigation (find_symbol, references) |
+| Perplexity | `npx -y @perplexity-ai/mcp-server` | `PERPLEXITY_API_KEY` | Web research for research nodes |
+| Brave Search | `npx -y @modelcontextprotocol/server-brave-search` | `BRAVE_API_KEY` | Web search fallback |
+| Sequential Thinking | `npx -y @modelcontextprotocol/server-sequential-thinking` | None | Multi-step reasoning chains |
+| Task Master | `npx -y --package=task-master-ai task-master-ai` | None | Task decomposition and tracking |
+| Beads | `uv run` (from beads-mcp directory) | None | Git-backed issue tracking |
+
+#### Optional
+
+| Dependency | Install | Purpose |
+|-----------|---------|---------|
+| Stitch MCP | `npx -y stitch-mcp` | Cross-service integration |
+| Google Chat Bridge | Custom MCP server in `mcp-servers/google-chat-bridge/` | GChat notifications for AskUserQuestion |
+
+> **Note**: MCP servers are configured in `.mcp.json`. Copy from `.mcp.json.example` and add your API keys.
 
 ## Architecture
 
@@ -182,21 +222,43 @@ Each template ships with a `manifest.yaml` defining parameters, constraints (top
 DOT nodes reference named profiles from `providers.yaml`. Mix providers and models within a single pipeline:
 
 ```yaml
-# providers.yaml
+# providers.yaml — available LLM profiles
+default_profile: alibaba-glm5
+
 profiles:
   anthropic-fast:
     model: claude-haiku-4-5-20251001
     api_key: $ANTHROPIC_API_KEY
+    base_url: https://api.anthropic.com
 
   anthropic-smart:
     model: claude-sonnet-4-5-20250514
     api_key: $ANTHROPIC_API_KEY
+    base_url: https://api.anthropic.com
 
-  dashscope-fast:
+  anthropic-opus:
+    model: claude-opus-4-6
+    api_key: $ANTHROPIC_API_KEY
+    base_url: https://api.anthropic.com
+
+  alibaba-glm5:
+    model: glm-5
+    api_key: $DASHSCOPE_API_KEY
+    base_url: https://coding-intl.dashscope.aliyuncs.com/apps/anthropic
+
+  alibaba-qwen3:
     model: qwen3-coder-plus
     api_key: $DASHSCOPE_API_KEY
-    base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    base_url: https://coding-intl.dashscope.aliyuncs.com/apps/anthropic
 ```
+
+| Profile | Model | Cost | Best For |
+|---------|-------|------|----------|
+| `alibaba-glm5` | GLM-5 | ~$0 | Default for all nodes; near-zero cost via DashScope |
+| `alibaba-qwen3` | Qwen3-coder-plus | ~$0 | Alternative DashScope model |
+| `anthropic-fast` | Haiku 4.5 | $ | Research, summarization, lightweight tasks |
+| `anthropic-smart` | Sonnet 4.5 | $$ | Implementation, code generation |
+| `anthropic-opus` | Opus 4.6 | $$$ | Complex reasoning, architecture decisions |
 
 Profile resolution order (first non-null wins): node attr → handler defaults → manifest defaults → env vars → runner defaults.
 

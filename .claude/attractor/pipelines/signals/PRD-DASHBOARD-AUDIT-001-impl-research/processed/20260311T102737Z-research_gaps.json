@@ -1,1 +1,0 @@
-{"status": "success", "files_changed": [".claude/attractor/pipelines/evidence/research_gaps_findings.md"], "message": "Research complete: All 6 gaps have code fixes already in place. Gap B data cleanup (duplicate sequence rows) is the only outstanding item requiring data migration. No new code changes required from this research session."}

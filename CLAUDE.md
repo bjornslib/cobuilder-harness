@@ -573,10 +573,10 @@ The doc-gardener checks 5 categories:
 
 | Category | What It Checks | Severity | Auto-fixable |
 |----------|---------------|----------|-------------|
-| **frontmatter** | Presence + valid field values in linted directories | error | Yes (generates missing frontmatter) |
+| **frontmatter** | Missing block → `warning`; invalid field values → `error` | warning/error | Yes (generates missing frontmatter) |
 | **crosslinks** | All relative markdown links resolve to real files | error | No |
 | **naming** | Directory and file naming conventions (see below) | warning | No |
-| **staleness** | `last_verified` date vs current date thresholds | warning | Yes (downgrades grade) |
+| **staleness** | `last_verified` > 90 days → `warning`; > 60 days (authoritative only) → `info` | warning/info | Yes (downgrades grade) |
 | **grades-sync** | Frontmatter `grade` matches `quality-grades.json` defaults | info | Yes (updates frontmatter) |
 
 ### Naming Conventions
@@ -592,11 +592,11 @@ The doc-gardener checks 5 categories:
 
 ### Staleness Thresholds
 
-| Condition | Action |
-|-----------|--------|
-| `last_verified` > 90 days old | Grade should be `archive` (auto-fixed) |
-| `last_verified` > 60 days old | Consider downgrading from `authoritative` (warning) |
-| No `last_verified` field | Not flagged (field is optional) |
+| Condition | Severity | Action |
+|-----------|----------|--------|
+| `last_verified` > 90 days old | `warning` | Grade should be `archive` (auto-fixed) |
+| `last_verified` > 60 days old AND grade is `authoritative` | `info` | Consider downgrading to `reference` (auto-fixed) |
+| No `last_verified` field | — | Not flagged (field is optional) |
 
 ### Cross-Link Integrity
 

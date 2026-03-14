@@ -1,8 +1,0 @@
-{
-  "status": "fail",
-  "result": "fail",
-  "reason": "Validation timed out after 600s",
-  "_seq": 1,
-  "_ts": "2026-03-11T11:05:23.387683Z",
-  "_pid": 95946
-}
