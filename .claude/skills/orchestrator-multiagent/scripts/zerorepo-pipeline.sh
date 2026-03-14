@@ -26,8 +26,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
 RUNNER_PY="${SCRIPT_DIR}/zerorepo-run-pipeline.py"
 ATTRACTOR_CLI="${PROJECT_ROOT}/.claude/scripts/attractor/cli.py"
-PIPELINES_DIR="${PROJECT_ROOT}/.claude/attractor/pipelines"
-CHECKPOINTS_DIR="${PROJECT_ROOT}/.claude/attractor/checkpoints"
+PIPELINES_DIR="${PROJECT_ROOT}/.pipelines/pipelines"
+CHECKPOINTS_DIR="${PROJECT_ROOT}/.pipelines/checkpoints"
 
 # ---------------------------------------------------------------------------
 # Defaults
