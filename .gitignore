@@ -99,3 +99,6 @@ temp/
 
 # Pipeline runtime state — never commit
 .pipelines/
+
+# CoBuilder engine secrets — never commit
+cobuilder/engine/.env

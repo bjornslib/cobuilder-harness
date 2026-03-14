@@ -242,4 +242,4 @@ wisdom = f"""
 **Related Files:**
 - [SKILL.md](SKILL.md) - Main orchestrator skill
 - [WORKERS.md](WORKERS.md) - Worker delegation via native Agent Teams
-- [system3-orchestrator SKILL.md](../system3-orchestrator/SKILL.md) - Spawn workflow
+- [s3-guardian SKILL.md](../s3-guardian/SKILL.md) - Spawn workflow

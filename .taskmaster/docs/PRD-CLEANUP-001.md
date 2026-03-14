@@ -69,8 +69,8 @@ Clean runtime state and review documentation for currency.
 
 **Scope — State:**
 - `.claude/state/*/` marker files older than 7 days — delete
-- `.claude/attractor/pipelines/*.json` checkpoints — keep latest only per pipeline
-- `.claude/attractor/pipelines/signals/`, `.claude/message-bus/signals/` — empty
+- `.cobuilder/pipelines/*.json` checkpoints — keep latest only per pipeline
+- `.cobuilder/pipelines/signals/`, `.claude/message-bus/signals/` — empty
 - `.claude/completion-state/sessions/` older than 14 days — delete
 - `.claude/completion-state/history/` — KEEP (audit trail, never delete)
 

@@ -78,7 +78,7 @@ class TestCsPromiseCreate:
 
         result = run_cs_command(
             scripts_dir, 'cs-promise',
-            ['--create', 'Test feature implementation'],
+            ['--create', 'Test feature implementation', '--ac', 'Feature works correctly'],
             env=env, cwd=temp_project_dir
         )
 
@@ -111,7 +111,7 @@ class TestCsPromiseCreate:
 
         result = run_cs_command(
             scripts_dir, 'cs-promise',
-            ['--create', 'Test feature'],
+            ['--create', 'Test feature', '--ac', 'Test criterion'],
             env=env, cwd=temp_project_dir
         )
 
@@ -132,7 +132,7 @@ class TestCsPromiseLifecycle:
         # Create promise
         create_result = run_cs_command(
             scripts_dir, 'cs-promise',
-            ['--create', 'Test feature'],
+            ['--create', 'Test feature', '--ac', 'Feature works'],
             env=env, cwd=temp_project_dir
         )
         assert create_result.returncode == 0
@@ -170,12 +170,12 @@ class TestCsPromiseLifecycle:
         # Create two promises
         run_cs_command(
             scripts_dir, 'cs-promise',
-            ['--create', 'First feature'],
+            ['--create', 'First feature', '--ac', 'First criterion'],
             env=env, cwd=temp_project_dir
         )
         run_cs_command(
             scripts_dir, 'cs-promise',
-            ['--create', 'Second feature'],
+            ['--create', 'Second feature', '--ac', 'Second criterion'],
             env=env, cwd=temp_project_dir
         )
 
@@ -205,14 +205,14 @@ class TestCsPromiseLifecycle:
         # Create promise with session 1
         run_cs_command(
             scripts_dir, 'cs-promise',
-            ['--create', 'Session 1 feature'],
+            ['--create', 'Session 1 feature', '--ac', 'Session 1 criterion'],
             env=env1, cwd=temp_project_dir
         )
 
         # Create promise with session 2
         run_cs_command(
             scripts_dir, 'cs-promise',
-            ['--create', 'Session 2 feature'],
+            ['--create', 'Session 2 feature', '--ac', 'Session 2 criterion'],
             env=env2, cwd=temp_project_dir
         )
 
@@ -241,7 +241,7 @@ class TestCsPromiseOwnership:
         # Create and extract ID
         create_result = run_cs_command(
             scripts_dir, 'cs-promise',
-            ['--create', 'Test feature'],
+            ['--create', 'Test feature', '--ac', 'Test criterion'],
             env=env, cwd=temp_project_dir
         )
         promise_id = None
@@ -282,7 +282,7 @@ class TestCsPromiseOwnership:
         # Create promise with original owner
         create_result = run_cs_command(
             scripts_dir, 'cs-promise',
-            ['--create', 'Orphan feature'],
+            ['--create', 'Orphan feature', '--ac', 'Orphan criterion'],
             env=env1, cwd=temp_project_dir
         )
         promise_id = None
@@ -330,7 +330,7 @@ class TestCsPromiseOwnership:
         # Create promise with owner
         create_result = run_cs_command(
             scripts_dir, 'cs-promise',
-            ['--create', 'Owned feature'],
+            ['--create', 'Owned feature', '--ac', 'Owned criterion'],
             env=env1, cwd=temp_project_dir
         )
         promise_id = None
@@ -367,7 +367,7 @@ class TestCsVerify:
         # Create and start promise
         create_result = run_cs_command(
             scripts_dir, 'cs-promise',
-            ['--create', 'Test feature'],
+            ['--create', 'Test feature', '--ac', 'Test criterion'],
             env=env, cwd=temp_project_dir
         )
         promise_id = None
@@ -383,10 +383,25 @@ class TestCsVerify:
             env=env, cwd=temp_project_dir
         )
 
+        # Meet the acceptance criterion first
+        run_cs_command(
+            scripts_dir, 'cs-promise',
+            ['--meet', promise_id, '--ac-id', 'AC-1', '--evidence', 'All tests pass', '--type', 'test'],
+            env=env, cwd=temp_project_dir
+        )
+
+        # Store validation for Gate 2
+        run_cs_command(
+            scripts_dir, 'cs-store-validation',
+            ['--promise', promise_id, '--ac-id', 'AC-1',
+             '--response', '{"task_id":"test-task","verdict":"PASS","criteria_results":[],"timestamp":"2026-01-01T00:00:00Z"}'],
+            env=env, cwd=temp_project_dir
+        )
+
         # Verify promise
         verify_result = run_cs_command(
             scripts_dir, 'cs-verify',
-            ['--promise', promise_id, '--type', 'test', '--proof', 'All tests pass'],
+            ['--promise', promise_id],
             env=env, cwd=temp_project_dir
         )
 
@@ -422,7 +437,7 @@ class TestCsVerify:
         # Create promise with owner
         create_result = run_cs_command(
             scripts_dir, 'cs-promise',
-            ['--create', 'Owned feature'],
+            ['--create', 'Owned feature', '--ac', 'Owned criterion'],
             env=env1, cwd=temp_project_dir
         )
         promise_id = None
@@ -473,7 +488,7 @@ class TestCsVerify:
         # Create and start promise
         create_result = run_cs_command(
             scripts_dir, 'cs-promise',
-            ['--create', 'Incomplete feature'],
+            ['--create', 'Incomplete feature', '--ac', 'Incomplete criterion'],
             env=env, cwd=temp_project_dir
         )
         promise_id = None
@@ -812,12 +827,12 @@ class TestCrossSessionAwareness:
         # Create promises in both sessions
         run_cs_command(
             scripts_dir, 'cs-promise',
-            ['--create', 'Session 1 work'],
+            ['--create', 'Session 1 work', '--ac', 'Session 1 criterion'],
             env=session1_env, cwd=temp_project_dir
         )
         run_cs_command(
             scripts_dir, 'cs-promise',
-            ['--create', 'Session 2 work'],
+            ['--create', 'Session 2 work', '--ac', 'Session 2 criterion'],
             env=session2_env, cwd=temp_project_dir
         )
 
@@ -853,7 +868,7 @@ class TestCrossSessionAwareness:
         # Create promise in session 1
         create_result = run_cs_command(
             scripts_dir, 'cs-promise',
-            ['--create', 'Session 1 exclusive work'],
+            ['--create', 'Session 1 exclusive work', '--ac', 'Session 1 exclusive criterion'],
             env=session1_env, cwd=temp_project_dir
         )
         promise_id = None
@@ -896,7 +911,7 @@ class TestCsPromiseCancel:
         # Create promise
         create_result = run_cs_command(
             scripts_dir, 'cs-promise',
-            ['--create', 'Feature to cancel'],
+            ['--create', 'Feature to cancel', '--ac', 'Cancel criterion'],
             env=env, cwd=temp_project_dir
         )
         promise_id = None

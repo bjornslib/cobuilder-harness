@@ -245,6 +245,7 @@ HANDLER_REGISTRY: dict[str, str] = {
     "gate":       "_handle_gate",
     "wait.human": "_handle_human",
     "wait.system3": "_handle_gate",
+    "wait.cobuilder": "_handle_gate",
     "acceptance-test-writer": "_handle_worker",
 }
 
@@ -426,6 +427,11 @@ class PipelineRunner:
                     key, _, value = line.partition("=")
                     key = key.strip()
                     value = value.strip().strip('"').strip("'")
+                    # Expand $VARIABLE references using values already set in
+                    # this .env file (earlier lines) or the inherited environment
+                    if value.startswith('$'):
+                        ref_key = value[1:]
+                        value = os.environ.get(ref_key, value)
                     if key:
                         os.environ[key] = value
                         log.debug("[env] Set %s from attractor .env", key)

@@ -3,9 +3,8 @@ title: "PRD-SEQ-PROGRESSION-001: Check Sequence Progression Implementation"
 status: draft
 type: guide
 grade: authoritative
-last_verified: 2026-03-09
+last_verified: 2026-03-09T00:00:00.000Z
 ---
-
 # PRD-SEQ-PROGRESSION-001: Check Sequence Progression Implementation
 
 **Version**: 0.1.0
@@ -58,7 +57,7 @@ Case Created → Step 1: Voice Call Attempt (max_attempts=2)
 
 ### Production Database (Railway, queried 2026-03-09)
 
-**Zero cases have multiple background_tasks:**
+**Zero cases have multiple background\_tasks:**
 ```sql
 SELECT case_id, COUNT(*) FROM background_tasks
 WHERE case_id IS NOT NULL GROUP BY case_id HAVING COUNT(*) > 1;
@@ -71,10 +70,10 @@ SELECT DISTINCT current_sequence_step FROM background_tasks;
 -- 1
 ```
 
-**Active work_history sequence (check_type_id=1, customer_id=1, version=5):**
+**Active work\_history sequence (check\_type\_id=1, customer\_id=1, version=5):**
 
 | step_order | step_name | delay_hours | max_attempts | channel_type |
-|------------|-----------|-------------|--------------|--------------|
+| --- | --- | --- | --- | --- |
 | 1 | Voice Call Attempt | 24.00 | 2 | voice |
 | 2 | Email Outreach | 2.00 | 2 | voice |
 | 3 | Manual Review Escalation | 0.00 | 1 | voice |
@@ -84,7 +83,7 @@ SELECT DISTINCT current_sequence_step FROM background_tasks;
 ### Existing Columns Already on background_tasks
 
 | Column | Type | Status | Purpose |
-|--------|------|--------|---------|
+| --- | --- | --- | --- |
 | `current_sequence_step` | INT | Always 1 | Which step in the sequence this task represents |
 | `sequence_id` | INT FK | Populated since March 1 | Links to `background_check_sequence.id` |
 | `sequence_version` | INT | Populated since March 1 | Denormalized version at task creation time |
@@ -101,7 +100,7 @@ SELECT DISTINCT current_sequence_step FROM background_tasks;
 
 The Prefect flow `verification_orchestrator.py` handles post-call processing in `process_result.py`. When a call completes with a retryable result:
 
-1. **`process_result.py` (lines 220-270)**: Creates a retry task via `create_retry_task()` — but this retries **within the same step**, not advancing to the next step
+1. **`process_result.py`**** (lines 220-270)**: Creates a retry task via `create_retry_task()` — but this retries **within the same step**, not advancing to the next step
 2. **`followup_scheduler.py`**: Called from `verification_orchestrator.py:303` — schedules follow-ups within step 1, never checks `background_check_sequence` for the next step
 3. **`background_task_helpers.py:162-276`**: `create_retry_task()` creates a new task with `previous_task_id` link, but does NOT increment `current_sequence_step` or fetch the next sequence definition
 
@@ -114,7 +113,7 @@ The Prefect flow `verification_orchestrator.py` handles post-call processing in 
 ### Key Files
 
 | File | Lines | Finding |
-|------|-------|---------|
+| --- | --- | --- |
 | `api/routers/work_history.py` | ~315-330 | Creates initial task with `current_sequence_step=1` (only place it's set) |
 | `prefect_flows/flows/tasks/process_result.py` | 220-270 | Creates retry tasks for SAME step, not next step |
 | `prefect_flows/flows/tasks/followup_scheduler.py` | 1-126 | Schedules follow-ups within step 1 via `create_retry_task()` |
@@ -277,7 +276,7 @@ Step 2 in the sequence is "Email Outreach" but there is **no Prefect flow that s
 ## 9. Risks
 
 | Risk | Likelihood | Impact | Mitigation |
-|------|-----------|--------|------------|
+| --- | --- | --- | --- |
 | Email outreach flow doesn't exist | Certain | High | Step 2 tasks created but can't execute. Skip step 2 or build email flow in parallel |
 | Sequence version changes mid-case | Low | Medium | Use `sequence_version` from first task to determine remaining steps |
 | Delay scheduling drift | Low | Low | Use Prefect's `scheduled_start_time`; acceptable to be minutes late |
@@ -315,7 +314,7 @@ This PRD was created during the investigation phase of PRD-DASHBOARD-AUDIT-001 (
 ### Files to Start With
 
 | File | Why |
-|------|-----|
+| --- | --- |
 | `prefect_flows/flows/tasks/process_result.py` | Entry point — add `advance_sequence()` call after step exhaustion |
 | `services/check_sequence_service.py` | Already has `resolve_check_sequence()` — use it for next-step lookup |
 | `utils/background_task_helpers.py` | Has `create_retry_task()` — extend or create `create_next_step_task()` |

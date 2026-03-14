@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 # Real templates directory
-_TEMPLATES_DIR = Path(__file__).resolve().parents[2] / ".claude" / "attractor" / "templates"
+_TEMPLATES_DIR = Path(__file__).resolve().parents[2] / ".cobuilder" / "templates"
 
 
 def _skip_if_no_jinja2():

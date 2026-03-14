@@ -18,7 +18,7 @@ last_verified: 2026-03-11T00:00:00.000Z
 This section front-loads critical constraints discovered during validation research. All sections referencing these patterns must comply.
 
 | Constraint | Impact | Status |
-|------------|--------|--------|
+| --- | --- | --- |
 | `case_reference` column does NOT exist | No `cases.case_reference` column exists; use `cases.id` directly | **Active** |
 | Timeline requires per-step `background_tasks` rows | Timeline display requires one row per sequence step (SD-SEQ-PERSTEP-TASKS-001) | **Prerequisite** |
 | Frontend incorrectly uses `task_id` (UUID) | Must use `case_id` (INTEGER PK) for case navigation | **Bug Fix** |

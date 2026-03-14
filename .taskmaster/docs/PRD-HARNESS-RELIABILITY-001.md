@@ -95,13 +95,13 @@ Three issues discovered during PR #9 / PR #11 validation need fixing:
 ### Feature 2.1: Reset full-initiative.dot Example
 
 **Requirements**:
-- **R2.1.1**: Reset `validate_backend_tech` node in `.claude/attractor/examples/full-initiative.dot`
+- **R2.1.1**: Reset `validate_backend_tech` node in `.cobuilder/examples/full-initiative.dot`
   from `status="active"` back to `status="pending"` (or remove the status attribute entirely
   so it defaults to pending)
 - **R2.1.2**: Verify all nodes in the example file are in their default/clean state
 
 **Acceptance Criteria**:
-- AC-5: `python3 .claude/scripts/attractor/cli.py status .claude/attractor/examples/full-initiative.dot`
+- AC-5: `python3 .claude/scripts/attractor/cli.py status .cobuilder/examples/full-initiative.dot`
   shows all nodes as `pending` (no `active`, `validated`, or `failed` nodes)
 
 ### Feature 2.2: Worktree-Safe Hook Symlinks
@@ -144,7 +144,7 @@ Three issues discovered during PR #9 / PR #11 validation need fixing:
 |------|---------|
 | `.claude/skills/setup-harness/SKILL.md` | Setup-harness workflow definition |
 | `.claude/scripts/attractor/cli.py` | Attractor CLI with `install-hooks` subcommand |
-| `.claude/attractor/examples/full-initiative.dot` | Example DOT pipeline file |
+| `.cobuilder/examples/full-initiative.dot` | Example DOT pipeline file |
 | `.claude/hooks/doc-gardener-pre-push.sh` | Pre-push hook script |
 | `.claude/scripts/completion-state/cs-store-validation` | Validation storage CLI |
 

@@ -112,6 +112,7 @@ class TestEngineRunnerFreshRun:
             dot_path=dot_file,
             pipelines_dir=tmp_path / "runs",
             handler_registry=registry,
+            skip_validation=True,  # _DOT_3NODE lacks sd_path and wait.system3
         )
         checkpoint = await runner.run()
 
@@ -131,6 +132,7 @@ class TestEngineRunnerFreshRun:
             dot_path=dot_file,
             pipelines_dir=tmp_path / "runs",
             handler_registry=registry,
+            skip_validation=True,  # _DOT_2NODE lacks Epic 2 requirements
         )
         checkpoint = await runner.run()
         assert checkpoint.completed_nodes == ["s", "e"]
@@ -149,6 +151,7 @@ class TestEngineRunnerFreshRun:
             dot_path=dot_file,
             pipelines_dir=runs_dir,
             handler_registry=registry,
+            skip_validation=True,  # _DOT_2NODE lacks Epic 2 requirements
         )
         checkpoint = await runner.run()
 
@@ -171,6 +174,7 @@ class TestEngineRunnerFreshRun:
             dot_path=dot_file,
             pipelines_dir=tmp_path / "runs",
             handler_registry=registry,
+            skip_validation=True,  # _DOT_2NODE lacks Epic 2 requirements
         )
         checkpoint = await runner.run()
 
@@ -192,6 +196,7 @@ class TestEngineRunnerFreshRun:
             dot_path=dot_file,
             pipelines_dir=tmp_path / "runs",
             handler_registry=registry,
+            skip_validation=True,  # _DOT_3NODE lacks Epic 2 requirements
         )
         checkpoint = await runner.run()
         assert checkpoint.context.get("my_key") == "hello"
@@ -208,6 +213,7 @@ class TestEngineRunnerFreshRun:
             dot_path=dot_file,
             pipelines_dir=tmp_path / "runs",
             handler_registry=registry,
+            skip_validation=True,  # _DOT_2NODE lacks Epic 2 requirements
         )
         checkpoint = await runner.run()
         assert checkpoint.context.get("$last_status") == "success"
@@ -225,6 +231,7 @@ class TestEngineRunnerFreshRun:
             dot_path=dot_file,
             pipelines_dir=tmp_path / "runs",
             handler_registry=registry,
+            skip_validation=True,  # _DOT_3NODE lacks Epic 2 requirements
         )
         checkpoint = await runner.run()
 
@@ -257,6 +264,7 @@ class TestEngineRunnerFreshRun:
             pipelines_dir=tmp_path / "runs",
             handler_registry=registry,
             initial_context={"seed_key": "seed_val"},
+            skip_validation=True,  # _DOT_2NODE lacks Epic 2 requirements
         )
         await runner.run()
         assert captured["ctx"]["seed_key"] == "seed_val"
@@ -274,6 +282,7 @@ class TestEngineRunnerFreshRun:
             dot_path=dot_file,
             pipelines_dir=tmp_path / "runs",
             handler_registry=registry,
+            skip_validation=True,  # _DOT_3NODE lacks Epic 2 requirements
         )
         checkpoint = await runner.run()
         assert checkpoint.total_tokens_used == 50
@@ -291,6 +300,7 @@ class TestEngineRunnerFreshRun:
             dot_path=dot_file,
             pipelines_dir=tmp_path / "runs",
             handler_registry=registry,
+            skip_validation=True,  # _DOT_3NODE lacks Epic 2 requirements
         )
         checkpoint = await runner.run()
         assert checkpoint.visit_counts == {"start": 1, "work": 1, "done": 1}
@@ -325,6 +335,7 @@ class TestEngineRunnerResume:
             dot_path=dot_file,
             pipelines_dir=tmp_path / "runs",
             handler_registry=registry,
+            skip_validation=True,  # _DOT_3NODE lacks Epic 2 requirements
         )
         checkpoint1 = await runner1.run()
         run_dir = checkpoint1.run_dir
@@ -355,6 +366,7 @@ class TestEngineRunnerResume:
             dot_path=dot_file,
             run_dir=run_dir,
             handler_registry=registry2,
+            skip_validation=True,  # _DOT_3NODE lacks Epic 2 requirements
         )
         checkpoint2 = await runner2.run()
 
@@ -383,6 +395,7 @@ class TestEngineRunnerResume:
             dot_path=dot_file,
             pipelines_dir=tmp_path / "runs",
             handler_registry=registry1,
+            skip_validation=True,  # _DOT_3NODE lacks Epic 2 requirements
         )
         checkpoint1 = await runner1.run()
         run_dir = checkpoint1.run_dir
@@ -414,6 +427,7 @@ class TestEngineRunnerResume:
             dot_path=dot_file,
             run_dir=run_dir,
             handler_registry=registry2,
+            skip_validation=True,  # _DOT_3NODE lacks Epic 2 requirements
         )
         await runner2.run()
         assert captured_ctx.get("persisted") == "value"
@@ -509,6 +523,7 @@ digraph pipeline {
             dot_path=dot_file,
             pipelines_dir=tmp_path / "runs",
             handler_registry=registry,
+            skip_validation=True,  # _DOT_3NODE lacks Epic 2 requirements
         )
         with pytest.raises(HandlerError) as exc_info:
             await runner.run()

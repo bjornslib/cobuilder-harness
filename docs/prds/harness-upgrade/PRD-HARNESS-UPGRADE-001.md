@@ -20,7 +20,7 @@ The System 3 meta-orchestrator and its supporting harness have proven the core a
 
 This PRD addresses all five gaps across three phases: Protocol Layer (documentation), Schema & Tooling (code), and Architecture Vision (future).
 
-**Evidence base**: `.claude/attractor/ATTRACTOR-E2E-ANALYSIS.md` — full pipeline run analysis showing $10.77 total cost ($4.91 guardian + $5.86 worker) with 46% savings achievable by replacing guardian graph traversal with a pure Python runner.
+**Evidence base**: `.cobuilder/ATTRACTOR-E2E-ANALYSIS.md` — full pipeline run analysis showing $10.77 total cost ($4.91 guardian + $5.86 worker) with 46% savings achievable by replacing guardian graph traversal with a pure Python runner.
 
 ## 2. Goals
 
@@ -396,7 +396,7 @@ See SD-HARNESS-UPGRADE-001-E7.2-python-runner.md for detailed class design. Key 
 All 4 epics completed via pipeline dispatch. Documentation-only changes to schema docs, workflow references, skills, and output styles.
 
 | Epic | Status | Key Commits |
-|------|--------|-------------|
+| --- | --- | --- |
 | E0: Pipeline Progress Monitor | **DONE** | s3-guardian SKILL.md + monitoring-patterns.md |
 | E1: Node Semantics Clarification | **DONE** | wait.system3/wait.human schemas, topology rules |
 | E2: PRD Contract + E2E Gate Protocol | **DONE** | prd-contract template, guardian-workflow.md |
@@ -407,7 +407,7 @@ All 4 epics completed via pipeline dispatch. Documentation-only changes to schem
 All epics completed via pipeline dispatch with AgentSDK workers.
 
 | Epic | Status | Key Commits |
-|------|--------|-------------|
+| --- | --- | --- |
 | E4: Sub-Agent Registry + Skill Injection | **DONE** | Agent definitions + skills_required frontmatter |
 | E5: Attractor Schema + Validate CLI | **DONE** | Topology validation, sd_path mandatory |
 | E6: Dispatch Worker Enhancements | **DONE** | bypassPermissions, SD wiring, skill injection |
@@ -419,7 +419,7 @@ All epics completed via pipeline dispatch with AgentSDK workers.
 Post-E7.2 hardening addressing latent bugs discovered via stress testing and research pipeline failures.
 
 | Epic | Priority | Status | Evidence |
-|------|----------|--------|----------|
+| --- | --- | --- | --- |
 | G: Worker Context & Handler Preambles | P0 | **DONE** | Handler-specific allowed_tools + preambles |
 | H: Dead Worker Detection | P0 | **DONE** | AdvancedWorkerTracker, 10 E2E tests (`878d0ed`) |
 | I: Environment Legibility | P0 | **DONE** (redesigned) | Agent Directory merged into root CLAUDE.md; standalone AGENTS.md removed |
@@ -429,12 +429,12 @@ Post-E7.2 hardening addressing latent bugs discovered via stress testing and res
 | J: Validation Spam Suppression | P1 | **DONE** | Terminal state guard. 8 E2E tests (`5e826fc`) |
 | D: Orphan Resume Expansion | P2 | **DONE** (via PRD-COBUILDER-CONSOLIDATION-001 E2) | All 4 handler types resumable, exponential backoff, max 3 retries |
 | E.3: Persistent Requeue Guidance | P2 | **DONE** (via PRD-COBUILDER-CONSOLIDATION-001 E2, `bb5b60e`+`05cdb8a`) | File-backed persistence, authoritative over in-memory dict |
-| F: Global Safeguards | P2 | Absorbed into PRD-COBUILDER-CONSOLIDATION-001 E4-E5 | |
+| F: Global Safeguards | P2 | Absorbed into PRD-COBUILDER-CONSOLIDATION-001 E4-E5 |  |
 | Liveness Race Fix | P1 | **DONE** | `6337153` — _get_node_status() guard prevents spurious signal overwrites |
 
 **E2E Test Suite**: 33 tests in `tests/e2e/test_pipeline_hardening.py`, all passing (`cda90ed`).
 
-> **Note (2026-03-10)**: Remaining hardening epics D, E.3, and F have been absorbed into [PRD-COBUILDER-CONSOLIDATION-001](../../PRD-COBUILDER-CONSOLIDATION-001.md) to avoid migrating known-buggy code. See Section 13 of that PRD.
+> **Note (2026-03-10)**: Remaining hardening epics D, E.3, and F have been absorbed into [PRD-COBUILDER-CONSOLIDATION-001.md](./../../PRD-COBUILDER-CONSOLIDATION-001.md) to avoid migrating known-buggy code. See Section 13 of that PRD.
 
 ### Phase 3: Architecture Vision (E8-E12) — Future Work
 

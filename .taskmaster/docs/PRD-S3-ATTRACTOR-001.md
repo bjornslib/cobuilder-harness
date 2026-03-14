@@ -198,9 +198,9 @@ vocabulary that maps Attractor's node shapes to our domain.
 - AC-2.1.4: Pipeline includes all 5 Attractor lifecycle stages with promise integration
 
 ### Files
-- CREATE: .claude/attractor/schema.md
-- CREATE: .claude/attractor/examples/simple-pipeline.dot
-- CREATE: .claude/attractor/examples/full-initiative.dot
+- CREATE: .cobuilder/schema.md
+- CREATE: .cobuilder/examples/simple-pipeline.dot
+- CREATE: .cobuilder/examples/full-initiative.dot
 
 ---
 

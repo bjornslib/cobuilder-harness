@@ -24,7 +24,7 @@ business-gate approval authority.
 ### What Phase 1 Delivered (PRD-S3-ATTRACTOR-001)
 
 Phase 1 established the DOT graph as System 3's primary orchestration artifact:
-- DOT vocabulary and schema (.claude/attractor/schema.md)
+- DOT vocabulary and schema (.cobuilder/schema.md)
 - CLI tools: parse, validate, status, transition, checkpoint, generate, node/edge CRUD
 - Completion promise integration (cs-init, cs-promise, cs-verify)
 - Stop gate integration (blocks session end if pipeline has unvalidated nodes)
@@ -259,7 +259,7 @@ Need a purpose-built runner agent that automates the traversal loop.
 - R1.8: After 3 failures on same node: report STUCK, pause for intervention
 - R1.9: When exit node is reachable (all predecessors validated): signal FINALIZE
 - R1.10: Runner produces typed `RunnerPlan` output (Pydantic model) at each evaluation cycle
-- R1.11: Runner state persisted in `.claude/attractor/state/{pipeline-id}.json`
+- R1.11: Runner state persisted in `.cobuilder/state/{pipeline-id}.json`
 - R1.12: Evidence auto-linking: after validation, write `evidence_path` attribute on node via `node modify`
 
 ### Runner Tools (Agent SDK tool definitions)

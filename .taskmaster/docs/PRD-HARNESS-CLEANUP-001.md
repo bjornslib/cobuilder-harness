@@ -44,7 +44,7 @@ The claude-harness-setup repository has accumulated runtime artifacts, untracked
 ### Epic 2: File Cleanup
 
 **AC-2.1**: Root-level `test` file (0B empty artifact) deleted
-**AC-2.2**: Untracked checkpoint files in `.claude/attractor/pipelines/` cleaned up (deleted or moved)
+**AC-2.2**: Untracked checkpoint files in `.cobuilder/pipelines/` cleaned up (deleted or moved)
 **AC-2.3**: `.gitkeep` files created in directories that need to exist but should be empty (evidence/, attractor/checkpoints/, attractor/runner-state/, attractor/pipelines/signals/)
 
 ### Epic 3: Track Untracked Documentation

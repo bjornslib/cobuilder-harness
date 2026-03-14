@@ -306,7 +306,7 @@ See **[references/guardian-workflow.md](references/guardian-workflow.md)** § "S
 
 ### Anti-Patterns
 
-See **[references/anti-patterns.md](references/anti-patterns.md)** for comprehensive list of common patterns that fail and their corrections. Key categories: testing/validation, spawning, promise tracking, DOT pipeline design, and dispatch modes.
+See **[references/guardian-workflow.md](references/guardian-workflow.md)** § "Anti-Patterns" for common patterns that fail and their corrections. Key categories: testing/validation, spawning, promise tracking, DOT pipeline design, and dispatch modes.
 
 ---
 
@@ -325,7 +325,7 @@ Load these reference files when entering each phase or when you need detailed gu
 | [references/validation-scoring.md](references/validation-scoring.md) | Phase 4: Independent validation, evidence gathering, gap closure protocol |
 | [references/dot-pipeline-creation.md](references/dot-pipeline-creation.md) | DOT pipeline syntax, handler types, node attributes, validation |
 | [references/gap-closure-protocol.md](references/gap-closure-protocol.md) | Phase 4.5: Autonomous closure of validation gaps via fix-it codergen nodes |
-| [references/anti-patterns.md](references/anti-patterns.md) | Common patterns that fail (testing, spawning, DOT design, dispatch modes) |
+| [references/guardian-workflow.md](references/guardian-workflow.md) | Phase 2-3: Orchestrator spawning, monitoring patterns, intervention triggers, anti-patterns |
 
 **DO NOT load all references at once.** Load on-demand as you progress through phases.
 

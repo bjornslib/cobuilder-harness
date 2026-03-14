@@ -814,16 +814,16 @@ During session initialization (after Dual-Bank Startup Protocol), if a pipeline 
 
 ```bash
 # 1. Validate the pipeline graph structure (no cycles, AT pairing, topology rules, etc.)
-cobuilder pipeline validate .claude/attractor/pipelines/${INITIATIVE}.dot
+cobuilder pipeline validate .cobuilder/pipelines/${INITIATIVE}.dot
 
 # 2. Get current pipeline status (all nodes)
-cobuilder pipeline status .claude/attractor/pipelines/${INITIATIVE}.dot
+cobuilder pipeline status .cobuilder/pipelines/${INITIATIVE}.dot
 
 # 3. Find dispatchable nodes (pending + all upstream deps validated)
-cobuilder pipeline status .claude/attractor/pipelines/${INITIATIVE}.dot --filter=pending --deps-met
+cobuilder pipeline status .cobuilder/pipelines/${INITIATIVE}.dot --filter=pending --deps-met
 
 # 4. Get machine-readable summary for decision making
-cobuilder pipeline status .claude/attractor/pipelines/${INITIATIVE}.dot --json --summary
+cobuilder pipeline status .cobuilder/pipelines/${INITIATIVE}.dot --json --summary
 ```
 
 **Interpreting status output**: The status table shows every node with its handler type, current status, bead ID, worker type, and label. Use `--filter=pending --deps-met` to identify nodes ready for dispatch — this filters to only nodes whose upstream dependencies are all validated. Use `--summary` to get counts by status (e.g., `pending=5, active=2, validated=3`).

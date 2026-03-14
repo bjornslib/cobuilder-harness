@@ -182,7 +182,7 @@ impl_auth [
 
 ### 3.6 Signal Protocol
 
-Layers communicate via JSON signal files in `.claude/attractor/signals/`.
+Layers communicate via JSON signal files in `.cobuilder/signals/`.
 
 **Signal file naming**: `{timestamp}-{source_layer}-{target_layer}-{signal_type}.json`
 
@@ -375,4 +375,4 @@ End-to-end test that exercises all 4 layers on a minimal test pipeline.
 | `claude-code-sdk` 0.0.25+ | Installed | CLI tools avoid in-process MCP race condition |
 | Existing attractor CLI tools | Implemented (PRD-S3-ATTRACTOR-002) | `cli.py status`, `transition`, `validate`, `checkpoint` |
 | Existing orchestrator infrastructure | Implemented | tmux spawn, output-style injection, worker teams |
-| Signal directory writable | Runtime | `.claude/attractor/signals/` must exist |
+| Signal directory writable | Runtime | `.cobuilder/signals/` must exist |

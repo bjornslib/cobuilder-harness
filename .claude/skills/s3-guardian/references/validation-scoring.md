@@ -831,8 +831,6 @@ cd /path/to/impl-repo && pytest --tb=short 2>&1 | tail -20
 
 **Critical principle**: Read the code directly. Do NOT trust orchestrator self-reports, progress logs, or status messages. The entire point of the guardian pattern is independent verification.
 
-See [references/validation-scoring.md](references/validation-scoring.md) for the scoring methodology and evidence mapping.
-
 #### DOT Pipeline Integration
 
 When the initiative uses a `.dot` attractor pipeline, Phase 4 validation is node-driven. Each hexagon node in the pipeline graph represents a single validation gate. The guardian reads node attributes directly rather than inferring scope from PRD text.

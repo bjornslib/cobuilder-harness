@@ -121,7 +121,7 @@ No automated workflow exists to go from "PRD + codebase" to "ready-to-execute .d
   4. `attractor validate` (structural check)
   5. `attractor annotate` (cross-reference with beads DB)
   6. `attractor init-promise` (create completion promise from graph)
-- R2.3: Output stored at `.claude/attractor/pipelines/<PRD-ID>.dot`
+- R2.3: Output stored at `.cobuilder/pipelines/<PRD-ID>.dot`
 - R2.4: Checkpoint created automatically after definition stage
 - R2.5: Summary report showing node count, dependency graph, estimated effort per worker type
 
@@ -129,7 +129,7 @@ No automated workflow exists to go from "PRD + codebase" to "ready-to-execute .d
 - AC-2.1: `zerorepo-pipeline.sh --prd .taskmaster/docs/PRD-XXX.md --format=attractor` completes end-to-end
 - AC-2.2: Output .dot is stored at correct path and passes `attractor validate`
 - AC-2.3: Completion promise created with one AC per hexagon validation gate
-- AC-2.4: Checkpoint saved at `.claude/attractor/checkpoints/<PRD-ID>-definition.json`
+- AC-2.4: Checkpoint saved at `.cobuilder/checkpoints/<PRD-ID>-definition.json`
 - AC-2.5: Summary report printed to stdout with node counts by type and worker_type distribution
 
 ### Key Files
@@ -146,7 +146,7 @@ No automated workflow exists to go from "PRD + codebase" to "ready-to-execute .d
 System 3's DOT Navigation section (in the output style) describes the execution loop conceptually but lacks integration with ZeroRepo-generated pipelines. The generated .dot graph needs to be the primary instrument.
 
 ### Requirements
-- R3.1: System 3 preflight reads `.claude/attractor/pipelines/<INITIATIVE>.dot` automatically
+- R3.1: System 3 preflight reads `.cobuilder/pipelines/<INITIATIVE>.dot` automatically
 - R3.2: `attractor status --filter=pending --deps-met` identifies dispatchable nodes (pending + all upstream validated)
 - R3.3: When spawning an orchestrator for a node, inject:
   - Node's `acceptance` criteria as the mission brief
