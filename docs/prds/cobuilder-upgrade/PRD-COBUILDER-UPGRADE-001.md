@@ -750,7 +750,7 @@ Last updated: 2026-03-15
 | E3: Event Bus + Watchdog | **Done** | Signal-based event system operational. Watchdog monitoring via `SignalFileHandler` + `DotFileHandler` — event-driven (no polling). `WorktreeManager.get_or_create()` idempotent lifecycle with existing-branch support. DOT graph-level config via `target_dir`/`worktree_id` attributes. |
 | E4: Manager Loop | **Done** | Child signal monitoring in `_monitor_child_process()`. `CloseHandler` (push, PR). `MaxNestingDepthError` for nesting depth enforcement. manager_loop 87%, close 98% coverage. E2E test validates parent→child pipeline flow with `wait.cobuilder` gate handling (no deadlocks). |
 | E5: GitHub Publication | **Done** | LICENSE (MIT), CONTRIBUTING.md covering architecture + setup + testing, CI workflow (lint + pytest + 90% coverage gate). Secret scrubbing: `.mcp.json` env var refs only, `.mcp.json.example` with placeholders. `git-secrets` pre-commit hook. No stale branches. |
-| E6: LLM Profile System | **Remaining (partial)** | DashScope/Alibaba Cloud profiles work (`qwen3-coder-plus` validated in 6 live pipeline runs). `wait.cobuilder` handler implemented. Full `providers.yaml` profile registry schema not formalized. system3→cobuilder global rename and PRD→BS/SD→TS terminology migration not started. |
+| E6: Terminology Migration + LLM Profiles | **Done** | system3→cobuilder rename complete (86+ files across skills, output-styles, hooks, tests, engine). wait.system3→wait.cobuilder handler rename complete (Python source, tests, DOT examples, architecture docs). PRD→Business Spec (BS) / SD→Technical Spec (TS) prose-level rename in cobuilder-guardian skill. s3-guardian/→cobuilder-guardian/, s3-heartbeat/→cobuilder-heartbeat/ directory renames. providers.yaml moved to cobuilder/engine/ (co-located with providers.py). 5 SDK bug fixes: cancel scope crash handling, BaseException catch for CancelledError, Logfire inspect_arguments=False, watchdog signal debounce, deploy-harness.sh updated. 224 engine tests pass. |
 | E7: Guardian Lifecycle Template | **Done** | `cobuilder-lifecycle/template.dot.j2` + `manifest.yaml` with RESEARCH→REFINE→PLAN→wait.human→EXECUTE→VALIDATE→EVALUATE→CLOSE topology. Loop-back edges EVALUATE→RESEARCH with `loop_constraint.max_iterations=3`. `require_human_before_launch=true` default. |
 | E8: Initiative Graph (Hub-Spoke Template) | **Remaining** | Not started. Hub-spoke topology with parameterized `spoke_count`, per-spoke `llm_profile`. |
 | E9: Web Dashboard (Template CLI) | **Remaining** | Not started. `cobuilder template {list,show,instantiate,validate}` commands. |
@@ -785,8 +785,25 @@ This spec provides **backend infrastructure** that the CoBuilder Web spec consum
 
 The two specs can be developed in parallel. CoBuilder Web depends on E3 (worktrees) and E1 (per-node config).
 
-## Implementation Status
+## Implementation Status (Detailed)
 
-| Epic | Status | Date | Commit |
+| Epic | Status | Date | Key Commits |
 | --- | --- | --- | --- |
-| - | Remaining | - | - |
+| E0: Pipeline Infra | Done | 2026-03-01 | Merge template system, fix 195 test failures |
+| E1: Handler Consolidation | Done | 2026-03-02 | providers.py (530 LOC), 53 unit tests |
+| E2: Template Migration | Done | 2026-03-03 | 34 files moved, 17 env vars renamed |
+| E3: Event Bus + Watchdog | Done | 2026-03-04 | Signal-based events, watchdog monitoring |
+| E4: Manager Loop | Done | 2026-03-10 | d424573 (child signal monitoring + close handler) |
+| E5: GitHub Publication | Done | 2026-03-11 | LICENSE, CONTRIBUTING.md, CI workflow |
+| E6: Terminology Migration | Done | 2026-03-15 | 748cc02, e1436de (system3→cobuilder), 78d0d88 (5 SDK fixes) |
+| E7: Guardian Lifecycle Template | Done | 2026-03-12 | template.dot.j2 + manifest.yaml |
+| E8: Initiative Graph | Remaining | — | Not started |
+| E9: Web Dashboard CLI | Remaining | — | Not started |
+| E10: Stream Summarizer | Remaining | — | Not started |
+
+### Known Gaps
+
+| Gap | Severity | Details |
+| --- | --- | --- |
+| Test coverage at 3.2% (package-wide) | Medium | Engine tests (224) cover core pipeline_runner, providers, handlers. repomap/ and templates/ modules have minimal coverage. CI gate set to 90% but only enforced per-module, not package-wide. Recommend: add focused test coverage for repomap/ and templates/ as separate epic. |
+| `ccsystem3` shell function name not renamed | Low | The ZSH function `ccsystem3` in user's shell profile still uses old name. launch_cobuilder.sh is the portable replacement. Shell function rename is a user-environment change, not codebase. |
