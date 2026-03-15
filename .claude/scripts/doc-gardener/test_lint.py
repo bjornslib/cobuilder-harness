@@ -35,6 +35,8 @@ from lint import (
     check_naming,
     check_staleness,
     check_grades_sync,
+    check_implementation_status,
+    check_misplaced_documents,
     load_config,
     lint,
     format_text,
@@ -43,6 +45,7 @@ from lint import (
     CLAUDE_DIR as LINT_CLAUDE_DIR,
     DEFAULT_SKIP_DIRS,
     DEFAULT_SKIP_FILES,
+    SEVERITY_WARNING,
 )
 
 
@@ -944,3 +947,115 @@ class TestStalenessForNonClaudeTargets:
         ctx = LintContext(target_dir=target)
         violations = check_staleness(filepath, content, ctx)
         assert violations == []
+
+
+# ---------------------------------------------------------------------------
+# 15. Implementation status checks
+# ---------------------------------------------------------------------------
+
+class TestImplementationStatus:
+    """check_implementation_status() detects missing sections in PRD/SD/Epic/Spec files."""
+
+    def test_implementation_status_present(self, tmp_path):
+        """PRD file with an Implementation Status section produces no violation."""
+        target = tmp_path / "docs"
+        target.mkdir()
+        content = (
+            "---\n"
+            "title: \"My PRD\"\n"
+            "status: active\n"
+            "type: prd\n"
+            "---\n\n"
+            "# My PRD\n\n"
+            "## Implementation Status\n\n"
+            "| Epic | Status | Date | Commit |\n"
+            "|------|--------|------|--------|\n"
+            "| E1   | Done   | 2026-01-01 | abc123 |\n"
+        )
+        filepath = write_md(target / "PRD-MY.md", content)
+        ctx = LintContext(target_dir=target)
+        violations = check_implementation_status(filepath, content, ctx)
+        assert violations == []
+
+    def test_implementation_status_missing(self, tmp_path):
+        """PRD file without an Implementation Status section produces a warning violation."""
+        target = tmp_path / "docs"
+        target.mkdir()
+        content = (
+            "---\n"
+            "title: \"My PRD\"\n"
+            "status: active\n"
+            "type: prd\n"
+            "---\n\n"
+            "# My PRD\n\n"
+            "Some content here.\n"
+        )
+        filepath = write_md(target / "PRD-MY.md", content)
+        ctx = LintContext(target_dir=target)
+        violations = check_implementation_status(filepath, content, ctx)
+        assert len(violations) == 1
+        v = violations[0]
+        assert v.category == "implementation-status"
+        assert v.severity == SEVERITY_WARNING
+        assert v.fixable is True
+
+    def test_implementation_status_draft_exempt(self, tmp_path):
+        """Draft documents are exempt from the Implementation Status requirement."""
+        target = tmp_path / "docs"
+        target.mkdir()
+        content = (
+            "---\n"
+            "title: \"Draft PRD\"\n"
+            "status: draft\n"
+            "type: prd\n"
+            "---\n\n"
+            "# Draft PRD\n\n"
+            "Work in progress.\n"
+        )
+        filepath = write_md(target / "PRD-DRAFT.md", content)
+        ctx = LintContext(target_dir=target)
+        violations = check_implementation_status(filepath, content, ctx)
+        assert violations == []
+
+
+# ---------------------------------------------------------------------------
+# 16. Misplaced document repo scan
+# ---------------------------------------------------------------------------
+
+class TestMisplacedDocuments:
+    """check_misplaced_documents() repo-scan form detects PRD/SD files outside docs/."""
+
+    def test_misplaced_document_detected(self, tmp_path):
+        """A PRD file at repo root is flagged as misplaced."""
+        repo_root = tmp_path
+        docs_dir = repo_root / "docs"
+        docs_dir.mkdir()
+        # Create a PRD file at repo root (outside docs/)
+        prd_file = repo_root / "PRD-FOO.md"
+        prd_file.write_text("# PRD-FOO\n", encoding="utf-8")
+        ctx = LintContext(target_dir=docs_dir)
+        violations = check_misplaced_documents(repo_root, docs_dir, ctx)
+        categories = [v.category for v in violations]
+        assert "misplaced-document" in categories
+
+    def test_misplaced_document_exclusion(self, tmp_path):
+        """Files under excluded paths are not flagged."""
+        repo_root = tmp_path
+        docs_dir = repo_root / "docs"
+        docs_dir.mkdir()
+        # Create PRD file inside an excluded directory
+        excl_dir = repo_root / ".claude" / "skills"
+        excl_dir.mkdir(parents=True)
+        prd_file = excl_dir / "PRD-REF.md"
+        prd_file.write_text("# PRD reference\n", encoding="utf-8")
+        ctx = LintContext(
+            target_dir=docs_dir,
+            misplaced_exclusions=[".claude/skills/"],
+        )
+        violations = check_misplaced_documents(repo_root, docs_dir, ctx)
+        # None of the violations should be for PRD-REF.md inside the excluded path
+        prd_violations = [
+            v for v in violations
+            if "PRD-REF" in v.file or "PRD-REF" in v.message
+        ]
+        assert prd_violations == []

@@ -1,0 +1,74 @@
+{
+  "skip_dirs": [
+    "state",
+    "completion-state",
+    "evidence",
+    "progress",
+    "worker-assignments",
+    "user-input-queue",
+    ".git",
+    "__pycache__",
+    "node_modules",
+    ".vscode",
+    ".idea"
+  ],
+  "skip_files": [
+    "gardening-report.md"
+  ],
+  "directory_grades": {
+    "docs": "reference",
+    "skills": "authoritative",
+    "agents": "authoritative",
+    "output-styles": "authoritative",
+    "hooks": "reference",
+    "commands": "reference",
+    "documentation": "reference"
+  },
+  "frontmatter_required_dirs": [
+    "docs",
+    "skills",
+    "agents",
+    "output-styles",
+    "hooks",
+    "commands",
+    "documentation",
+    "ADR-*"
+  ],
+  "targets": [
+    ".claude/",
+    "docs/"
+  ],
+  "required_fields": {
+    "docs": ["title", "status", "type", "last_verified", "grade"],
+    "claude": ["title", "status", "type", "grade"]
+  },
+  "docs_types": [
+    "prd",
+    "sd",
+    "epic",
+    "specification",
+    "research",
+    "guide",
+    "reference",
+    "architecture"
+  ],
+  "require_implementation_status": [
+    "prd",
+    "sd",
+    "epic",
+    "specification"
+  ],
+  "misplaced_document_scan": true,
+  "misplaced_document_exclusions": [
+    ".claude/skills/",
+    ".claude/output-styles/",
+    ".claude/commands/",
+    ".claude/evidence/",
+    ".claude/narrative/",
+    "acceptance-tests/",
+    "node_modules/",
+    ".git/",
+    ".pipelines/",
+    ".cobuilder/"
+  ]
+}

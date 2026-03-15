@@ -61,6 +61,28 @@ VALID_TYPES = {
     "config",         # Configuration docs
 }
 
+# Document types that appear in docs/ targets (broader than harness types)
+VALID_DOCS_TYPES = {
+    "prd",
+    "sd",
+    "epic",
+    "specification",
+    "research",
+    "guide",
+    "reference",
+    "architecture",
+}
+
+# Template appended to PRD/SD/Epic/Spec files missing an Implementation Status section
+IMPL_STATUS_TEMPLATE = """
+
+## Implementation Status
+
+| Epic | Status | Date | Commit |
+|------|--------|------|--------|
+| - | Remaining | - | - |
+"""
+
 # Directories to skip entirely (runtime state, not documentation)
 DEFAULT_SKIP_DIRS = {
     "state",
@@ -149,12 +171,22 @@ class LintContext:
         skip_files: set[str] | None = None,
         frontmatter_dirs: set[str] | None = None,
         directory_grades: dict[str, str] | None = None,
+        require_implementation_status: list[str] | None = None,
+        misplaced_scan: bool = False,
+        misplaced_exclusions: list[str] | None = None,
+        docs_types: set[str] | None = None,
+        required_fields: list[str] | None = None,
     ):
         self.target_dir = target_dir
         self.skip_dirs = skip_dirs if skip_dirs is not None else set(DEFAULT_SKIP_DIRS)
         self.skip_files = skip_files if skip_files is not None else set(DEFAULT_SKIP_FILES)
         self.frontmatter_dirs = frontmatter_dirs  # None means use is_claude_dir logic
         self.directory_grades = directory_grades  # None means use quality-grades.json
+        self.require_implementation_status = require_implementation_status or []
+        self.misplaced_scan = misplaced_scan
+        self.misplaced_exclusions = misplaced_exclusions or []
+        self.docs_types = docs_types  # None means use default VALID_DOCS_TYPES
+        self.required_fields = required_fields  # None means use defaults per target
 
     @property
     def is_claude_dir(self) -> bool:
@@ -765,6 +797,151 @@ def check_grades_sync(
     return violations
 
 
+def check_implementation_status(filepath: Path, content: str, ctx: LintContext) -> list[Violation]:
+    """Check that PRD/SD/Epic/Spec documents have an Implementation Status section."""
+    violations = []
+    rel = get_relative_path(filepath, ctx.target_dir)
+    fm, _ = parse_frontmatter(content)
+
+    # Draft documents are exempt
+    if fm and fm.get("status") == "draft":
+        return []
+
+    needs_status = False
+
+    # Check frontmatter type
+    if fm:
+        doc_type = fm.get("type", "")
+        if doc_type in ("prd", "sd", "epic", "specification", "spec"):
+            needs_status = True
+        # Also check against ctx-level require_implementation_status list
+        require_types = getattr(ctx, "require_implementation_status", [])
+        if require_types and doc_type in require_types:
+            needs_status = True
+
+    # Check filename stem (e.g. PRD-FOO.md, SD-BAR.md)
+    name = filepath.stem.upper()
+    if name.startswith(("PRD-", "SD-")):
+        needs_status = True
+
+    if not needs_status:
+        return []
+
+    if not re.search(r"^##\s+Implementation\s+Status", content, re.MULTILINE | re.IGNORECASE):
+        violations.append(Violation(
+            file=rel,
+            category="implementation-status",
+            severity=SEVERITY_WARNING,
+            message=(
+                "Missing '## Implementation Status' section "
+                "(required for PRD/SD/Epic/Spec documents)"
+            ),
+            fixable=True,
+            target_dir=ctx.target_dir,
+        ))
+
+    return violations
+
+
+def _is_documentation_dir(target_dir: Path) -> bool:
+    """Return True if target_dir is a docs/documentation directory."""
+    name = target_dir.name.lower()
+    return name in {"docs", "documentation"} or name.endswith("-docs") or name.startswith("docs-")
+
+
+def _check_misplaced_document_single(filepath: Path, ctx: LintContext) -> list[Violation]:
+    """Per-file misplaced-document check (legacy 2-arg form). Category: misplaced-documents."""
+    if filepath.suffix.lower() != ".md":
+        return []
+    if _is_documentation_dir(ctx.target_dir):
+        return []
+    rel = get_relative_path(filepath, ctx.target_dir)
+    return [Violation(
+        file=rel,
+        category="misplaced-documents",
+        severity=SEVERITY_WARNING,
+        message="This documentation file should be in docs/. Consider moving it.",
+        fixable=False,
+        target_dir=ctx.target_dir,
+    )]
+
+
+def _check_misplaced_documents_repo(repo_root: Path, docs_dir: Path, ctx: LintContext) -> list[Violation]:
+    """Repo-wide scan for documentation files outside docs_dir. Category: misplaced-document."""
+    violations = []
+    exclusions = getattr(ctx, "misplaced_exclusions", [])
+
+    for filepath in repo_root.rglob("*.md"):
+        # Skip files already in docs_dir
+        try:
+            filepath.relative_to(docs_dir)
+            continue
+        except ValueError:
+            pass
+
+        # Skip files matching any exclusion prefix
+        rel_to_root = str(filepath.relative_to(repo_root))
+        excluded = False
+        for excl in exclusions:
+            if rel_to_root.startswith(excl.lstrip("/")):
+                excluded = True
+                break
+        if excluded:
+            continue
+
+        # Skip hidden dirs and common non-doc dirs
+        parts = filepath.relative_to(repo_root).parts
+        skip = False
+        for part in parts[:-1]:
+            if part.startswith(".") or part in ("node_modules", "__pycache__"):
+                skip = True
+                break
+        if skip:
+            continue
+
+        # Flag if filename or frontmatter indicates a PRD/SD/Epic/Spec
+        name_upper = filepath.stem.upper()
+        is_doc = name_upper.startswith(("PRD-", "SD-", "EPIC-", "SPEC-"))
+
+        if not is_doc:
+            try:
+                content = filepath.read_text(encoding="utf-8")
+                fm, _ = parse_frontmatter(content)
+                if fm:
+                    doc_type = fm.get("type", "")
+                    if doc_type in ("prd", "sd", "epic", "specification", "spec"):
+                        is_doc = True
+            except (OSError, UnicodeDecodeError):
+                pass
+
+        if is_doc:
+            violations.append(Violation(
+                file=rel_to_root,
+                category="misplaced-document",
+                severity=SEVERITY_WARNING,
+                message=(
+                    f"Documentation file '{filepath.name}' found outside docs/. "
+                    "Consider moving it to docs/."
+                ),
+                fixable=False,
+                target_dir=ctx.target_dir,
+            ))
+
+    return violations
+
+
+def check_misplaced_documents(first_arg, second_arg, third_arg=None):
+    """Dispatch to per-file or repo-scan implementation based on argument count.
+
+    2-arg form: check_misplaced_documents(filepath, ctx) -> per-file, category misplaced-documents
+    3-arg form: check_misplaced_documents(repo_root, docs_dir, ctx) -> repo scan, category misplaced-document
+    """
+    if third_arg is None:
+        return _check_misplaced_document_single(first_arg, second_arg)
+    else:
+        return _check_misplaced_documents_repo(first_arg, second_arg, third_arg)
+
+
 # ---------------------------------------------------------------------------
 # Fix logic
 # ---------------------------------------------------------------------------
@@ -920,6 +1097,13 @@ def apply_fixes(
                         )
                         modified = True
 
+                elif (
+                    v.category == "implementation-status"
+                    and "Missing" in v.message
+                ):
+                    content = content.rstrip() + IMPL_STATUS_TEMPLATE
+                    modified = True
+
             if modified:
                 filepath.write_text(content, encoding="utf-8")
                 fixed_count += 1
@@ -955,6 +1139,11 @@ def lint(
     config_skip_files: set[str] = set()
     config_directory_grades: dict[str, str] | None = None
     config_frontmatter_required: set[str] | None = None
+    config_require_impl_status: list[str] = []
+    config_misplaced_scan: bool = False
+    config_misplaced_exclusions: list[str] = []
+    config_docs_types: set[str] | None = None
+    config_required_fields: list[str] | None = None
 
     if config:
         if "skip_dirs" in config:
@@ -965,6 +1154,21 @@ def lint(
             config_directory_grades = dict(config["directory_grades"])
         if "frontmatter_required_dirs" in config:
             config_frontmatter_required = set(config["frontmatter_required_dirs"])
+        if "require_implementation_status" in config:
+            config_require_impl_status = list(config["require_implementation_status"])
+        if "misplaced_document_scan" in config:
+            config_misplaced_scan = bool(config["misplaced_document_scan"])
+        if "misplaced_document_exclusions" in config:
+            config_misplaced_exclusions = list(config["misplaced_document_exclusions"])
+        if "docs_types" in config:
+            config_docs_types = set(config["docs_types"])
+        if "required_fields" in config:
+            raw_rf = config["required_fields"]
+            if isinstance(raw_rf, list):
+                config_required_fields = list(raw_rf)
+            elif isinstance(raw_rf, dict):
+                # Support {docs: [...], claude: [...]} form; pick appropriate list later
+                config_required_fields = None  # handled per-ctx below
 
     all_violations: list[Violation] = []
     total_files = 0
@@ -994,6 +1198,11 @@ def lint(
             skip_files=effective_skip_files,
             frontmatter_dirs=frontmatter_dirs,
             directory_grades=config_directory_grades,
+            require_implementation_status=config_require_impl_status,
+            misplaced_scan=config_misplaced_scan,
+            misplaced_exclusions=config_misplaced_exclusions,
+            docs_types=config_docs_types,
+            required_fields=config_required_fields,
         )
 
         files = collect_md_files(ctx)
@@ -1024,6 +1233,14 @@ def lint(
             all_violations.extend(check_staleness(filepath, content, ctx))
             all_violations.extend(check_naming(filepath, ctx))
             all_violations.extend(check_grades_sync(filepath, content, grades_data, ctx))
+            all_violations.extend(check_implementation_status(filepath, content, ctx))
+
+        # Post-loop: repo-wide misplaced document scan
+        if getattr(ctx, "misplaced_scan", False):
+            repo_root = target_dir.parent if target_dir.name not in (".", "") else target_dir
+            docs_dir = repo_root / "docs"
+            if docs_dir.exists():
+                all_violations.extend(check_misplaced_documents(repo_root, docs_dir, ctx))
 
     if fix and all_violations:
         fixed = apply_fixes(all_violations, grades_data, targets)
