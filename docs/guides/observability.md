@@ -80,7 +80,7 @@ The query engine is Apache DataFusion (Postgres-like syntax). Key points:
 
 ## Integration with Orchestrator Workflow
 
-After deployment, orchestrators run a **Level 4: Deploy Health** check using Logfire queries. This is documented in the orchestrator-multiagent skill's [VALIDATION.md](../../skills/orchestrator-multiagent/VALIDATION.md#level-4-deploy-health-logfire-observability).
+After deployment, orchestrators run a **Level 4: Deploy Health** check using Logfire queries. This is documented in the orchestrator-multiagent skill's VALIDATION.md (Level 4: Deploy Health — Logfire Observability section).
 
 The workflow:
 1. Deploy code changes

@@ -434,7 +434,7 @@ Post-E7.2 hardening addressing latent bugs discovered via stress testing and res
 
 **E2E Test Suite**: 33 tests in `tests/e2e/test_pipeline_hardening.py`, all passing (`cda90ed`).
 
-> **Note (2026-03-10)**: Remaining hardening epics D, E.3, and F have been absorbed into [PRD-COBUILDER-CONSOLIDATION-001.md](./../../PRD-COBUILDER-CONSOLIDATION-001.md) to avoid migrating known-buggy code. See Section 13 of that PRD.
+> **Note (2026-03-10)**: Remaining hardening epics D, E.3, and F have been absorbed into PRD-COBUILDER-CONSOLIDATION-001.md to avoid migrating known-buggy code. See Section 13 of that PRD.
 
 ### Phase 3: Architecture Vision (E8-E12) — Future Work
 

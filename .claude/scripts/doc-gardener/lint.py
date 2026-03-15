@@ -111,7 +111,10 @@ STALENESS_ARCHIVE = 90   # >90 days -> grade should be archive
 STALENESS_REFERENCE = 60  # >60 days -> grade should be reference or lower
 
 # Naming: kebab-case for directories
-KEBAB_DIR_PATTERN = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+KEBAB_DIR_PATTERN = re.compile(
+    r"^([a-z0-9]+(-[a-z0-9]+)*"                                     # standard kebab-case
+    r"|(SD|PRD|TS|EPIC|SPEC|MANUAL|GAP)-[A-Za-z0-9][-A-Za-z0-9.]*)$"  # doc-id prefixed dirs
+)
 
 # Naming: kebab-case for files (with optional date prefix)
 KEBAB_FILE_PATTERN = re.compile(
@@ -146,6 +149,20 @@ VERSION_FILE_PATTERN = re.compile(
 # Underscore-prefixed private files (_sections.md, _template.md)
 UNDERSCORE_FILE_PATTERN = re.compile(
     r"^_[a-z0-9]+(-[a-z0-9]+)*\.[a-z]+$"
+)
+
+# Document-identifier prefixed files (SD-*, PRD-*, TS-*, EPIC-*, etc.)
+# Handles: SD-COBUILDER-WEB-001-E1-initiative-lifecycle.md,
+#          PRD-HARNESS-UPGRADE-001.md, TS-COBUILDER-UPGRADE-E0.4.md,
+#          SD-VCHAT-001-E2.1-TRANSCRIPT-MERGE.md
+DOC_ID_FILE_PATTERN = re.compile(
+    r"^(SD|PRD|TS|EPIC|SPEC|MANUAL|GAP|SOLUTION|NATIVE)-[A-Za-z0-9][-A-Za-z0-9.]*\.md$"
+)
+
+# Kebab prefix followed by a doc-id suffix
+# Handles: design-challenge-PRD-PIPELINE-ENGINE-001.md
+KEBAB_DOCID_FILE_PATTERN = re.compile(
+    r"^[a-z0-9]+(-[a-z0-9]+)*-(PRD|SD|TS|EPIC|SPEC|MANUAL|GAP)-[A-Za-z0-9][-A-Za-z0-9.]*\.md$"
 )
 
 # Severity levels
@@ -713,6 +730,8 @@ def check_naming(filepath: Path, ctx: LintContext) -> list[Violation]:
             and not VERSION_FILE_PATTERN.match(name)
             and not UNDERSCORE_FILE_PATTERN.match(name)
             and not KEBAB_UPPER_FILE_PATTERN.match(name)
+            and not DOC_ID_FILE_PATTERN.match(name)
+            and not KEBAB_DOCID_FILE_PATTERN.match(name)
         ):
             violations.append(Violation(
                 file=rel,

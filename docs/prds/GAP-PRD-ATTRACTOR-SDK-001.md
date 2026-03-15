@@ -34,7 +34,7 @@ launch_guardian.py (Layer 0: Terminal)
 
 ### 1.3 Target Architecture (3-Layer Model)
 
-The [attractor-spec-reference.md](./../documentation/attractor-spec-reference.md) defines a **single-threaded graph traversal engine** with pluggable handlers. The spec's `CodergenBackend` interface and `ManagerLoopHandler` (Section 4.5, 4.11) map to a **3-layer model** — no orchestrator needed:
+The attractor-spec-reference.md defines a **single-threaded graph traversal engine** with pluggable handlers. The spec's `CodergenBackend` interface and `ManagerLoopHandler` (Section 4.5, 4.11) map to a **3-layer model** — no orchestrator needed:
 
 ```
 Attractor Spec Concept          Our Implementation
@@ -52,7 +52,7 @@ Context                         DOT node attributes + signal payloads
 
 **Worker spawning approach**: Workers are launched via the **Claude Agent SDK** (`claude_agent_sdk.query()` with `ClaudeAgentOptions`). The SDK provides clean-room isolation via `setting_sources=None` (default) — workers inherit zero filesystem config (no MCP servers, hooks, or plugins from the harness). Required MCP tools are explicitly injected per worker type via `mcp_servers={}`. This eliminates the ~5-12K token overhead per worker that subprocess spawning would inherit from our harness config.
 
-**Signal protocol**: Adopts pull-based signal semantics (inspired by [gastown-comparison.md](./docs/references/gastown-comparison.md)'s GUPP pattern) — completion records written to stable paths that the Guardian polls, rather than push-based signaling. See [sdk-vs-subprocess-analysis.md](./docs/references/sdk-vs-subprocess-analysis.md) for the full decision rationale.
+**Signal protocol**: Adopts pull-based signal semantics (inspired by gastown-comparison.md's GUPP pattern) — completion records written to stable paths that the Guardian polls, rather than push-based signaling. See sdk-vs-subprocess-analysis.md for the full decision rationale.
 
 **Key insight**: The DOT pipeline IS the orchestration plan. Each codergen node already specifies `worker_type`, `acceptance` criteria, and the SD provides implementation details. An orchestrator layer that re-plans work is redundant. The runner reads the `worker_type` attribute from the DOT node and launches the corresponding specialist as a headless Claude Code session.
 
@@ -204,7 +204,7 @@ All monitoring tools are tmux-specific. There is no SDK-mode monitoring path.
 
 ### Epic 3: Signal Protocol Alignment — Pull-Based Signals (Gap D)
 
-**Goal**: Replace push-based signaling with **pull-based signal protocol** (inspired by [gastown-comparison.md](./docs/references/gastown-comparison.md)). Completion records are written to stable, pipeline-scoped paths that the Guardian polls. Records are committed to Git for durability across Guardian crashes.
+**Goal**: Replace push-based signaling with **pull-based signal protocol** (inspired by gastown-comparison.md). Completion records are written to stable, pipeline-scoped paths that the Guardian polls. Records are committed to Git for durability across Guardian crashes.
 
 **Acceptance Criteria**:
 - AC-3.1: Signal directory is resolved from the DOT file path (e.g., `{dot_dir}/signals/`)
@@ -217,7 +217,7 @@ All monitoring tools are tmux-specific. There is no SDK-mode monitoring path.
 
 ### Epic 4: Guardian Baton-Passing, Independent Validation & Seance Context Recovery (Gap E)
 
-**Goal**: Implement the spec's ManagerLoopHandler observe/steer/wait pattern for guardian↔runner coordination, with independent validation at validate nodes and **Seance-style context recovery** on retry (inspired by [gastown-comparison.md](./docs/references/gastown-comparison.md)).
+**Goal**: Implement the spec's ManagerLoopHandler observe/steer/wait pattern for guardian↔runner coordination, with independent validation at validate nodes and **Seance-style context recovery** on retry (inspired by gastown-comparison.md).
 
 **Acceptance Criteria**:
 - AC-4.1: When implementation worker completes, **runner** transitions codergen node to `impl_complete` and spawns an independent validation worker
@@ -293,11 +293,11 @@ Epic 5 depends on Epic 4 (stable SDK pipeline) — it is an optimization, not a 
 
 ## 7. References
 
-- [attractor-spec-reference.md](./../documentation/attractor-spec-reference.md) — Sections 3 (Execution Engine), 4.5 (CodergenBackend), 4.11 (ManagerLoopHandler), 5 (State/Context)
-- [sdk-vs-subprocess-analysis.md](./references/sdk-vs-subprocess-analysis.md) — Decision document: Claude Agent SDK primary for worker spawning
-- [gastown-comparison.md](./references/gastown-comparison.md) — Architectural comparison with Gastown, pull-based signal/Seance pattern adoption rationale
-- [Logfire trace 2026-03-02](logfire) — Guardian trace showing SDK-mode failure chain
-- [promise-7bfe8dc9.json](./../completion-state/promises/promise-7bfe8dc9.json) — Detailed root cause analysis
+- attractor-spec-reference.md — Sections 3 (Execution Engine), 4.5 (CodergenBackend), 4.11 (ManagerLoopHandler), 5 (State/Context)
+- sdk-vs-subprocess-analysis.md — Decision document: Claude Agent SDK primary for worker spawning
+- gastown-comparison.md — Architectural comparison with Gastown, pull-based signal/Seance pattern adoption rationale
+- Logfire trace 2026-03-02 — Guardian trace showing SDK-mode failure chain
+- promise-7bfe8dc9.json — Detailed root cause analysis
 
 ---
 
