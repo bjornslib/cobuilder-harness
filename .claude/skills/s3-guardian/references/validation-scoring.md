@@ -636,7 +636,7 @@ None expected — validation is isolated.
 
 Add fix-it nodes to the DOT file at the appropriate position. **Typical placement**:
 - After the `validate_phase_4` node (which identified gaps)
-- Before the `wait.system3` node (final gate)
+- Before the `wait.cobuilder` node (final gate)
 
 Update edges to wire fix-it nodes into the pipeline:
 
@@ -645,7 +645,7 @@ validate_phase_4 -> fix_gap_1;
 validate_phase_4 -> fix_gap_2;
 fix_gap_1 -> re_validate_1;
 fix_gap_2 -> re_validate_1;
-re_validate_1 -> wait.system3;
+re_validate_1 -> wait.cobuilder;
 ```
 
 #### Step 6: Re-Validate After Fixes Complete
@@ -1061,7 +1061,7 @@ When System 3 decides to close a gap autonomously:
    ```dot
    e1_gate -> fix_gap_1 [label="gaps_detected"];
    fix_gap_1 -> revalidate_gap_1 [label="impl_complete"];
-   revalidate_gap_1 [handler="wait.system3", gate_type="gap-closure"];
+   revalidate_gap_1 [handler="wait.cobuilder", gate_type="gap-closure"];
    revalidate_gap_1 -> e1_review [label="validated"];
    ```
 

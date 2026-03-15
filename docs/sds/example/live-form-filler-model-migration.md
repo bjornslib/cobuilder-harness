@@ -1,7 +1,7 @@
 ---
 title: "SD: Migrate Live Form Filler to openai/gpt-oss-20b"
 status: active
-type: solution-design
+type: reference
 epic_id: MODEL-MIGRATION-001
 prd_ref: AgenCheck Configuration Consolidation
 last_verified: 2026-03-11

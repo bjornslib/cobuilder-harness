@@ -1,7 +1,7 @@
 ---
 title: "SD-COBUILDER-WEB-001 Epic 2: FastAPI Web Server Core"
 status: active
-type: solution-design
+type: reference
 last_verified: 2026-03-12
 grade: authoritative
 prd_ref: PRD-COBUILDER-WEB-001
@@ -149,7 +149,7 @@ class NodeHandler(str, Enum):
     codergen = "codergen"
     tool = "tool"
     wait_human = "wait.human"
-    wait_system3 = "wait.system3"
+    wait_cobuilder = "wait.cobuilder"
     conditional = "conditional"
     parallel = "parallel"
     research = "research"

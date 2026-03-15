@@ -112,7 +112,7 @@ class TestEngineRunnerFreshRun:
             dot_path=dot_file,
             pipelines_dir=tmp_path / "runs",
             handler_registry=registry,
-            skip_validation=True,  # _DOT_3NODE lacks sd_path and wait.system3
+            skip_validation=True,  # _DOT_3NODE lacks sd_path and wait.cobuilder
         )
         checkpoint = await runner.run()
 

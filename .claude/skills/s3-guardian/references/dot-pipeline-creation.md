@@ -122,11 +122,11 @@ run_tests [label="Run Tests"
 **Worker Type**: N/A (subprocess execution)
 **LLM Required**: No
 
-### `wait.system3` - Automated E2E Gate
+### `wait.cobuilder` - Automated E2E Gate
 
 ```dot
 e2e_gate [label="E2E Validation"
-        handler="wait.system3"
+        handler="wait.cobuilder"
         shape=doublecircle
         fillcolor=purple
         status=pending
@@ -246,7 +246,7 @@ digraph EXAMPLE_PIPELINE {
          command="npm test"]
 
     validate [label="E2E Validation"
-             handler="wait.system3"
+             handler="wait.cobuilder"
              shape=doublecircle
              fillcolor=purple
              status=pending
@@ -285,7 +285,7 @@ digraph EXAMPLE_PIPELINE {
 | `research` | handler, label, status, worker_type, llm | prompt, file_path |
 | `refine` | handler, label, status, worker_type, llm | prompt |
 | `tool` | handler, label, status, command | working_dir, timeout |
-| `wait.system3` | handler, label, status, runner, script | timeout |
+| `wait.cobuilder` | handler, label, status, runner, script | timeout |
 | `wait.human` | handler, label, status, platform | timeout |
 | `exit` | handler, label, status | prompt |
 

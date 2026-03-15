@@ -257,8 +257,8 @@ Write to `{PIPELINE_SIGNAL_DIR}/{node_id}.json`:
   "result": "requeue",
   "reason": "Unit tests fail — missing import in agent-schema.md handler table",
   "requeue_target": "<predecessor_node_id>",
-  "evidence": ["test_output.log", "missing_handler_wait_system3"],
-  "guidance": "The codergen worker should add the missing wait.system3 handler to the handler mapping table in agent-schema.md",
+  "evidence": ["test_output.log", "missing_handler_wait_cobuilder"],
+  "guidance": "The codergen worker should add the missing wait.cobuilder handler to the handler mapping table in agent-schema.md",
   "timestamp": "<ISO-8601>"
 }
 ```
@@ -273,7 +273,7 @@ The runner applies these mechanically — no judgment:
 ### Critical Behavioral Rules
 
 1. **You CAN reject work.** You are not a rubber stamp. If tests fail, if code doesn't compile, if contract invariants are violated — write a `requeue` or `fail` signal.
-2. **Be specific in `reason` and `guidance`.** The runner will inject your `guidance` into the re-dispatched worker's prompt. Vague guidance ("fix the tests") leads to the same failure. Specific guidance ("add wait.system3 handler to line 45 of agent-schema.md") leads to resolution.
+2. **Be specific in `reason` and `guidance`.** The runner will inject your `guidance` into the re-dispatched worker's prompt. Vague guidance ("fix the tests") leads to the same failure. Specific guidance ("add wait.cobuilder handler to line 45 of agent-schema.md") leads to resolution.
 3. **Include evidence.** Every signal must reference concrete evidence (test output, file paths, specific failures). This creates an audit trail.
 4. **You validate technical correctness only.** Business acceptance (does it meet PRD goals?) is System 3's job. You check: does it compile? Do tests pass? Are contract invariants met? Is the acceptance criteria technically satisfied?
 5. **Use acceptance-test-runner skill.** Invoke `Skill("acceptance-test-runner")` to load Gherkin scenarios and score against them for technical criteria.

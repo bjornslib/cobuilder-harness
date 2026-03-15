@@ -1,14 +1,13 @@
 ---
 title: "SD-HARNESS-UPGRADE-001 Epic 9: Persistent System 3 Controller"
 status: draft
-type: solution-design
-last_verified: 2026-03-06
+type: reference
+last_verified: 2026-03-06T00:00:00.000Z
 grade: draft
 ---
-
 # SD-HARNESS-UPGRADE-001 Epic 9: Persistent System 3 Controller
 
-> **Phase 3 — Future Work (~6-12 months)**. This SD is a vision document, not an implementation spec.
+> **Phase 3 — Future Work (\~6-12 months)**. This SD is a vision document, not an implementation spec.
 
 ## 1. Problem Statement
 
@@ -42,7 +41,7 @@ persistent_s3.py (long-running)
 ## 3. Files Changed
 
 | File | Change |
-|------|--------|
+| --- | --- |
 | `persistent_s3.py` (new) | Long-running controller |
 | `pipeline_orchestrator.py` | Emits events to persistent_s3 via event bus or file |
 | `initiative.json` | Updated by persistent_s3 |

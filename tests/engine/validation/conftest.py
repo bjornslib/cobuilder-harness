@@ -73,13 +73,13 @@ def make_graph(nodes: list[Node], edges: list[Edge], **graph_attrs) -> Graph:
 
 @pytest.fixture
 def minimal_valid_graph() -> Graph:
-    """Minimal valid pipeline: start → at_writer → codergen → wait.system3 → wait.human → exit.
+    """Minimal valid pipeline: start → at_writer → codergen → wait.cobuilder → wait.human → exit.
 
     This graph passes all 20 validation rules including Epic 5 rules:
     - acceptance-test-writer upstream of codergen (Rule 18)
     - codergen has sd_path attribute (Rule 14)
-    - codergen has downstream wait.system3 (Rule 17)
-    - wait.system3 has downstream wait.human with mode='e2e-review' (Rules 16, 17)
+    - codergen has downstream wait.cobuilder (Rule 17)
+    - wait.cobuilder has downstream wait.human with mode='e2e-review' (Rules 16, 17)
     """
     start = make_node("start", shape="Mdiamond", label="Start")
     at_writer = make_node(
@@ -97,11 +97,11 @@ def minimal_valid_graph() -> Graph:
         sd_path=".taskmaster/docs/SD-TEST.md",
         worker_type="backend-solutions-engineer",
     )
-    wait_system3 = make_node(
+    wait_cobuilder = make_node(
         "validate",
         shape="hexagon",
         label="Validate",
-        handler="wait_system3",
+        handler="wait_cobuilder",
         gate_type="e2e",
         summary_ref=".claude/evidence/summary.md",
         bead_id="bd-test",
@@ -115,7 +115,7 @@ def minimal_valid_graph() -> Graph:
     )
     exit_ = make_node("done", shape="Msquare", label="Done")
     return make_graph(
-        nodes=[start, at_writer, work, wait_system3, wait_human, exit_],
+        nodes=[start, at_writer, work, wait_cobuilder, wait_human, exit_],
         edges=[
             make_edge("start", "at_writer"),
             make_edge("at_writer", "impl"),

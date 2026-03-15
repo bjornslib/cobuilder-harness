@@ -23,7 +23,7 @@ VALID_DOT = """
 digraph test_valid {
     start   [shape=Mdiamond  label="Start"]
     impl    [shape=box       label="Implement" prompt="Write the code" sd_path=".taskmaster/docs/SD-TEST.md" worker_type="backend-solutions-engineer"]
-    validate [shape=hexagon  label="Validate" handler="wait_system3" gate_type="e2e" summary_ref=".claude/evidence/summary.md" bead_id="bd-test"]
+    validate [shape=hexagon  label="Validate" handler="wait_cobuilder" gate_type="e2e" summary_ref=".claude/evidence/summary.md" bead_id="bd-test"]
     human   [shape=hexagon   label="Human Review" handler="wait_human" mode="e2e-review"]
     done    [shape=Msquare   label="Done"]
 
@@ -46,7 +46,7 @@ WARNING_ONLY_DOT = """
 digraph test_warnings {
     start   [shape=Mdiamond  label="Start"]
     impl    [shape=box       label="" prompt="Write the code" sd_path=".taskmaster/docs/SD-TEST.md" worker_type="backend-solutions-engineer"]
-    validate [shape=hexagon  label="Validate" handler="wait_system3" gate_type="e2e" summary_ref=".claude/evidence/summary.md" bead_id="bd-test"]
+    validate [shape=hexagon  label="Validate" handler="wait_cobuilder" gate_type="e2e" summary_ref=".claude/evidence/summary.md" bead_id="bd-test"]
     human   [shape=hexagon   label="Human Review" handler="wait_human" mode="e2e-review"]
     done    [shape=Msquare   label="Done"]
 

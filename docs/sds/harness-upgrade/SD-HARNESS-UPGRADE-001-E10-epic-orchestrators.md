@@ -1,7 +1,7 @@
 ---
 title: "SD-HARNESS-UPGRADE-001 Epic 10: Epic-Scoped Orchestrators + Parallel Execution"
 status: draft
-type: solution-design
+type: reference
 last_verified: 2026-03-06T00:00:00.000Z
 grade: draft
 ---
@@ -27,7 +27,7 @@ pipeline_orchestrator.py (parent)
 Key design decisions:
 - Each epic gets its own git worktree (isolation)
 - Parallel epics use asyncio.TaskGroup for concurrent dispatch
-- Dependent epics wait for predecessor epic's `wait.system3` gate to pass
+- Dependent epics wait for predecessor epic's `wait.cobuilder` gate to pass
 - Merge conflicts between parallel worktrees resolved by a dedicated merge worker
 
 ## 3. Files Changed

@@ -488,7 +488,7 @@ For each gap decided for autonomous closure:
    revalidate_gap_x1 [
        shape=hexagon
        label="Re-validate Gap X1"
-       handler="wait.system3"
+       handler="wait.cobuilder"
        gate_type="gap-closure"
        status="pending"
    ];
@@ -738,13 +738,13 @@ cobuilder cli checkpoint \
 Typical pipeline structure during Phase 4.5:
 
 ```dot
-validate_phase_4 [handler="wait.system3" ...];
+validate_phase_4 [handler="wait.cobuilder" ...];
 
 fix_gap_1 [handler="codergen" ...];
 fix_gap_2 [handler="codergen" ...];
 fix_gap_3 [handler="codergen" ...];
 
-re_validate_gaps [handler="wait.system3" ...];
+re_validate_gaps [handler="wait.cobuilder" ...];
 
 validate_phase_4 -> fix_gap_1;
 validate_phase_4 -> fix_gap_2;

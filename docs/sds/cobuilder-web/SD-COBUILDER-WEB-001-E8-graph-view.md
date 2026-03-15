@@ -1,7 +1,7 @@
 ---
 title: "SD-COBUILDER-WEB-001 Epic 8: Pipeline Graph View"
 status: active
-type: solution-design
+type: reference
 last_verified: 2026-03-12
 grade: authoritative
 prd_ref: PRD-COBUILDER-WEB-001
@@ -165,7 +165,7 @@ interface NodeInspectorProps {
 
 interface NodeAttributes {
   label: string;
-  handler: string;                // "codergen" | "research" | "refine" | "wait.human" | "wait.system3"
+  handler: string;                // "codergen" | "research" | "refine" | "wait.human" | "wait.cobuilder"
   worker_type?: string;           // "backend-solutions-engineer", "frontend-dev-expert", etc.
   sd_path?: string;
   status: NodeStatus;
@@ -691,7 +691,7 @@ Steps 2-3 can proceed in parallel. Steps 4 and 5 can proceed in parallel. Step 8
 
 ### AC-8.1: DOT Graph Renders Correctly
 - [ ] DOT graph renders as SVG for all lifecycle stages: 3-node skeleton, SD-phase (7 nodes), full implementation (15+ nodes)
-- [ ] Node shapes match DOT `shape` attributes: `box` for codergen, `hexagon` for wait.human, `diamond` for wait.system3, `tab` for research, `note` for refine, `Mdiamond` for start, `Msquare` for exit
+- [ ] Node shapes match DOT `shape` attributes: `box` for codergen, `hexagon` for wait.human, `diamond` for wait.cobuilder, `tab` for research, `note` for refine, `Mdiamond` for start, `Msquare` for exit
 - [ ] Edge routing is legible with no overlapping labels for graphs up to 30 nodes
 - [ ] Graph renders within 500ms of page load (excluding wasm cold start)
 

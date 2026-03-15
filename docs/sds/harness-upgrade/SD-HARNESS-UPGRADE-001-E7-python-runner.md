@@ -1,7 +1,7 @@
 ---
 title: "SD-HARNESS-UPGRADE-001: Pure Python Pipeline Runner"
-status: complete
-type: solution-design
+status: archived
+type: reference
 last_verified: 2026-03-15
 grade: authoritative
 ---
@@ -154,7 +154,7 @@ class PipelineRunner:
         "research":     "_handle_worker",
         "refine":       "_handle_worker",
         "tool":         "_handle_tool",
-        "wait.system3": "_handle_gate",
+        "wait.cobuilder": "_handle_gate",
         "wait.human":   "_handle_human",
         "conditional":  "_handle_conditional",
         "parallel":     "_handle_parallel",
@@ -283,7 +283,7 @@ class PipelineRunner:
             if node.status == "active":
                 if signal.get("status") == "success":
                     self._transition(node_id, "impl_complete")
-                    # Dispatch validation agent for nodes with wait.system3 gate
+                    # Dispatch validation agent for nodes with wait.cobuilder gate
                     if self._has_system3_gate(node):
                         self._dispatch_validation_agent(node)
                 else:
@@ -350,7 +350,7 @@ class PipelineRunner:
             })
 
     def _handle_gate(self, node):
-        """wait.system3 gate: two-stage validation.
+        """wait.cobuilder gate: two-stage validation.
 
         Stage 1 (impl_complete): Runner dispatches a validation-test-agent via AgentSDK
             to check technical correctness. Validation agent writes signal with
@@ -490,10 +490,10 @@ class PipelineRunner:
         })
 
     def _has_system3_gate(self, node) -> bool:
-        """Check if this node has a downstream wait.system3 gate."""
+        """Check if this node has a downstream wait.cobuilder gate."""
         for succ_id in self.pipeline.successors(node.id):
             succ = self.pipeline.get_node(succ_id)
-            if succ and succ.handler == "wait.system3":
+            if succ and succ.handler == "wait.cobuilder":
                 return True
         return False
 
@@ -584,7 +584,7 @@ When a worker reaches `impl_complete`, the runner dispatches a **validation-test
     "result": "requeue",
     "reason": "Unit tests fail -- missing import in agent-schema.md handler table",
     "requeue_target": "impl_e1",
-    "evidence": ["test_output.log", "missing_handler_wait_system3"]
+    "evidence": ["test_output.log", "missing_handler_wait_cobuilder"]
 }
 ```
 
@@ -600,9 +600,9 @@ SIGNAL_TRANSITIONS = {
 
 No interpretation, no reasoning. Pass advances, fail stops, requeue sends the predecessor back to `pending`.
 
-### 2.7 `wait.system3` Two-Stage Gate
+### 2.7 `wait.cobuilder` Two-Stage Gate
 
-`wait.system3` in the DOT graph means two stages in one conceptual gate:
+`wait.cobuilder` in the DOT graph means two stages in one conceptual gate:
 
 | Stage | Trigger | Actor | Action |
 |-------|---------|-------|--------|

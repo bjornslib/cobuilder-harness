@@ -281,7 +281,7 @@ class TestValidationPerformance:
         """Validation must complete in < 2 seconds for 100-node pipelines.
 
         Note: The synthetic test graph intentionally uses box-shaped nodes without
-        Epic 5 attributes (sd_path, downstream wait.system3, etc.), so it will
+        Epic 5 attributes (sd_path, downstream wait.cobuilder, etc.), so it will
         generate many RuleViolation entries. This is expected—the test measures
         performance, not correctness.
         """
@@ -301,5 +301,5 @@ class TestValidationPerformance:
         elapsed = time.monotonic() - start
 
         assert elapsed < 2.0, f"Validation took {elapsed:.2f}s for 100 nodes (limit: 2s)"
-        # Graph will have violations (missing sd_path, wait.system3, etc.) due to Epic 5 rules
+        # Graph will have violations (missing sd_path, wait.cobuilder, etc.) due to Epic 5 rules
         assert len(result.violations) > 0, "Expected violations from Epic 5 rules"

@@ -3,9 +3,8 @@ title: "SD-DASHBOARD-AUDIT-001: Checks Dashboard — Stable References, Audit Tr
 status: active
 type: architecture
 grade: authoritative
-last_verified: 2026-03-09
+last_verified: 2026-03-09T00:00:00.000Z
 ---
-
 # SD-DASHBOARD-AUDIT-001: Checks Dashboard Reverse Engineering Design
 
 **Version**: 1.0.0
@@ -25,7 +24,7 @@ last_verified: 2026-03-09
 The format question is not purely cosmetic — it determines the operational surface area.
 
 | Format | Pros | Cons |
-|--------|------|------|
+| --- | --- | --- |
 | `AC-202603-0042` | Self-dating (compliance auditors know when it was created); survives 10+ years without collision; aligns with invoice numbers | Too long for verbal communication; month-number ambiguity (0042 this month ≠ 0042 last month) |
 | `AC-42` | Shortest; works verbally; matches Stripe/Jira style | Ambiguous at scale (case 42 vs invoice 42 vs customer 42); not self-dating |
 | `AC-202603-042` | Compromise — shorter seq, retains date context | Still long; 3-digit seq overflows at 999/month for active clients |
@@ -164,13 +163,13 @@ Initial Call (Voicemail Left) → First Retry (No Answer) → Second Retry (In P
 
 **Key design decisions in this contract:**
 
-1. **Future steps appear in the timeline with `status: "pending"` and `task_id: null`**. They come from `background_check_sequence_steps` joined against the case's `sequence_id`. The frontend renders them as unfilled circles. This is what transforms the view from "flat history" to "full workflow awareness."
+1. **Future steps appear in the timeline with \****`status: "pending"`***\* and \****`task_id: null`**. They come from `background_check_sequence_steps` joined against the case's `sequence_id`. The frontend renders them as unfilled circles. This is what transforms the view from "flat history" to "full workflow awareness."
 
-2. **`result_label` is computed server-side**, not by the frontend. This guarantees terminology consistency without duplicating the mapping table in TypeScript.
+2. **`result_label`**** is computed server-side**, not by the frontend. This guarantees terminology consistency without duplicating the mapping table in TypeScript.
 
-3. **`sequence_progress` is a summary object** in both list and detail responses. The list view can render "3/5" without loading the full timeline.
+3. **`sequence_progress`**** is a summary object** in both list and detail responses. The list view can render "3/5" without loading the full timeline.
 
-4. **`case_reference` is the canonical URL key**. The URL becomes `/checks-dashboard/cases/AC-202603-00042`. Old `task_id`-based URLs redirect 301 to the case_reference URL.
+4. **`case_reference`**** is the canonical URL key**. The URL becomes `/checks-dashboard/cases/AC-202603-00042`. Old `task_id`-based URLs redirect 301 to the case_reference URL.
 
 ---
 
@@ -233,7 +232,7 @@ COMMENT ON COLUMN background_tasks.sequence_step_order IS
    NULL for non-sequence tasks. Set by Prefect flow at task creation.';
 ```
 
-**Why `step_order` not `step_id`?** Step order is stable and human-readable. If the sequence configuration changes (a step is deleted and re-added), using `step_id` FK would leave orphan references. `step_order` is the position in the sequence, not a pointer — it degrades gracefully.
+**Why \****`step_order`***\* not \****`step_id`**\*\*?** Step order is stable and human-readable. If the sequence configuration changes (a step is deleted and re-added), using `step_id` FK would leave orphan references. `step_order` is the position in the sequence, not a pointer — it degrades gracefully.
 
 ### Change 3: No additional changes required
 
@@ -268,7 +267,7 @@ async def _generate_case_reference(self, conn, created_at: datetime) -> str:
 
 Call this before the `INSERT INTO cases ...` and pass `case_reference` as a column value.
 
-**Update `list_verifications` query** — add to the SELECT:
+**Update \****`list_verifications`**\*\* query** — add to the SELECT:
 
 ```sql
 SELECT
@@ -480,7 +479,7 @@ Steps 2 and 3 can be executed in parallel once Step 1 is deployed.
 ## RISK MITIGATION
 
 | Risk | Mitigation |
-|------|------------|
+| --- | --- |
 | Backfill fails on large dataset | Run `UPDATE cases ... ORDER BY id ASC LIMIT 1000` in batches via script; verify count before making NOT NULL |
 | Old UUID-based bookmarks break | Next.js redirect: if `[ref]` matches UUID pattern, call `GET /api/v1/verifications/{uuid}`, extract `case_reference`, redirect 301 |
 | `sequence_step_order` NULL for all old tasks | Fall back to `previous_task_id` chain when `sequence_step_order IS NULL`; show "Step N (estimated)" label |

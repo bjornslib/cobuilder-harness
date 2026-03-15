@@ -1,7 +1,7 @@
 ---
 title: "SD-COBUILDER-WEB-001 Epic 9: wait.human Review Inbox"
 status: active
-type: solution-design
+type: reference
 last_verified: 2026-03-12
 grade: authoritative
 prd_ref: PRD-COBUILDER-WEB-001
@@ -89,7 +89,7 @@ Different `wait.human` gate types require different context. The `mode` attribut
 |---------------------------|---------------|-----------------|
 | `review_prd` / mode unset | `output_path` attribute on predecessor `codergen` node | PRD markdown rendered inline |
 | `review_sds` | All `output_path` attributes on predecessor SD-writer nodes | SD summaries with links to full files |
-| `e2e-review` / `review_e2e` | Validation signal from `wait.system3` predecessor | Validation score, gap list, test results |
+| `e2e-review` / `review_e2e` | Validation signal from `wait.cobuilder` predecessor | Validation score, gap list, test results |
 | `review_final` / mode=`business` at terminal position | Pipeline summary: all node statuses, total duration, key metrics | Initiative summary dashboard |
 
 Context resolution follows edges backwards from the `wait.human` node through the DOT graph to find the relevant artifacts.
@@ -945,7 +945,7 @@ def resolve_review_context(
                       read its output_path file content
        - review_sds:  find all predecessor codergen nodes with worker_type="solution-design-architect",
                       read each output_path file, extract title + first 3 lines as summary
-       - review_e2e:  find predecessor wait.system3 node, read its signal file
+       - review_e2e:  find predecessor wait.cobuilder node, read its signal file
                       from signals/{node_id}.json for score/gaps
        - review_final: aggregate all node statuses from DOT, compute duration from
                        timestamps, collect output_path attrs as key artifacts
@@ -1008,11 +1008,11 @@ def load_prd_context(predecessor_node: dict, target_dir: str) -> dict:
 
 ### 4.4 E2E Validation Context Loading
 
-For `review_e2e` gates, the context is extracted from the predecessor `wait.system3` node's signal file:
+For `review_e2e` gates, the context is extracted from the predecessor `wait.cobuilder` node's signal file:
 
 ```python
-def load_e2e_context(wait_system3_node_id: str, signal_dir: str) -> dict:
-    signal_path = os.path.join(signal_dir, f"{wait_system3_node_id}.json")
+def load_e2e_context(wait_cobuilder_node_id: str, signal_dir: str) -> dict:
+    signal_path = os.path.join(signal_dir, f"{wait_cobuilder_node_id}.json")
     try:
         with open(signal_path) as fh:
             signal = json.load(fh)

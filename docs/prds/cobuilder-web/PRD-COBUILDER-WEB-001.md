@@ -183,7 +183,7 @@ The `research→refine` chain validates and enriches each SD with current framew
     ];
 
     // Validation gates
-    validate_e2e [shape=diamond handler="wait.system3" label="E2E Validation" status="pending"];
+    validate_e2e [shape=diamond handler="wait.cobuilder" label="E2E Validation" status="pending"];
     review_final [shape=hexagon handler="wait.human" label="Final Review" status="pending"];
     done [shape=Msquare handler="exit" status="pending"];
 

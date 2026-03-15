@@ -1,14 +1,13 @@
 ---
 title: "SD-HARNESS-UPGRADE-001 Epic 11: Async Human Review Queue"
 status: draft
-type: solution-design
-last_verified: 2026-03-06
+type: reference
+last_verified: 2026-03-06T00:00:00.000Z
 grade: draft
 ---
-
 # SD-HARNESS-UPGRADE-001 Epic 11: Async Human Review Queue
 
-> **Phase 3 — Future Work (~6-12 months)**. This SD is a vision document, not an implementation spec.
+> **Phase 3 — Future Work (\~6-12 months)**. This SD is a vision document, not an implementation spec.
 
 ## 1. Problem Statement
 
@@ -41,7 +40,7 @@ Pipeline node reaches wait.human
 ## 3. Files Changed
 
 | File | Change |
-|------|--------|
+| --- | --- |
 | `pipeline_orchestrator.py` | `_handle_human` becomes non-blocking (already designed this way in E7) |
 | `gchat-review-webhook.py` (new) | Receives GChat button clicks, writes signal files |
 | `review-dashboard/` (new, optional) | Simple web UI for pending reviews |

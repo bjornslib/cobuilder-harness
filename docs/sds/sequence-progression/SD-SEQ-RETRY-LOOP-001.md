@@ -1,3 +1,9 @@
+---
+title: "SD-SEQ-RETRY-LOOP-001: Continuous Retry Loop Until Final Status"
+status: active
+type: reference
+last_verified: 2026-03-10T00:00:00.000Z
+---
 # SD-SEQ-RETRY-LOOP-001: Continuous Retry Loop Until Final Status
 
 **PRD Reference**: PRD-SEQ-PROGRESSION-001 (Extension)
@@ -13,8 +19,8 @@ The current verification orchestrator is **fire-and-forget**: it dispatches one 
 2. **Email sends succeed but aren't followed up**: When an email is sent (`email_sent` status), the orchestrator considers this "success" and stops. There's no mechanism to check if the recipient responded (via the unified-form link in the email) and retry if they didn't. According to research, the system currently treats `email_sent` as a terminal success, but it's actually non-terminal - the verification is only complete when the recipient responds via the unified-form.
 
 3. **No re-entry loop**: After the orchestrator completes, nothing triggers the next attempt. The `advance_sequence()` function creates a new pending task in the DB, but:
-   - The `run_deployment()` call uses the wrong deployment name (`"verification-orchestrator/default"` vs actual `"verification-orchestrator/verification-orchestrator"`)
-   - The catch-up poller only picks up `call_attempt` action types, ignoring `email_attempt`
+  - The `run_deployment()` call uses the wrong deployment name (`"verification-orchestrator/default"` vs actual `"verification-orchestrator/verification-orchestrator"`)
+  - The catch-up poller only picks up `call_attempt` action types, ignoring `email_attempt`
 
 4. **Scheduled times are ignored**: The catch-up poller doesn't filter `scheduled_time <= NOW()`, meaning delayed tasks would fire immediately if picked up.
 
@@ -136,7 +142,7 @@ This guard is what makes the whole system safe:
 ### 2.3 What Changes
 
 | Component | Current Behavior | Target Behavior |
-|-----------|-----------------|-----------------|
+| --- | --- | --- |
 | **Orchestrator** | Fire-and-forget. `email_sent` = success, exit. | Loop driver. After dispatch, evaluates result → schedules next invocation if non-terminal. |
 | **Email result handling** | `email_sent` = success → orchestrator returns | `email_sent` = attempt made, non-terminal → schedule follow-up check at `delay_hours` with next email template (first_contact → reminder_1 → reminder_2 based on attempt number) |
 | **Retry task creation** | Only in `process_result.py` for voice | Orchestrator creates retry tasks for ALL channels |
@@ -149,7 +155,7 @@ This guard is what makes the whole system safe:
 ### 2.4 Terminal vs Non-Terminal Results
 
 | Result | Terminal? | Next Action |
-|--------|-----------|-------------|
+| --- | --- | --- |
 | `verified`, `confirmed` | YES | Close case as completed |
 | `refused`, `not_employed`, `company_closed` | YES | Close case as completed (negative) |
 | `invalid_contact` | YES | Close case, flag for review |
@@ -334,7 +340,7 @@ async def schedule_next_orchestrator_run(
 ### Epic A: Orchestrator Retry Loop (Core)
 **Files**: `prefect_flows/flows/verification_orchestrator.py`, `prefect_flows/hooks/state_hooks.py`, new `prefect_flows/flows/flow_helpers/scheduling.py`
 
-**PREREQUISITE — Fix task status lifecycle**: The `log_state_to_db` hook currently only updates `background_tasks.status` on `Completed` and `Failed/Crashed`. There is **no `Running` → `processing` transition** — tasks jump from `pending` directly to `completed`/`failed`. The guard depends on seeing `processing` to know a flow is actively running. Fix:
+**PREREQUISITE — Fix task status lifecycle**: The `log_state_to_db` hook currently only updates `background_tasks.status` on `Completed` and `Failed/Crashed`. There is **no \****`Running`***\* → \****`processing`**\*\* transition** — tasks jump from `pending` directly to `completed`/`failed`. The guard depends on seeing `processing` to know a flow is actively running. Fix:
 
 Add to `log_state_to_db` in `state_hooks.py` (alongside the existing `Failed`/`Completed` blocks):
 ```python
@@ -355,7 +361,7 @@ This gives us a clean lifecycle: `pending → processing → completed | failed`
 **Task status values after this fix:**
 
 | Status | Meaning | Guard action |
-|--------|---------|-------------|
+| --- | --- | --- |
 | `pending` | Waiting for Prefect to pick up | Safe to dispatch |
 | `processing` | Flow is actively running | Do NOT dispatch (already in progress) |
 | `completed` | Attempt finished | Terminal — skip |
@@ -370,8 +376,8 @@ This gives us a clean lifecycle: `pending → processing → completed | failed`
 4. If task is already `processing`/`completed`/`failed` → return immediately (duplicate invocation guard)
 5. Remove `email_sent` from success status list — treat as non-terminal
 6. After dispatch, count step attempts and either:
-   - Create retry task (same step, next attempt) + schedule Prefect run
-   - Or call `advance_sequence()` + schedule Prefect run for next step
+  - Create retry task (same step, next attempt) + schedule Prefect run
+  - Or call `advance_sequence()` + schedule Prefect run for next step
 7. Add `schedule_next_orchestrator_run()` helper with correct deployment name
 8. Mark current task as `completed` after dispatch (the *attempt* is done; the *case* continues)
 
@@ -423,7 +429,7 @@ The template selection should be based on the attempt number from the retry task
 ## 5. File Change Summary
 
 | File | Change Type | Description |
-|------|------------|-------------|
+| --- | --- | --- |
 | `verification_orchestrator.py` | **Major rewrite** | Guard-first pattern, scheduling chain, email_sent non-terminal |
 | `flow_helpers/scheduling.py` | **New file** | `schedule_next_orchestrator_run()` helper |
 | `catch_up_poller.py` | **Fix** | All action_types, scheduled_time guard, case status check |

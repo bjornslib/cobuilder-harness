@@ -1,7 +1,7 @@
 ---
 title: "SD-HARNESS-UPGRADE-001 Epic 3: Workflow Protocol Enhancements"
-status: complete
-type: solution-design
+status: archived
+type: reference
 last_verified: 2026-03-07
 grade: authoritative
 ---
@@ -41,7 +41,7 @@ Multiple workflow gaps have been identified through production use:
 
 ### 2.2 Confidence Baseline
 
-**After every `wait.system3` gate**:
+**After every `wait.cobuilder` gate**:
 ```python
 mcp__hindsight__retain(
     content=f"Confidence: {epic_id} scored {score:.2f}. "
@@ -74,24 +74,24 @@ Added to `guardian-workflow.md` Phase 2 section. Includes skill injection into w
 | UX review | `website-ux-audit` | `skills_required` in ux-designer agent |
 | Acceptance test creation | `acceptance-test-writer` | Runner injects into AT writer worker prompt |
 
-### 2.4 Guardian Reflection at wait.system3 Gates
+### 2.4 Guardian Reflection at wait.cobuilder Gates
 
-**Replaces the previous sketch pre-flight concept.** Instead of a separate Haiku call before dispatch, the guardian/runner reflects at the `wait.system3` gate AFTER workers complete:
+**Replaces the previous sketch pre-flight concept.** Instead of a separate Haiku call before dispatch, the guardian/runner reflects at the `wait.cobuilder` gate AFTER workers complete:
 
-**Protocol** (executed by `_handle_system3()` in the runner):
+**Protocol** (executed by `_handle_gate()` in the runner):
 1. Read all signal files from completed codergen workers in this epic cluster
 2. Read `concerns.jsonl` for worker-raised concerns
 3. Reflect via Hindsight: query confidence trend, previous gate results, and concern patterns
 4. If critical concerns exist or confidence is declining:
    - Write summary explaining the issue
-   - Transition `wait.system3` to `failed`
+   - Transition `wait.cobuilder` to `failed`
    - Optionally: transition predecessor codergen node back to `pending` for retry (DOT graph update)
 5. If no blockers: proceed with Gherkin E2E test execution
 6. After E2E tests: write full summary to `summary_ref`
 
 **Requeue mechanism**: When the runner decides a codergen node needs to rerun:
 ```python
-# In _handle_system3() when gate fails and retry is warranted
+# In _handle_gate() when gate fails and retry is warranted
 transition_node(pipeline, predecessor_codergen_id, "pending")
 save_checkpoint(dot_file, pipeline)
 # Runner's next dispatch cycle will pick up the re-queued node
@@ -146,7 +146,7 @@ Workers write concerns during execution to `{signal_dir}/concerns.jsonl`:
 {"ts": "2026-03-06T10:15:00Z", "node": "impl_e1", "severity": "warning", "message": "SD references v1.x API but installed version is v2.0", "suggestion": "Pin dependency or update SD"}
 ```
 
-`wait.system3` gate reads and processes:
+`wait.cobuilder` gate reads and processes:
 - **Critical**: blocks gate, transitions to `failed`, includes in summary
 - **Warning**: includes in summary for human review
 - **Info**: logged to Hindsight only
@@ -180,6 +180,6 @@ Workers write signals to this directory. Runner polls this directory. Mismatch w
 
 - AC-3.1: SD version pinning protocol documented with git tag naming convention (`sd/{prd-id}/E{n}/v{version}`)
 - AC-3.2: Concern queue JSONL schema documented with severity levels and processing rules
-- AC-3.3: Guardian reflection protocol at wait.system3 documented (signal file check + Hindsight reflect + requeue decision)
+- AC-3.3: Guardian reflection protocol at wait.cobuilder documented (signal file check + Hindsight reflect + requeue decision)
 - AC-3.4: Session handoff format documented with required sections
 - AC-3.5: Living narrative append protocol documented with per-epic entry format

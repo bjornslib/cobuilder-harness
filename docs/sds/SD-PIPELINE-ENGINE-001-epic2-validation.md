@@ -1,8 +1,8 @@
 ---
 title: "Solution Design: Pre-Execution Validation Suite (Epic 2 — PRD-PIPELINE-ENGINE-001)"
 status: active
-type: solution-design
-last_verified: 2026-03-04T00:00:00.000Z
+type: reference
+last_verified: 2026-03-04
 grade: authoritative
 implementation_status: complete
 ---

@@ -33,7 +33,7 @@ Each line in the concerns.jsonl file follows this schema:
 - **info**: Informational items for logging purposes. Will be logged to Hindsight memory only.
 
 ## Processing Rules
-- **Critical**: Blocks wait.system3 gates, transitions to `failed`, includes in summary
+- **Critical**: Blocks wait.cobuilder gates, transitions to `failed`, includes in summary
 - **Warning**: Included in summary for human review
 - **Info**: Logged to Hindsight only
 

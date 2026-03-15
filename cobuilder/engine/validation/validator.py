@@ -56,9 +56,9 @@ from cobuilder.engine.validation.rules import (
 from cobuilder.engine.validation.advanced_rules import (
     SdPathOnCodergen,
     WorkerTypeRegistry,
-    WaitHumanAfterWaitSystem3,
+    WaitHumanAfterWaitCobuilder,
     FullClusterTopology,
-    WaitSystem3Requirements,
+    WaitCobuilderRequirements,
     CodergenWithoutUpstreamAT,
     MissingSkillReference,
 )
@@ -92,9 +92,9 @@ DEFAULT_RULES: list[type] = [
     # Advanced rules - error level
     SdPathOnCodergen,
     WorkerTypeRegistry,
-    WaitHumanAfterWaitSystem3,
+    WaitHumanAfterWaitCobuilder,
     FullClusterTopology,
-    WaitSystem3Requirements,
+    WaitCobuilderRequirements,
 ]
 
 

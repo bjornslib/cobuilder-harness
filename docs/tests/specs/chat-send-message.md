@@ -1,6 +1,7 @@
 ---
 title: "Chat Send Message and Receive Response"
-type: e2e-browser
+status: active
+type: reference
 service: frontend
 port: 5001
 prerequisites:

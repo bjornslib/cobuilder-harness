@@ -1,7 +1,7 @@
 ---
 title: "SD-COBUILDER-WEB-001 Epic 5: Guardian Launcher"
 status: active
-type: solution-design
+type: reference
 last_verified: 2026-03-12
 grade: authoritative
 prd_ref: PRD-COBUILDER-WEB-001
@@ -422,7 +422,7 @@ These tests are YOUR rubric. Implementation workers never see them.
 Watch the pipeline DOT file for node status changes. When workers complete nodes (status transitions to impl_complete), note what was done. Do NOT intervene in worker execution.
 
 ### Phase 3: Validate
-When the pipeline reaches validation gates (wait.system3 nodes), independently validate:
+When the pipeline reaches validation gates (wait.cobuilder nodes), independently validate:
 1. Read the actual code in the worktree (not self-reported summaries).
 2. Run your blind Gherkin acceptance tests against the implementation.
 3. Score each criterion with gradient confidence (0.0-1.0).

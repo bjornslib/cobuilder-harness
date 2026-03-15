@@ -2,7 +2,7 @@
 title: "CoBuilder Upgrade: Templates, Worktrees & Guardian Meta-Pipeline"
 prd_id: PRD-COBUILDER-UPGRADE-001
 status: draft
-type: prd
+type: reference
 created: 2026-03-14T00:00:00.000Z
 last_verified: 2026-03-15T00:00:00.000Z
 grade: authoritative
@@ -20,7 +20,7 @@ note: This is the LAST document using PRD/SD terminology. E6 migrates to Busines
 | P3 | **No Guardian meta-pipeline.** The CoBuilder Guardian's lifecycle (research → refine → plan → execute → validate → evaluate) is implicit prose. No executable representation that can be paused, resumed, inspected, or looped. | No audit trail, no bounded retry, no programmatic introspection |
 | P4 | **No per-node LLM configuration.** All workers use the same model, API key, and base URL. Cannot mix providers (Anthropic, OpenRouter, local) or models (Haiku for research, Opus for codergen) within one pipeline. | Over-spend on cheap tasks, cannot leverage specialized models, single-provider lock-in |
 | P5 | **Runtime state mixed into \****`.claude/`**\*\*.** Pipeline DOT files, signal files, and transition logs live under `.claude/attractor/`. This repo ships publicly on GitHub — runtime state would pollute the published repo. **RESOLVED:** Runtime state migrated to `.pipelines/` (gitignored). | Accidental commits of signal/state files; fragile `.gitignore` rules |
-| P6 | **Stale terminology and fragmented guardian skill.** `system3-meta-orchestrator`, `s3-guardian`, `wait.system3`, agent teams, tmux spawning — legacy concepts that confuse new contributors and leak into agent prompts as cognitive momentum. PRD/SD naming is project-specific rather than generalised. | Contributor confusion, stale mental models in agent prompts, inconsistent vocabulary |
+| P6 | **Stale terminology and fragmented guardian skill.** `system3-meta-orchestrator`, `s3-guardian`, `wait.cobuilder`, agent teams, tmux spawning — legacy concepts that confuse new contributors and leak into agent prompts as cognitive momentum. PRD/SD naming is project-specific rather than generalised. | Contributor confusion, stale mental models in agent prompts, inconsistent vocabulary |
 
 ## 2. Goals
 
@@ -33,7 +33,7 @@ note: This is the LAST document using PRD/SD terminology. E6 migrates to Busines
 | G5 | **Child pipeline spawning via SDK**: ManagerLoopHandler EXECUTE node spawns child EngineRunner. Parent monitors child signal directory for `wait.cobuilder` gates (not just exit code). No tmux anywhere. | Parent handles child gates correctly; no deadlocks | P0 |
 | G6 | **Per-node LLM config via named profiles**: DOT nodes reference `llm_profile` names from `providers.yaml`. Profile keys translate to Anthropic SDK equivalents. 5-layer resolution: node → handler defaults → manifest defaults → env vars → runner defaults | Mixed-model pipeline: Haiku research + Sonnet codergen in same graph | P1 |
 | G7 | **Bounded loops**: `loop_constraint` in manifest caps iteration count. ManagerLoopHandler tracks loop counter. | Loop terminates at bound; counter visible in status output | P1 |
-| G8 | **Unified cobuilder-guardian skill**: Merge `s3-guardian` + `system3-meta-orchestrator` into single `cobuilder-guardian` skill. Strip all legacy terminology (system3, agent teams, sub agents, tmux). Rename `wait.system3` → `wait.cobuilder` globally. Migrate PRD→Business Spec (BS), SD→Technical Spec (TS) with per-initiative directories. | Zero references to "system3", "agent teams", or "tmux" in skills/output-styles | P1 |
+| G8 | **Unified cobuilder-guardian skill**: Merge `s3-guardian` + `system3-meta-orchestrator` into single `cobuilder-guardian` skill. Strip all legacy terminology (system3, agent teams, sub agents, tmux). Rename `wait.cobuilder` → `wait.cobuilder` globally. Migrate PRD→Business Spec (BS), SD→Technical Spec (TS) with per-initiative directories. | Zero references to "system3", "agent teams", or "tmux" in skills/output-styles | P1 |
 | G9 | **GitHub publication readiness**: Secret scrubbing, LICENSE, CONTRIBUTING.md, onboarding docs, CI/CD via GitHub Actions. | Repo passes `git-secrets` scan; README has Getting Started section; CI runs on PR | P1 |
 | G10 | **Logfire observability preserved**: All existing Logfire spans survive the merge and package rename. New features (ManagerLoopHandler upgrade, child signal monitoring) add their own spans. | Zero span regression; `CaptureLogfire` assertions in all handler tests | P0 |
 | G11 | **90% unit test coverage**: CI enforces `fail_under=90` on all PRs. Coverage baseline established in E0, gaps filled progressively, gate enforced in E5. | `pytest --cov-fail-under=90` passes; no PR reduces coverage | P1 |
@@ -651,8 +651,8 @@ directory = "htmlcov"
 **Scope**:
 - Merge `s3-guardian` skill + `system3-meta-orchestrator` output style → `cobuilder-guardian` skill
 - Strip all legacy concepts: agent teams, sub agents, tmux spawning, system3
-- Rename globally: `system3` → `cobuilder`, `wait.system3` → `wait.cobuilder`
-- Update stop gate: `wait.system3` → `wait.cobuilder` in unified-stop-gate
+- Rename globally: `system3` → `cobuilder`, `wait.cobuilder` → `wait.cobuilder`
+- Update stop gate: `wait.cobuilder` → `wait.cobuilder` in unified-stop-gate
 - Migrate specification terminology: PRD → Business Spec (BS), SD → Technical Spec (TS)
 - Create `docs/specs/` directory structure with per-initiative subdirectories
 - Move existing PRDs/SDs to new locations with new prefixes

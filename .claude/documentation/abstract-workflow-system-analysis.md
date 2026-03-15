@@ -54,7 +54,7 @@ digraph "PRD-AUTH-001" {
         status=pending
     ];
 
-    validate_tech [shape=hexagon handler="wait.system3" mode=technical bead_id="AT-10-TECH"];
+    validate_tech [shape=hexagon handler="wait.cobuilder" mode=technical bead_id="AT-10-TECH"];
     validate_biz [shape=hexagon handler="wait.human" mode=business bead_id="AT-10-BIZ"];
     decision [shape=diamond handler=conditional];
 
@@ -78,7 +78,7 @@ digraph "PRD-AUTH-001" {
 | `Msquare` | `exit` | Pipeline exit point |
 | `box` | `codergen` | Implementation task → dispatches worker |
 | `box` | `tool` | CLI/script execution |
-| `hexagon` | `wait.system3` | Automated validation gate |
+| `hexagon` | `wait.cobuilder` | Automated validation gate |
 | `hexagon` | `wait.human` | Human review gate |
 | `diamond` | `conditional` | Pass/fail routing |
 | `parallelogram` | `parallel` | Fan-out concurrent execution |
@@ -320,7 +320,7 @@ digraph "{{prd_ref}}" {
         acceptance="{{task.acceptance}}"
         status=pending
     ];
-    validate_{{task.id}} [shape=hexagon handler="wait.system3" mode=technical];
+    validate_{{task.id}} [shape=hexagon handler="wait.cobuilder" mode=technical];
     {% endfor %}
     FINALIZE [shape=Msquare handler=exit];
 

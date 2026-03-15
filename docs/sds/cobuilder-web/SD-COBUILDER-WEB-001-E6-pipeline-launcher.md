@@ -1,7 +1,7 @@
 ---
 title: "SD-COBUILDER-WEB-001 Epic 6: Pipeline Launcher + Monitor"
 status: active
-type: solution-design
+type: reference
 last_verified: 2026-03-12
 grade: authoritative
 prd_ref: PRD-COBUILDER-WEB-001
@@ -86,7 +86,7 @@ class RunStatus(Enum):
     """Lifecycle states for a managed pipeline run."""
     STARTING = "starting"       # launch() called, process not yet confirmed alive
     RUNNING = "running"         # process alive, health checks passing
-    GATE_WAITING = "gate_waiting"  # runner paused at wait.human or wait.system3
+    GATE_WAITING = "gate_waiting"  # runner paused at wait.human or wait.cobuilder
     STOPPING = "stopping"       # SIGTERM sent, waiting for graceful exit
     CRASHED = "crashed"         # process exited unexpectedly, restart pending
     RESTARTING = "restarting"   # restart in progress
@@ -109,7 +109,7 @@ class PipelineRun:
     last_exit_code: int | None = None
     last_crash_at: datetime | None = None
     active_gate: str | None = None       # node_id of current wait.human gate
-    active_gate_type: str | None = None  # "wait.human" or "wait.system3"
+    active_gate_type: str | None = None  # "wait.human" or "wait.cobuilder"
 
     _monitor_task: asyncio.Task | None = field(default=None, repr=False)
     _jsonl_task: asyncio.Task | None = field(default=None, repr=False)
@@ -294,7 +294,7 @@ async def _tail_jsonl(self, run: PipelineRun) -> None:
 
 ### 3.2 Gate Detection
 
-The runner writes `.gate-wait` marker files when it encounters `wait.human` or `wait.system3` nodes. Both `_handle_gate` and `_handle_human` in `pipeline_runner.py` write markers to:
+The runner writes `.gate-wait` marker files when it encounters `wait.human` or `wait.cobuilder` nodes. Both `_handle_gate` and `_handle_human` in `pipeline_runner.py` write markers to:
 
 ```
 {dot_dir}/signals/{pipeline_id}/{node_id}.gate-wait

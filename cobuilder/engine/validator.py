@@ -21,8 +21,8 @@ Validation Rules (from schema.md section 11):
     10. promise_id exists on graph if any node has promise_ac
     11. Edge conditions use valid syntax (pass, fail, partial)
     12. Refine evidence_path cross-references valid upstream research node
-    13. Full cluster topology check: every codergen node must have downstream wait.system3 and wait.human nodes
-    14. wait.human nodes must follow wait.system3 or research nodes
+    13. Full cluster topology check: every codergen node must have downstream wait.cobuilder and wait.human nodes
+    14. wait.human nodes must follow wait.cobuilder or research nodes
     15. bead_id values on codergen nodes map to real beads (via `bd show`)
     16. Manifest validation_method enforcement: if prd_ref exists, manifest features must declare validation_method
 """
@@ -48,7 +48,7 @@ VALID_HANDLERS = {
     "codergen",
     "tool",
     "wait.human",
-    "wait.system3",
+    "wait.cobuilder",
     "conditional",
     "parallel",
     "research",
@@ -62,7 +62,7 @@ HANDLER_SHAPE_MAP = {
     "codergen": "box",
     "tool": "box",
     "wait.human": "hexagon",
-    "wait.system3": "hexagon",
+    "wait.cobuilder": "hexagon",
     "conditional": "diamond",
     "parallel": "parallelogram",
     "research": "tab",
@@ -79,7 +79,7 @@ REQUIRED_ATTRS: dict[str, list[str]] = {
     "codergen": ["label", "handler", "bead_id", "worker_type", "sd_path"],
     "tool": ["label", "handler", "command"],
     "wait.human": ["label", "handler", "gate", "mode"],
-    "wait.system3": ["label", "handler", "gate_type"],
+    "wait.cobuilder": ["label", "handler", "gate_type"],
     "conditional": ["label", "handler"],
     "parallel": ["label", "handler"],
     "research": ["label", "handler", "solution_design"],
@@ -370,14 +370,14 @@ def validate(data: dict[str, Any], strict: bool = False, check_beads: bool = Fal
                         n["id"],
                     )
                 )
-        elif handler == "wait.system3":
+        elif handler == "wait.cobuilder":
             gate_type = n["attrs"].get("gate_type", "")
             if not gate_type:
                 issues.append(
                     Issue(
                         "error",
                         8,
-                        "Missing required attribute 'gate_type' for handler=wait.system3",
+                        "Missing required attribute 'gate_type' for handler=wait.cobuilder",
                         n["id"],
                     )
                 )
@@ -386,7 +386,7 @@ def validate(data: dict[str, Any], strict: bool = False, check_beads: bool = Fal
                     Issue(
                         "error",
                         8,
-                        f"Invalid gate_type '{gate_type}' for handler=wait.system3, must be one of unit, e2e, contract",
+                        f"Invalid gate_type '{gate_type}' for handler=wait.cobuilder, must be one of unit, e2e, contract",
                         n["id"],
                     )
                 )
@@ -533,7 +533,7 @@ def _check_cluster_topology(
     issues: list[Issue],
     node_map: dict[str, dict] | None = None,
 ) -> None:
-    """Check full cluster topology: acceptance-test-writer -> research -> refine -> codergen -> wait.system3 -> wait.human"""
+    """Check full cluster topology: acceptance-test-writer -> research -> refine -> codergen -> wait.cobuilder -> wait.human"""
 
     # Build mapping from handler to node IDs
     handler_to_nodes: dict[str, list[str]] = {}
@@ -568,20 +568,20 @@ def _check_cluster_topology(
                 upstream_refine.append(refine_node)
 
         # According to schema rule, every codergen node should have the full cluster:
-        # acceptance-test-writer -> research -> refine -> codergen -> wait.system3 -> wait.human
+        # acceptance-test-writer -> research -> refine -> codergen -> wait.cobuilder -> wait.human
         # But this might not be true for all codergen nodes - only for certain epic clusters
-        # For now, we'll validate the presence of downstream wait.system3 and wait.human
+        # For now, we'll validate the presence of downstream wait.cobuilder and wait.human
         descendants = _bfs(cg_node, adj)
-        has_wait_system3 = any(n_id in descendants for n_id in handler_to_nodes.get("wait.system3", []))
+        has_wait_cobuilder = any(n_id in descendants for n_id in handler_to_nodes.get("wait.cobuilder", []))
         has_wait_human = any(n_id in descendants for n_id in handler_to_nodes.get("wait.human", []))
 
-        # If we have a codergen node, it should eventually lead to wait.system3 and wait.human
-        if not has_wait_system3:
+        # If we have a codergen node, it should eventually lead to wait.cobuilder and wait.human
+        if not has_wait_cobuilder:
             issues.append(
                 Issue(
                     "error",  # Changed to error as per AC-5.2 requirement
                     13,
-                    f"codergen node '{cg_node}' must have a downstream wait.system3 node in the cluster",
+                    f"codergen node '{cg_node}' must have a downstream wait.cobuilder node in the cluster",
                     cg_node,
                 )
             )
@@ -596,26 +596,26 @@ def _check_cluster_topology(
                 )
             )
 
-    # Validate that wait.human nodes follow wait.system3 or research (AC-5.4)
+    # Validate that wait.human nodes follow wait.cobuilder or research (AC-5.4)
     wait_human_nodes = handler_to_nodes.get("wait.human", [])
-    wait_system3_nodes = handler_to_nodes.get("wait.system3", [])
+    wait_cobuilder_nodes = handler_to_nodes.get("wait.cobuilder", [])
     research_nodes = handler_to_nodes.get("research", [])
 
     for wh_node in wait_human_nodes:
-        # Check if this wait.human node has a direct predecessor that is wait.system3 or research
+        # Check if this wait.human node has a direct predecessor that is wait.cobuilder or research
         predecessors = reverse_adj.get(wh_node, [])
         has_valid_predecessor = any(
-            pred in wait_system3_nodes or pred in research_nodes or
-            node_map.get(pred, {}).get("handler") in ["wait.system3", "research"]
+            pred in wait_cobuilder_nodes or pred in research_nodes or
+            node_map.get(pred, {}).get("handler") in ["wait.cobuilder", "research"]
             for pred in predecessors
         )
 
         if not has_valid_predecessor:
             issues.append(
                 Issue(
-                    "error",  # AC-5.4: wait.human must follow wait.system3 or research
+                    "error",  # AC-5.4: wait.human must follow wait.cobuilder or research
                     14,
-                    f"wait.human node '{wh_node}' must follow wait.system3 or research node",
+                    f"wait.human node '{wh_node}' must follow wait.cobuilder or research node",
                     wh_node,
                 )
             )

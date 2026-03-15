@@ -4,7 +4,7 @@ ts_id: TS-COBUILDER-UPGRADE-E0.4
 prd_ref: PRD-COBUILDER-UPGRADE-001
 epic: E0.4
 status: draft
-type: technical-spec
+type: reference
 created: 2026-03-14
 last_verified: 2026-03-14
 grade: authoritative
@@ -165,7 +165,7 @@ pytest tests/e2e/ tests/attractor/ -v 2>&1 | grep -E "FAILED|ImportError|Attribu
 
 ## 3. Execution Strategy
 
-E0.4 is split across 4 parallel codergen nodes in a DOT pipeline. Each node is preceded by a `research` node that investigates the exact failures before writing any code, and followed by a `wait.system3` validation gate.
+E0.4 is split across 4 parallel codergen nodes in a DOT pipeline. Each node is preceded by a `research` node that investigates the exact failures before writing any code, and followed by a `wait.cobuilder` validation gate.
 
 ### 3.1 Parallel Group Map
 
@@ -179,7 +179,7 @@ research_complex  ──► codergen_complex  ──► wait_complex
                                        coverage_improvement
                                               │
                                               ▼
-                                       wait.system3 (final gate)
+                                       wait.cobuilder (final gate)
 ```
 
 ### 3.2 Group A: Trivial Fixes (Cat 1 + Cat 6 + Cat 7)

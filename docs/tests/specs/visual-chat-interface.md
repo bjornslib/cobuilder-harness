@@ -1,6 +1,7 @@
 ---
 title: "Chat Interface Visual Rendering"
-type: visual
+status: active
+type: reference
 service: frontend
 port: 5001
 prerequisites:

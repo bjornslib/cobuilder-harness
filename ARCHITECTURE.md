@@ -389,14 +389,14 @@ Layer 0 (S3 Guardian)               →  Post-pipeline blind validation:
 | `box` | `tool` | Setup/teardown commands | `command`, `retry_count` |
 | `parallelogram` | `parallel` | Fan-out / fan-in synchronization | - |
 | `box` | `codergen` | Implementation node — dispatches worker via AgentSDK | `handler="codergen"`, `worker_type`, `sd_path`, `acceptance`, `bead_id` |
-| `hexagon` | `wait.system3` | Technical + business validation gates | `handler="wait.system3"`, gates technical then business phases |
+| `hexagon` | `wait.cobuilder` | Technical + business validation gates | `handler="wait.cobuilder"`, gates technical then business phases |
 | `hexagon` | `wait.human` | Manual approval gate (not auto-gated by runner) | `handler="wait.human"` |
 | `diamond` | `conditional` | Pass/fail routing based on signal result | `condition="pass"|"fail"`, `style=dashed` for retry edges |
 | `Msquare` | `exit` | Pipeline finalization | - |
 
 **Epic E7.2 Changes**:
 - `codergen` nodes now specify `worker_type` (backend-solutions-engineer, frontend-dev-expert, tdd-test-engineer)
-- `wait.system3` is the inline validation gate (auto-dispatches validation agents at impl_complete)
+- `wait.cobuilder` is the inline validation gate (auto-dispatches validation agents at impl_complete)
 - Validation agents signal result via `.claude/signals/{node}.json`
 - Validation agent dispatched as separate standalone `claude_code_sdk.query()` (not in a team)
 
@@ -611,7 +611,7 @@ Notification (On notifications)
         docs/sds/{sd-name}.md ← detailed implementation brief
         ↓
  4. System 3 creates DOT pipeline with all node types (s3-guardian Phase 3)
-        start → research_X → codergen_X → wait.system3 → exit
+        start → research_X → codergen_X → wait.cobuilder → exit
         (research validates framework patterns before implementation)
         ↓
  5. System 3 launches pipeline_runner.py --dot-file <path> (E7.2)

@@ -1,6 +1,7 @@
 ---
 title: "Backend Service Health Endpoint Checks"
-type: api
+status: active
+type: reference
 service: backend
 port: 8000
 prerequisites:

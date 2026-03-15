@@ -1,7 +1,7 @@
 ---
 title: "SD-HARNESS-UPGRADE-001 Epic 0: Pipeline Progress Monitor"
-status: complete
-type: solution-design
+status: archived
+type: reference
 last_verified: 2026-03-07
 grade: authoritative
 ---
@@ -111,7 +111,7 @@ Handler type mapping:
 | `research` | Framework/API investigation | Haiku (cheap) | Yes |
 | `refine` | Rewrite SD with research findings | Sonnet | Yes |
 | `tool` | Run shell command | N/A (subprocess) | No |
-| `wait.system3` | Automated E2E gate | Python runner | No |
+| `wait.cobuilder` | Automated E2E gate | Python runner | No |
 | `wait.human` | Human review gate | N/A (GChat) | No |
 | `exit` | Pipeline termination | N/A | No |
 

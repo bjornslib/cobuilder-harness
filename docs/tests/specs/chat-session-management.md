@@ -1,6 +1,7 @@
 ---
 title: "Chat Session Create, Switch, and Manage"
-type: e2e-browser
+status: active
+type: reference
 service: frontend
 port: 5001
 prerequisites:

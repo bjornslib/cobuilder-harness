@@ -3,9 +3,8 @@ title: "PRD-NEWCHECK-001: New Check Page"
 status: active
 type: guide
 grade: authoritative
-last_verified: 2026-03-07
+last_verified: 2026-03-07T00:00:00.000Z
 ---
-
 # PRD-NEWCHECK-001: New Check Page
 
 ## 1. Overview
@@ -46,14 +45,14 @@ Add a **New Check** page to the AgenCheck customer dashboard, accessible from th
 
 ### Check Selection (radio)
 | Field | Type | Default |
-|-------|------|---------|
+| --- | --- | --- |
 | Check Type | radio | "Work History" |
 
 Options: `Work History` (active), `Schedule Work History` (disabled, coming soon)
 
 ### Candidate Details
 | Field | Type | Required |
-|-------|------|----------|
+| --- | --- | --- |
 | First Name | text | yes |
 | Middle Name | text | no |
 | Last Name | text | yes |
@@ -65,7 +64,7 @@ Options: `Work History` (active), `Schedule Work History` (disabled, coming soon
 
 ### Employer Details
 | Field | Type | Required |
-|-------|------|----------|
+| --- | --- | --- |
 | Employer Name | text | yes |
 | Employer Website | url | no |
 | Country | text | yes |
@@ -75,7 +74,7 @@ Options: `Work History` (active), `Schedule Work History` (disabled, coming soon
 
 ### Additional Verification Points (checkboxes)
 | Field | Default |
-|-------|---------|
+| --- | --- |
 | Salary | unchecked |
 | Supervisor | unchecked |
 | Employment Type | checked |
@@ -84,7 +83,7 @@ Options: `Work History` (active), `Schedule Work History` (disabled, coming soon
 
 ### Call Configuration (collapsible)
 | Field | Type | Default |
-|-------|------|---------|
+| --- | --- | --- |
 | Location | select | Singapore |
 | Phone Type | select | Direct Contact |
 
@@ -119,7 +118,7 @@ On error: show inline error banner on the form.
 ## 8. Epics
 
 | Epic | Title | Bead | Description |
-|------|-------|------|-------------|
+| --- | --- | --- | --- |
 | E1 | New Check form page UI | agencheck-0h4w | Create `/checks-dashboard/new/page.tsx` with full form matching Stitch design |
 | E2 | Dashboard integration | agencheck-afm7 | Add `+ New check` button to dashboard header, wire navigation |
 

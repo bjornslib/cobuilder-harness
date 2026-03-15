@@ -1,7 +1,7 @@
 ---
 title: "SD-HARNESS-UPGRADE-001 Epic 7.1: Worker Prompt Restructuring"
-status: complete
-type: solution-design
+status: archived
+type: reference
 last_verified: 2026-03-07
 grade: authoritative
 ---

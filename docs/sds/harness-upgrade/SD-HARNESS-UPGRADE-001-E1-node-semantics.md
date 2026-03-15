@@ -1,7 +1,7 @@
 ---
 title: "SD-HARNESS-UPGRADE-001 Epic 1: Node Semantics Clarification"
-status: complete
-type: solution-design
+status: archived
+type: reference
 last_verified: 2026-03-07
 grade: authoritative
 ---
@@ -10,21 +10,21 @@ grade: authoritative
 
 ## 1. Problem Statement
 
-The DOT pipeline schema currently treats `wait.system3` and `wait.human` as informal conventions rather than formally defined handler types. Their behavior, required attributes, and topology constraints are documented inconsistently across `guardian-workflow.md`, `schema.md`, and `output-styles/system3-meta-orchestrator.md`. This leads to:
+The DOT pipeline schema currently treats `wait.cobuilder` and `wait.human` as informal conventions rather than formally defined handler types. Their behavior, required attributes, and topology constraints are documented inconsistently across `guardian-workflow.md`, `schema.md`, and `output-styles/system3-meta-orchestrator.md`. This leads to:
 
 - Pipelines where codergen nodes have no downstream E2E validation gate
 - `wait.human` nodes placed without a preceding summary-generating node
-- Ambiguity about what `wait.system3` actually executes (is it automated? does it prompt?)
+- Ambiguity about what `wait.cobuilder` actually executes (is it automated? does it prompt?)
 
 ## 2. Design
 
 ### 2.1 Handler Type Definitions
 
-#### `wait.system3` — Automated Gate
+#### `wait.cobuilder` — Automated Gate
 
 ```dot
 e1_e2e_gate [
-    handler="wait.system3"
+    handler="wait.cobuilder"
     gate_type="e2e"           # enum: "unit" | "e2e" | "contract"
     contract_ref="docs/prds/harness-upgrade/prd-contract.md"
     summary_ref=".claude/summaries/E1-gate-summary.md"
@@ -53,7 +53,7 @@ e1_human_review [
 ```
 
 **Behavior**: Always requires human input. Executes:
-1. Reads summary from `summary_ref` (written by preceding `wait.system3` or `research` node)
+1. Reads summary from `summary_ref` (written by preceding `wait.cobuilder` or `research` node)
 2. Emits review request to GChat with summary content
 3. Blocks until human responds (signal file or GChat reply)
 4. Transitions to `validated` (approved) or `failed` (rejected)
@@ -62,19 +62,19 @@ e1_human_review [
 
 **Rule 1**: Every codergen cluster follows the full topology:
 ```
-acceptance-test-writer -> research -> refine -> codergen -> wait.system3[e2e] -> wait.human[e2e-review]
+acceptance-test-writer -> research -> refine -> codergen -> wait.cobuilder[e2e] -> wait.human[e2e-review]
 ```
-The `acceptance-test-writer` node generates blind Gherkin tests from the PRD before implementation begins. Intermediate nodes (`research`, `refine`) are optional but the start (`acceptance-test-writer`) and end (`wait.system3 -> wait.human`) are mandatory.
+The `acceptance-test-writer` node generates blind Gherkin tests from the PRD before implementation begins. Intermediate nodes (`research`, `refine`) are optional but the start (`acceptance-test-writer`) and end (`wait.cobuilder -> wait.human`) are mandatory.
 
 **Rule 2**: `wait.human` must have exactly one predecessor, which must be either:
-- A `wait.system3` node (standard gate pair)
+- A `wait.cobuilder` node (standard gate pair)
 - A `research` node (research review)
 
-**Rule 3**: `wait.system3` must have at least one codergen or research predecessor (it validates work, so there must be work to validate).
+**Rule 3**: `wait.cobuilder` must have at least one codergen or research predecessor (it validates work, so there must be work to validate).
 
 ### 2.3 Executor Clarification
 
-**`wait.system3` is executed by the Python runner** (`PipelineRunner` from E7.2), not by an LLM. The runner:
+**`wait.cobuilder` is executed by the Python runner** (`PipelineRunner` from E7.2), not by an LLM. The runner:
 1. Reads signal files from completed predecessor workers
 2. Reads `concerns.jsonl` for worker-raised concerns
 3. Reflects via Hindsight (confidence trend, concern patterns)
@@ -89,16 +89,16 @@ The `acceptance-test-writer` node generates blind Gherkin tests from the PRD bef
 | Attribute | Type | Required On | Description |
 |-----------|------|-------------|-------------|
 | `handler` | string | all | Handler type identifier |
-| `gate_type` | enum | `wait.system3` | "unit", "e2e", or "contract" |
-| `contract_ref` | path | `wait.system3` (optional) | Path to PRD Contract for validation |
-| `summary_ref` | path | `wait.system3`, `wait.human` | Path where summary is written/read |
+| `gate_type` | enum | `wait.cobuilder` | "unit", "e2e", or "contract" |
+| `contract_ref` | path | `wait.cobuilder` (optional) | Path to PRD Contract for validation |
+| `summary_ref` | path | `wait.cobuilder`, `wait.human` | Path where summary is written/read |
 | `epic_id` | string | all (recommended) | Epic identifier for clustering |
 
 ## 3. Files Changed
 
 | File | Change |
 |------|--------|
-| `agent-schema.md` (docs section) | Add `wait.system3` and `wait.human` handler definitions, attribute table, topology rules |
+| `agent-schema.md` (docs section) | Add `wait.cobuilder` and `wait.human` handler definitions, attribute table, topology rules |
 | `guardian-workflow.md` | Add topology validation to Phase 2 dispatch logic; add gate processing to Phase 4 |
 | `output-styles/system3-meta-orchestrator.md` | Update DOT Graph Navigation section with gate pair requirement |
 
@@ -110,8 +110,8 @@ The `acceptance-test-writer` node generates blind Gherkin tests from the PRD bef
 
 ## 5. Acceptance Criteria
 
-- AC-1.1: `wait.system3` and `wait.human` fully documented with attribute schemas in `agent-schema.md`
-- AC-1.2: Full codergen cluster topology documented: `acceptance-test-writer -> research -> refine -> codergen -> wait.system3[e2e] -> wait.human[e2e-review]`
+- AC-1.1: `wait.cobuilder` and `wait.human` fully documented with attribute schemas in `agent-schema.md`
+- AC-1.2: Full codergen cluster topology documented: `acceptance-test-writer -> research -> refine -> codergen -> wait.cobuilder[e2e] -> wait.human[e2e-review]`
 - AC-1.3: At least one existing pipeline example updated to demonstrate the full cluster topology
-- AC-1.4: `wait.system3` executor clarified as Python runner (not LLM), with Chrome MCP dependency for browser E2E tests
-- AC-1.5: Requeue mechanism documented: failed `wait.system3` can transition predecessor codergen back to `pending`
+- AC-1.4: `wait.cobuilder` executor clarified as Python runner (not LLM), with Chrome MCP dependency for browser E2E tests
+- AC-1.5: Requeue mechanism documented: failed `wait.cobuilder` can transition predecessor codergen back to `pending`

@@ -268,7 +268,7 @@ orphaned_active_nodes = [
 **Proposed**:
 ```python
 RESUMABLE_HANDLERS = frozenset({"codergen", "research", "refine", "acceptance-test-writer"})
-GATE_HANDLERS = frozenset({"wait.system3", "wait.human"})
+GATE_HANDLERS = frozenset({"wait.cobuilder", "wait.human"})
 
 orphaned_active_nodes = [
     n for n in nodes
@@ -305,7 +305,7 @@ for node in orphaned_active_nodes:
 - AC-1: All WORKER_HANDLERS covered by orphan resume (not just codergen)
 - AC-2: Exponential backoff: 5s, 10s, 20s delays between retries
 - AC-3: Max 3 retries per orphaned node before marking failed
-- AC-4: Gate nodes (wait.system3, wait.human) emit escalation signal instead of re-dispatch
+- AC-4: Gate nodes (wait.cobuilder, wait.human) emit escalation signal instead of re-dispatch
 - AC-5: Test: simulate crash → verify research/refine nodes resume correctly
 
 ---

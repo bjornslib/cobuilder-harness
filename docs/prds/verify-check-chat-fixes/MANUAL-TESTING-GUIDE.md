@@ -1,3 +1,9 @@
+---
+title: "PRD-VCHAT-001: Manual Testing Guide"
+status: active
+type: reference
+last_verified: 2026-03-09T00:00:00.000Z
+---
 # PRD-VCHAT-001: Manual Testing Guide
 
 ## Prerequisites

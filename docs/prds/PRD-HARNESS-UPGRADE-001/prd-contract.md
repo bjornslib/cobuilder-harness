@@ -1,7 +1,7 @@
 ---
 title: "PRD Contract: System 3 Self-Management Upgrade"
 status: active
-type: contract
+type: reference
 last_verified: 2026-03-07
 grade: authoritative
 ---
@@ -14,7 +14,7 @@ grade: authoritative
 2. Workers must receive frozen SD content, not live SD files
 3. Graph traversal must not invoke any LLM for state machine logic
 4. Agent definitions must exist for every worker_type used in pipelines
-5. PRD Contract violations detected by wait.system3 gates must block pipeline progression
+5. PRD Contract violations detected by wait.cobuilder gates must block pipeline progression
 
 ## Scope Freeze
 

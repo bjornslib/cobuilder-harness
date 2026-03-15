@@ -1,8 +1,8 @@
 ---
 title: "SD-PIPELINE-ENGINE-001 Epic 4: Structured Event Bus with Logfire Integration"
 status: active
-type: solution-design
-last_verified: 2026-03-04T00:00:00.000Z
+type: reference
+last_verified: 2026-03-04
 grade: authoritative
 implementation_status: complete
 ---

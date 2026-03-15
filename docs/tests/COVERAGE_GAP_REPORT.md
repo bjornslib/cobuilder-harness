@@ -1,6 +1,7 @@
 ---
 title: "Browser Test Coverage Gap Report"
-type: coverage-report
+status: active
+type: reference
 last_updated: 2026-02-17
 generated_from: component_test_map.json
 ---

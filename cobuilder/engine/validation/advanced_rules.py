@@ -4,7 +4,7 @@ Implements the following requirements from PRD-HARNESS-UPGRADE-001:
 - AC-5.1: sd_path mandatory on codergen nodes — validate rejects nodes without it
 - AC-5.2: Full cluster topology check implemented
 - AC-5.3: worker_type registry check rejects unknown agent types
-- AC-5.4: wait.human after wait.system3 topology enforced
+- AC-5.4: wait.human after wait.cobuilder topology enforced
 """
 
 from __future__ import annotations
@@ -84,13 +84,13 @@ class WorkerTypeRegistry:
 
 
 # ---------------------------------------------------------------------------
-# Rule 16: WaitHumanAfterWaitSystem3 (Enforces AC-5.4)
+# Rule 16: WaitHumanAfterWaitCobuilder (Enforces AC-5.4)
 # ---------------------------------------------------------------------------
 
-class WaitHumanAfterWaitSystem3:
-    """wait.human nodes must follow wait.system3 or research nodes (AC-5.4)."""
+class WaitHumanAfterWaitCobuilder:
+    """wait.human nodes must follow wait.cobuilder or research nodes (AC-5.4)."""
 
-    rule_id = "WaitHumanAfterWaitSystem3"
+    rule_id = "WaitHumanAfterWaitCobuilder"
     severity = Severity.ERROR
 
     def check(self, graph: Graph) -> list[RuleViolation]:
@@ -99,16 +99,16 @@ class WaitHumanAfterWaitSystem3:
         for node in graph.nodes.values():
             # Check if it's a wait.human node (likely hexagon shape with wait.human handler)
             if node.handler_type == "wait_human":
-                # Check if it has a gate_type="e2e-review" which indicates it should follow wait.system3
+                # Check if it has a gate_type="e2e-review" which indicates it should follow wait.cobuilder
                 gate_mode = node.attrs.get("mode", "")
                 if gate_mode == "e2e-review":
                     # Get all incoming nodes (predecessors)
                     incoming_node_ids = {edge.source for edge in graph.edges if edge.target == node.id}
                     incoming_nodes = [graph.nodes[nid] for nid in incoming_node_ids if nid in graph.nodes]
 
-                    # Check if any predecessor is a wait.system3 node
+                    # Check if any predecessor is a wait.cobuilder node
                     has_system3_predecessor = any(
-                        pred.handler_type == "wait_system3" for pred in incoming_nodes
+                        pred.handler_type == "wait_cobuilder" for pred in incoming_nodes
                     )
 
                     # Check if any predecessor is a research node (alternative valid predecessor)
@@ -120,8 +120,8 @@ class WaitHumanAfterWaitSystem3:
                         violations.append(
                             _error(
                                 self.rule_id,
-                                "wait.human node with mode='e2e-review' must follow a wait.system3 or research node",
-                                "Add an edge from a wait.system3 node to this wait.human node",
+                                "wait.human node with mode='e2e-review' must follow a wait.cobuilder or research node",
+                                "Add an edge from a wait.cobuilder node to this wait.human node",
                                 node_id=node.id,
                             )
                         )
@@ -133,7 +133,7 @@ class WaitHumanAfterWaitSystem3:
 # ---------------------------------------------------------------------------
 
 class FullClusterTopology:
-    """Enforces full codergen cluster topology: acceptance-test-writer -> ... -> codergen -> wait.system3 -> wait.human (AC-5.2)."""
+    """Enforces full codergen cluster topology: acceptance-test-writer -> ... -> codergen -> wait.cobuilder -> wait.human (AC-5.2)."""
 
     rule_id = "FullClusterTopology"
     severity = Severity.ERROR
@@ -145,30 +145,30 @@ class FullClusterTopology:
         for node in graph.nodes.values():
             if node.handler_type == "codergen":
                 # Look for the cluster starting from acceptance-test-writer
-                # Check if there's a connected sequence: acceptance-test-writer -> research -> refine -> codergen -> wait.system3 -> wait.human
+                # Check if there's a connected sequence: acceptance-test-writer -> research -> refine -> codergen -> wait.cobuilder -> wait.human
 
-                # For codergen nodes, check if they have a corresponding wait.system3
+                # For codergen nodes, check if they have a corresponding wait.cobuilder
                 codergen_successors = self._get_downstream_nodes(graph, node.id)
 
-                # Look for a wait.system3 downstream
-                has_wait_system3 = any(
-                    n.handler_type == "wait_system3" for n in codergen_successors.values()
+                # Look for a wait.cobuilder downstream
+                has_wait_cobuilder = any(
+                    n.handler_type == "wait_cobuilder" for n in codergen_successors.values()
                 )
 
-                if not has_wait_system3:
+                if not has_wait_cobuilder:
                     violations.append(
                         _error(
                             self.rule_id,
-                            f"codergen node '{node.id}' must have a downstream wait.system3 validation gate",
-                            "Add a wait.system3 node downstream from this codergen node",
+                            f"codergen node '{node.id}' must have a downstream wait.cobuilder validation gate",
+                            "Add a wait.cobuilder node downstream from this codergen node",
                             node_id=node.id,
                         )
                     )
                     continue
 
-                # For each wait.system3 found, check if it has a wait.human downstream
-                system3_nodes = [n for n in codergen_successors.values() if n.handler_type == "wait_system3"]
-                for sys3_node in system3_nodes:
+                # For each wait.cobuilder found, check if it has a wait.human downstream
+                cobuilder_nodes = [n for n in codergen_successors.values() if n.handler_type == "wait_cobuilder"]
+                for sys3_node in cobuilder_nodes:
                     sys3_downstream = self._get_downstream_nodes(graph, sys3_node.id)
                     has_wait_human = any(
                         n.handler_type == "wait_human" and n.attrs.get("mode") == "e2e-review"
@@ -179,8 +179,8 @@ class FullClusterTopology:
                         violations.append(
                             _error(
                                 self.rule_id,
-                                f"wait.system3 node '{sys3_node.id}' must have a downstream wait.human validation gate",
-                                "Add a wait.human node with mode='e2e-review' downstream from this wait.system3 node",
+                                f"wait.cobuilder node '{sys3_node.id}' must have a downstream wait.human validation gate",
+                                "Add a wait.human node with mode='e2e-review' downstream from this wait.cobuilder node",
                                 node_id=sys3_node.id,
                             )
                         )
@@ -215,20 +215,20 @@ class FullClusterTopology:
 
 
 # ---------------------------------------------------------------------------
-# Additional helper for wait.system3 nodes
+# Additional helper for wait.cobuilder nodes
 # ---------------------------------------------------------------------------
 
-class WaitSystem3Requirements:
-    """wait.system3 nodes have required attributes (gate_type, summary_ref, bead_id)."""
+class WaitCobuilderRequirements:
+    """wait.cobuilder nodes have required attributes (gate_type, summary_ref, bead_id)."""
 
-    rule_id = "WaitSystem3Requirements"
+    rule_id = "WaitCobuilderRequirements"
     severity = Severity.ERROR
 
     def check(self, graph: Graph) -> list[RuleViolation]:
         violations = []
 
         for node in graph.nodes.values():
-            if node.handler_type == "wait_system3":
+            if node.handler_type == "wait_cobuilder":
                 # Check required attributes
                 gate_type = node.attrs.get("gate_type", "").strip()
                 summary_ref = node.attrs.get("summary_ref", "").strip()
@@ -238,7 +238,7 @@ class WaitSystem3Requirements:
                     violations.append(
                         _error(
                             self.rule_id,
-                            f"wait.system3 node '{node.id}' missing required 'gate_type' attribute",
+                            f"wait.cobuilder node '{node.id}' missing required 'gate_type' attribute",
                             "Add 'gate_type' attribute (values: unit, e2e, contract)",
                             node_id=node.id,
                         )
@@ -248,7 +248,7 @@ class WaitSystem3Requirements:
                     violations.append(
                         _error(
                             self.rule_id,
-                            f"wait.system3 node '{node.id}' missing required 'summary_ref' attribute",
+                            f"wait.cobuilder node '{node.id}' missing required 'summary_ref' attribute",
                             "Add 'summary_ref' attribute pointing to summary file path",
                             node_id=node.id,
                         )
@@ -258,7 +258,7 @@ class WaitSystem3Requirements:
                     violations.append(
                         _error(
                             self.rule_id,
-                            f"wait.system3 node '{node.id}' missing required 'bead_id' attribute",
+                            f"wait.cobuilder node '{node.id}' missing required 'bead_id' attribute",
                             "Add 'bead_id' attribute with AT (Acceptance Test) beads task ID",
                             node_id=node.id,
                         )

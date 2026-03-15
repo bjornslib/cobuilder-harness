@@ -1,8 +1,8 @@
 ---
 title: "SD-HARNESS-UPGRADE-001 Epic 4: Sub-Agent Registry + Skill Injection"
-status: complete
-type: solution-design
-last_verified: 2026-03-07T00:00:00.000Z
+status: archived
+type: reference
+last_verified: 2026-03-07
 grade: authoritative
 ---
 # SD-HARNESS-UPGRADE-001 Epic 4: Sub-Agent Registry + Skill Injection

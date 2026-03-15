@@ -29,10 +29,10 @@ The guardian workflow manages the end-to-end orchestration of initiatives from P
 Before dispatching any nodes, validate that the pipeline follows the required topology rules:
 
 #### Topology Validation Steps:
-- Verify every `codergen` cluster follows the full topology: `acceptance-test-writer -> research -> refine -> codergen -> wait.system3[e2e] -> wait.human[e2e-review]`
-- Ensure every `wait.human` node has exactly one predecessor (either `wait.system3` or `research`)
-- Confirm every `wait.system3` node has at least one `codergen` or `research` predecessor
-- Validate that all required gate pairs exist: each `codergen` should have a `wait.system3` (automated validation) and `wait.human` (human review) sequence
+- Verify every `codergen` cluster follows the full topology: `acceptance-test-writer -> research -> refine -> codergen -> wait.cobuilder[e2e] -> wait.human[e2e-review]`
+- Ensure every `wait.human` node has exactly one predecessor (either `wait.cobuilder` or `research`)
+- Confirm every `wait.cobuilder` node has at least one `codergen` or `research` predecessor
+- Validate that all required gate pairs exist: each `codergen` should have a `wait.cobuilder` (automated validation) and `wait.human` (human review) sequence
 
 #### Validation Failure Handling:
 - If topology violations are detected, reject the pipeline with specific error messages
@@ -80,7 +80,7 @@ Workers write concerns during execution to `{signal_dir}/concerns.jsonl`:
 {"ts": "2026-03-06T10:15:00Z", "node": "impl_e1", "severity": "warning", "message": "SD references v1.x API but installed version is v2.0", "suggestion": "Pin dependency or update SD"}
 ```
 
-#### Processing at wait.system3 gates:
+#### Processing at wait.cobuilder gates:
 - **Critical**: blocks gate, transitions to `failed`, includes in summary
 - **Warning**: includes in summary for human review
 - **Info**: logged to Hindsight only
@@ -93,10 +93,10 @@ export ATTRACTOR_SIGNAL_DIR="${pipeline_dir}/signals/"
 ```
 
 ### 4. Validation Gate Processing
-For each `wait.system3` node in the pipeline:
+For each `wait.cobuilder` node in the pipeline:
 
-#### Automated Gate Processing (wait.system3)
-The `wait.system3` handler is executed by the Python runner (not LLM) and performs:
+#### Automated Gate Processing (wait.cobuilder)
+The `wait.cobuilder` handler is executed by the Python runner (not LLM) and performs:
 - Reads signal files from completed predecessor workers
 - Processes concerns from `concerns.jsonl` for worker-raised issues
 - Reflects via Hindsight (confidence trend, concern patterns)
@@ -106,23 +106,23 @@ The `wait.system3` handler is executed by the Python runner (not LLM) and perfor
 - If critical concerns exist or tests fail: transitions to `failed` and may requeue predecessor codergen node back to `pending` (with retry counter, max 2 retries)
 - If all pass: transitions to `validated`
 
-##### Guardian Reflection Protocol at wait.system3 Gates
-Instead of a separate sketch pre-flight concept, the guardian/runner reflects at the `wait.system3` gate AFTER workers complete:
+##### Guardian Reflection Protocol at wait.cobuilder Gates
+Instead of a separate sketch pre-flight concept, the guardian/runner reflects at the `wait.cobuilder` gate AFTER workers complete:
 
-**Protocol** (executed by `_handle_system3()` in the runner):
+**Protocol** (executed by `_handle_gate()` in the runner):
 1. Read all signal files from completed codergen workers in this epic cluster
 2. Read `concerns.jsonl` for worker-raised concerns
 3. Reflect via Hindsight: query confidence trend, previous gate results, and concern patterns
 4. If critical concerns exist or confidence is declining:
    - Write summary explaining the issue
-   - Transition `wait.system3` to `failed`
+   - Transition `wait.cobuilder` to `failed`
    - Optionally: transition predecessor codergen node back to `pending` for retry (DOT graph update)
 5. If no blockers: proceed with Gherkin E2E test execution
 6. After E2E tests: write full summary to `summary_ref`
 
 **Requeue mechanism**: When the runner decides a codergen node needs to rerun:
 ```python
-# In _handle_system3() when gate fails and retry is warranted
+# In _handle_gate() when gate fails and retry is warranted
 transition_node(pipeline, predecessor_codergen_id, "pending")
 save_checkpoint(dot_file, pipeline)
 # Runner's next dispatch cycle will pick up the re-queued node
@@ -131,7 +131,7 @@ save_checkpoint(dot_file, pipeline)
 This keeps the retry logic inside the pipeline state machine — no external process needed.
 
 ##### Requeue Mechanism
-When a `wait.system3` node fails validation, it can transition the predecessor codergen node back to `pending`:
+When a `wait.cobuilder` node fails validation, it can transition the predecessor codergen node back to `pending`:
 - Increment retry counter on the predecessor node
 - If retry counter exceeds max (default 2), transition to `failed` permanently
 - Write failure details to concerns queue for the next iteration
@@ -155,7 +155,7 @@ When a `wait.system3` node fails validation, it can transition the predecessor c
 For each `wait.human` node in the pipeline:
 
 #### Human Review Gate Processing
-- Reads summary from `summary_ref` (written by preceding `wait.system3` or `research` node)
+- Reads summary from `summary_ref` (written by preceding `wait.cobuilder` or `research` node)
 - Emits review request to GChat with summary content
 - Blocks until human responds (signal file or GChat reply)
 - Transitions to `validated` (approved) or `failed` (rejected)

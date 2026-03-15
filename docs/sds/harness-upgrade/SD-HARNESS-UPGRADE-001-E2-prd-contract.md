@@ -1,7 +1,7 @@
 ---
 title: "SD-HARNESS-UPGRADE-001 Epic 2: PRD Contract + E2E Gate Protocol"
-status: complete
-type: solution-design
+status: archived
+type: reference
 last_verified: 2026-03-07
 grade: authoritative
 ---
@@ -10,7 +10,7 @@ grade: authoritative
 
 ## 1. Problem Statement
 
-PRDs evolve during implementation — user feedback, research findings, and technical discoveries all trigger scope changes. Without a frozen reference point, `wait.system3` gates cannot detect drift. Workers may implement features that were added mid-flight without proper SD coverage, or skip features that were silently removed.
+PRDs evolve during implementation — user feedback, research findings, and technical discoveries all trigger scope changes. Without a frozen reference point, `wait.cobuilder` gates cannot detect drift. Workers may implement features that were added mid-flight without proper SD coverage, or skip features that were silently removed.
 
 ## 2. Design
 
@@ -34,7 +34,7 @@ frozen_at_commit: abc123
 2. Workers must receive frozen SD content, not live SD files
 3. Graph traversal must not invoke any LLM for state machine logic
 4. Agent definitions must exist for every worker_type used in pipelines
-5. PRD Contract violations detected by wait.system3 gates must block pipeline progression
+5. PRD Contract violations detected by wait.cobuilder gates must block pipeline progression
 
 ## Scope Freeze
 
@@ -68,9 +68,9 @@ Inserted into Phase 0 between pipeline creation (Step 0.2) and design challenge 
 5. Write to `docs/prds/{initiative}/prd-contract.md`
 6. Record `frozen_at_commit` (current HEAD)
 
-### 2.3 Contract Validation in wait.system3 Gates
+### 2.3 Contract Validation in wait.cobuilder Gates
 
-When a `wait.system3` node has `contract_ref` set:
+When a `wait.cobuilder` node has `contract_ref` set:
 1. Read the PRD Contract
 2. For each domain invariant: verify it holds in the current codebase
 3. For scope freeze: verify no files outside the frozen scope were modified
@@ -94,7 +94,7 @@ No external script needed — the contract is a doc-gardener-compatible markdown
 | File | Change |
 |------|--------|
 | `phase0-prd-design.md` | Add Step 0.2.5 (contract generation); add E2E gate rule; add compliance gate rule |
-| `guardian-workflow.md` | Add contract validation to `wait.system3` processing logic |
+| `guardian-workflow.md` | Add contract validation to `wait.cobuilder` processing logic |
 | `SKILL.md` | Add `prd-contract.md` to Phase 0 artifact list |
 | `prd-contract-template.md` (new) | Template for contract generation |
 
@@ -108,4 +108,4 @@ No external script needed — the contract is a doc-gardener-compatible markdown
 
 - AC-2.1: PRD Contract template exists with required sections (invariants, scope freeze, compliance flags)
 - AC-2.2: Phase 0 workflow includes contract generation step (Step 0.2.5)
-- AC-2.3: `wait.system3` gate logic includes contract validation when `contract_ref` is set
+- AC-2.3: `wait.cobuilder` gate logic includes contract validation when `contract_ref` is set

@@ -1,7 +1,7 @@
 ---
 title: "SD-COBUILDER-WEB-001 Epic 1: Initiative DOT Graph Lifecycle"
 status: active
-type: solution-design
+type: reference
 last_verified: 2026-03-12
 grade: authoritative
 prd_ref: PRD-COBUILDER-WEB-001
@@ -481,7 +481,7 @@ def extend_after_sd_review(
 
     Also adds:
       - write_tests node (acceptance-test-writer)
-      - validate_e2e gate (wait.system3)
+      - validate_e2e gate (wait.cobuilder)
       - review_final gate (wait.human)
       - Re-wires the done exit node
 
@@ -537,7 +537,7 @@ def extend_after_sd_review(
    - Edge: `review_sds -> write_tests` (runs in parallel with research chains)
 
 6. **Validation gate** `validate_e2e`:
-   - `shape=hexagon`, `handler="wait.system3"`
+   - `shape=hexagon`, `handler="wait.cobuilder"`
    - `label="E2E Validation"`
    - `gate_type="e2e"`
    - `status="pending"`
@@ -652,7 +652,7 @@ def extend_after_sd_review(
     validate_e2e [
         shape=hexagon
         label="E2E Validation"
-        handler="wait.system3"
+        handler="wait.cobuilder"
         gate_type="e2e"
         status="pending"
         style="filled"
@@ -760,7 +760,7 @@ The frontier node (first actionable node in topological order) maps to a phase:
 | `research_sd_*` (research) | `RESEARCHING` |
 | `refine_sd_*` (refine) | `REFINING` |
 | `impl_*` (codergen, worker_type != prd-writer, != solution-design-architect) | `IMPLEMENTING` |
-| `validate_e2e` (wait.system3) | `VALIDATING` |
+| `validate_e2e` (wait.cobuilder) | `VALIDATING` |
 | `review_final` (wait.human) | `FINAL_REVIEW` |
 | `done` (exit) with all predecessors validated | `COMPLETE` |
 
@@ -913,7 +913,7 @@ The gate type is inferred from the node ID:
 - Given a DOT file where `review_sds.status == "validated"`, calling `extend_after_sd_review(dot_path, [...])` adds research, refine, and implementation nodes per SD.
 - Every SD gets exactly one `research` node and one `refine` node (mandatory chain).
 - A `write_tests` node with `handler="acceptance-test-writer"` is added.
-- A `validate_e2e` node with `handler="wait.system3"` is added.
+- A `validate_e2e` node with `handler="wait.cobuilder"` is added.
 - A `review_final` node with `handler="wait.human"` is added.
 - The research-refine chain is: `review_sds -> research_sd_{eid} -> refine_sd_{eid} -> impl_{eid}`.
 - All implementation nodes converge at `validate_e2e`.

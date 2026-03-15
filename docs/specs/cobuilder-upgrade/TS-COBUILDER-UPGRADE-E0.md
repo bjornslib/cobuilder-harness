@@ -4,7 +4,7 @@ ts_id: TS-COBUILDER-UPGRADE-E0
 prd_ref: PRD-COBUILDER-UPGRADE-001
 epic: E0
 status: draft
-type: technical-spec
+type: reference
 created: 2026-03-14
 last_verified: 2026-03-14
 grade: authoritative

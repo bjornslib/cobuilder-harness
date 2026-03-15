@@ -1,7 +1,7 @@
 ---
 title: "SD-HARNESS-UPGRADE-001 Epic 12: Graduated Autonomy Model"
 status: draft
-type: solution-design
+type: reference
 last_verified: 2026-03-06T00:00:00.000Z
 grade: draft
 ---
@@ -20,8 +20,8 @@ Three autonomy levels based on PRD Contract satisfaction track record:
 | Level | Name | wait.human Behavior | Earned By |
 | --- | --- | --- | --- |
 | 1 | **Supervised** | Every epic gate requires explicit human approval | Default for new domains |
-| 2 | **Guided** | wait.system3 auto-approves if score >= 0.8; wait.human only for scores < 0.8 | 3 consecutive epics at score >= 0.8 |
-| 3 | **Autonomous** | wait.system3 auto-approves; wait.human only for contract violations | 5 consecutive initiatives completed successfully |
+| 2 | **Guided** | wait.cobuilder auto-approves if score >= 0.8; wait.human only for scores < 0.8 | 3 consecutive epics at score >= 0.8 |
+| 3 | **Autonomous** | wait.cobuilder auto-approves; wait.human only for contract violations | 5 consecutive initiatives completed successfully |
 
 **Level assignment**:
 - Per-domain, not per-initiative (e.g., "backend API changes" can be Level 2 while "frontend UX" stays Level 1)
@@ -45,7 +45,7 @@ Three autonomy levels based on PRD Contract satisfaction track record:
 | --- | --- |
 | `initiative.json` | `domain_autonomy` section |
 | `pipeline_orchestrator.py` | `_handle_human` checks autonomy level before blocking |
-| `wait.system3` handler | Auto-approve logic based on score + autonomy level |
+| `wait.cobuilder` handler | Auto-approve logic based on score + autonomy level |
 
 ## 4. Acceptance Criteria (Draft)
 

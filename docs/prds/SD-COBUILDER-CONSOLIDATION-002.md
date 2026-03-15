@@ -1,7 +1,7 @@
 ---
 title: "SD-COBUILDER-CONSOLIDATION-002: Subsystem Decomposition and Interface Contracts"
 status: active
-type: solution-design
+type: reference
 last_verified: 2026-03-09
 grade: authoritative
 ---

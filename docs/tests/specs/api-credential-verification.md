@@ -1,6 +1,7 @@
 ---
 title: "Credential Verification API Endpoint"
-type: api
+status: active
+type: reference
 service: backend
 port: 8000
 prerequisites:

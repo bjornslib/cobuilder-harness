@@ -1,8 +1,8 @@
 ---
 title: "SD-HARNESS-UPGRADE-001 Epic 5: Attractor Schema + Validate CLI Extension"
-status: complete
-type: solution-design
-last_verified: 2026-03-07T00:00:00.000Z
+status: archived
+type: reference
+last_verified: 2026-03-07
 grade: authoritative
 ---
 # SD-HARNESS-UPGRADE-001 Epic 5: Attractor Schema + Validate CLI Extension
@@ -10,7 +10,7 @@ grade: authoritative
 ## 1. Problem Statement
 
 `cobuilder pipeline validate` currently checks basic graph structure (single start, reachable nodes, valid edges) but does not enforce:
-- The mandatory `wait.system3 -> wait.human` gate pair after codergen clusters
+- The mandatory `wait.cobuilder -> wait.human` gate pair after codergen clusters
 - `worker_type` values against a known registry
 - Required attributes on specific handler types (e.g., `sd_path` on codergen)
 - Epic-level clustering validation
@@ -26,9 +26,9 @@ The E2E analysis (Issue 3) showed workers receiving `solution_design: null` beca
 | `sd_path` | path | codergen | (none — mandatory) | Path to Solution Design file |
 | `solution_design_hash` | string | codergen (auto-set) | (computed) | SHA256 of frozen SD content at dispatch time |
 | `epic_id` | string | all (recommended) | (none) | Epic identifier for cluster validation |
-| `gate_type` | enum | wait.system3 | "e2e" | "unit", "e2e", or "contract" |
-| `contract_ref` | path | wait.system3 (optional) | (none) | Path to PRD Contract |
-| `summary_ref` | path | wait.system3, wait.human | (none — mandatory on these types) | Path for summary write/read |
+| `gate_type` | enum | wait.cobuilder | "e2e" | "unit", "e2e", or "contract" |
+| `contract_ref` | path | wait.cobuilder (optional) | (none) | Path to PRD Contract |
+| `summary_ref` | path | wait.cobuilder, wait.human | (none — mandatory on these types) | Path for summary write/read |
 | `worker_type` | enum | codergen (optional) | (none) | Agent type from registry |
 
 ### 2.2 New Validation Rules
@@ -46,12 +46,12 @@ for node in pipeline.nodes_by_handler("codergen"):
 ```python
 for epic_id in pipeline.unique_epic_ids():
     codergen_nodes = pipeline.nodes_by_epic(epic_id, handler="codergen")
-    gate_nodes = pipeline.nodes_by_epic(epic_id, handler="wait.system3")
+    gate_nodes = pipeline.nodes_by_epic(epic_id, handler="wait.cobuilder")
     human_nodes = pipeline.nodes_by_epic(epic_id, handler="wait.human")
     if codergen_nodes and not gate_nodes:
-        errors.append(f"Epic {epic_id}: has codergen nodes but no wait.system3 gate")
+        errors.append(f"Epic {epic_id}: has codergen nodes but no wait.cobuilder gate")
     if gate_nodes and not human_nodes:
-        errors.append(f"Epic {epic_id}: has wait.system3 gate but no wait.human review")
+        errors.append(f"Epic {epic_id}: has wait.cobuilder gate but no wait.human review")
 ```
 
 **Rule V-12: worker\_type registry check**
@@ -69,14 +69,14 @@ for node in pipeline.nodes_with_attr("worker_type"):
 ```python
 for node in pipeline.nodes_by_handler("wait.human"):
     predecessors = pipeline.predecessors(node)
-    valid_pred_handlers = {"wait.system3", "research"}
+    valid_pred_handlers = {"wait.cobuilder", "research"}
     if not any(p.handler in valid_pred_handlers for p in predecessors):
-        errors.append(f"{node.id}: wait.human must follow wait.system3 or research")
+        errors.append(f"{node.id}: wait.human must follow wait.cobuilder or research")
 ```
 
 **Rule V-14: summary\_ref required on gate nodes**
 ```python
-for node in pipeline.nodes_by_handler("wait.system3", "wait.human"):
+for node in pipeline.nodes_by_handler("wait.cobuilder", "wait.human"):
     if not node.attrs.get("summary_ref"):
         errors.append(f"{node.id}: gate node missing required 'summary_ref' attribute")
 ```
@@ -132,7 +132,7 @@ After E7.2 validation period, `--mode=python` becomes the default. All worker di
 - AC-5.1: `sd_path` mandatory on codergen nodes; validate rejects nodes without it
 - AC-5.2: Epic-level E2E gate check implemented (V-11) and tested
 - AC-5.3: `worker_type` registry check (V-12) rejects unknown agent types
-- AC-5.4: `wait.human` topology (V-13) enforced — must follow `wait.system3` or `research`
+- AC-5.4: `wait.human` topology (V-13) enforced — must follow `wait.cobuilder` or `research`
 - AC-5.5: `--mode=python` flag accepted by runner.py (dispatch to E7.2's PipelineRunner)
 - AC-5.6: Acceptance-test-writer topology rule (V-15) warns when codergen cluster lacks AT writer
 - AC-5.7: Skills validation (V-16) warns when agent's `skills_required` references non-existent skill directory

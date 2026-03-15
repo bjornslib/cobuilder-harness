@@ -30,7 +30,7 @@ This document verifies that all acceptance criteria for Epic 3: Workflow Protoco
 - Severity levels: critical, warning, info with processing rules
 - Signal directory requirement with ATTRACTOR_SIGNAL_DIR env var
 
-### AC-3.3: Guardian Reflection Protocol at wait.system3
+### AC-3.3: Guardian Reflection Protocol at wait.cobuilder
 **Status**: ✅ IMPLEMENTED
 
 **Location**:

@@ -3,10 +3,9 @@ title: "SD-SEQ-PROGRESSION-001: Check Sequence Progression Implementation"
 status: active
 type: reference
 grade: authoritative
-last_verified: 2026-03-09
+last_verified: 2026-03-09T00:00:00.000Z
 research_validated: true
 ---
-
 # SD-SEQ-PROGRESSION-001: Check Sequence Progression Implementation
 
 **PRD**: PRD-SEQ-PROGRESSION-001
@@ -55,7 +54,7 @@ We use **Option A from the PRD** — post-completion hook in the existing flow. 
 *[Research-validated]* Use a **hybrid approach** for delayed step execution:
 - Store next-step tasks in `background_tasks` with `scheduled_time` (source of truth for task metadata)
 - **Additionally** submit a Prefect flow run with `scheduled_time` via `run_deployment()` for native scheduling:
-  ```python
+```python
   from prefect.deployments.flow_runs import run_deployment
   run = run_deployment(
       name="verification-orchestrator/default",
@@ -63,7 +62,7 @@ We use **Option A from the PRD** — post-completion hook in the existing flow. 
       timeout=0,  # fire-and-forget, don't block
       parameters={"task_id": new_task_id, "case_id": case_id},
   )
-  ```
+```
 - This gives Prefect UI visibility (scheduled runs show as "Scheduled" state) plus our queryable `background_tasks` table
 - If Prefect deployment isn't configured, fall back to DB polling (existing `get_due_tasks()` pattern)
 
@@ -696,7 +695,7 @@ async def get_due_tasks(self, db_pool) -> list:
 *[Research-validated]* Critical asyncpg behavior that affects all DB operations in this module:
 
 | Method | Auto-commits? | Transaction-safe? |
-|--------|---------------|-------------------|
+| --- | --- | --- |
 | `pool.fetchrow(q)` | Yes (own connection) | NO — each call is independent |
 | `pool.execute(q)` | Yes (own connection) | NO — separate from other calls |
 | `conn.fetchrow(q)` inside `conn.transaction()` | No | YES — commits/rolls back together |
@@ -852,7 +851,7 @@ PRD-DASHBOARD-AUDIT-001 will display sequence progression in the timeline view. 
 ### Unit Tests
 
 | Test | Input | Expected Output |
-|------|-------|-----------------|
+| --- | --- | --- |
 | `test_step_not_exhausted` | 1 attempt, max=2 | `is_exhausted=False` |
 | `test_step_exhausted` | 2 attempts, max=2 | `is_exhausted=True` |
 | `test_terminal_result` | `verified` result | `is_terminal=True`, case completed |
@@ -867,7 +866,7 @@ PRD-DASHBOARD-AUDIT-001 will display sequence progression in the timeline view. 
 ### Integration Tests
 
 | Scenario | Steps | Assertion |
-|----------|-------|-----------|
+| --- | --- | --- |
 | Full 3-step progression | Create case → exhaust step 1 → verify step 2 created → exhaust step 2 → verify step 3 created | 3 tasks in background_tasks with step_order 1,2,3 |
 | Terminal at step 1 | Create case → step 1 returns `verified` | Case completed, no step 2 task |
 | Delay enforcement | Exhaust step 1 → step 2 delay=2h | Step 2 task scheduled_time = step 1 completion + 2h |
@@ -880,7 +879,7 @@ PRD-DASHBOARD-AUDIT-001 will display sequence progression in the timeline view. 
 ### Risks
 
 | Risk | Impact | Mitigation |
-|------|--------|------------|
+| --- | --- | --- |
 | Email channel not implemented | Step 2 tasks created but can't execute | Accept placeholder response; task exists for audit. When email dispatch is built (PRD-P1.1-INFRA-001), step 2 tasks will work automatically |
 | Race condition on concurrent retries | Duplicate next-step tasks | **[RESOLVED]** `SELECT ... FOR UPDATE` on completed task row + `next_task_id IS NOT NULL` idempotency guard. See section 2.6 |
 | SLA config changes mid-case | Wrong step resolved | Use `sequence_version` from initial task to pin version |
@@ -889,7 +888,7 @@ PRD-DASHBOARD-AUDIT-001 will display sequence progression in the timeline view. 
 ### Research Questions (All Resolved)
 
 | # | Question | Answer | Source |
-|---|----------|--------|--------|
+| --- | --- | --- | --- |
 | 1 | Prefect delayed scheduling | Use `run_deployment(scheduled_time=..., timeout=0)`. Prefect worker picks up within 5-10s poll interval. | Prefect 3.x docs, `deployments.flow_runs` module |
 | 2 | asyncpg in Prefect tasks | asyncpg pools work natively in async Prefect tasks. Pass pool as parameter or use module singleton. No special integration needed. | asyncpg docs, Prefect community |
 | 3 | Transaction safety | `pool.fetchrow()` auto-commits on separate connections — CANNOT use for multi-step ops. MUST use `pool.acquire()` + `conn.transaction()` for atomic SELECT→INSERT→UPDATE. | asyncpg usage docs |
@@ -898,7 +897,7 @@ PRD-DASHBOARD-AUDIT-001 will display sequence progression in the timeline view. 
 
 ### Remaining Open Questions (For Implementation)
 
-1. **Same-step retry backoff**: ~~Should we also replace the hardcoded `RETRY_BACKOFF_HOURS = [2, 4, 24, 48]`?~~ **DECIDED: YES — replace in same PR.** Replace hardcoded backoff in `process_result.py` with DB-driven intervals from the step's `delay_hours` and `max_attempts` config. The step config already has `delay_hours` per step — use it for same-step retries too. See Section 2.7.
+1. **Same-step retry backoff**: ~~Should we also replace the hardcoded \~~~~`RETRY_BACKOFF_HOURS = [2, 4, 24, 48]`~~\~\~?~~ **DECIDED: YES — replace in same PR.** Replace hardcoded backoff in `process_result.py` with DB-driven intervals from the step's `delay_hours` and `max_attempts` config. The step config already has `delay_hours` per step — use it for same-step retries too. See Section 2.7.
 2. **Manual review step**: When step 3 (`channel_type='manual'`) fires, should it create a queue entry in a `manual_reviews` table, or just update `cases.status = 'requires_review'`? Recommend `cases.status` update for MVP; dedicated table for Phase 2.
 
 ### 2.7 Replace Hardcoded Retry Backoff (In Scope)
@@ -925,7 +924,7 @@ async def get_retry_config(task_id: int, conn) -> tuple[float, int]:
     return float(row['delay_hours']), row['max_attempts']
 ```
 
-**Changes to `process_result.py`**:
+**Changes to \****`process_result.py`**:
 - Remove `RETRY_BACKOFF_HOURS` constant
 - Remove `MAX_CALL_RETRIES` constant
 - Call `get_retry_config(task_id, conn)` to get delay and max from DB
@@ -938,7 +937,7 @@ async def get_retry_config(task_id: int, conn) -> tuple[float, int]:
 ## 8. File Change Summary
 
 | File | Change Type | Description |
-|------|-------------|-------------|
+| --- | --- | --- |
 | `prefect_flows/flows/tasks/sequence_advancement.py` | **NEW** | Core sequence advancement logic |
 | `prefect_flows/flows/tasks/process_result.py` | MODIFY | Add `advance_sequence()` call after step exhaustion |
 | `prefect_flows/flows/verification_orchestrator.py` | MODIFY | Read channel_type from task's sequence step |

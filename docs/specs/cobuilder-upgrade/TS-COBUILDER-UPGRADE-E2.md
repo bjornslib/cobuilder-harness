@@ -4,7 +4,7 @@ prd_ref: PRD-COBUILDER-UPGRADE-001
 epic: E2
 title: "E2: Rename attractor→engine + Extract .pipelines/"
 status: draft
-type: technical-spec
+type: reference
 grade: authoritative
 created: 2026-03-14
 last_verified: 2026-03-14

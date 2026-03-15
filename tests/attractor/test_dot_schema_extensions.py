@@ -111,7 +111,7 @@ digraph "legacy_pipeline" {
         fillcolor=lightyellow
     ]
     validate_unit [
-        handler="wait.system3"
+        handler="wait.cobuilder"
         shape=hexagon
         label="Unit Test Gate"
         gate_type="unit"
@@ -365,7 +365,7 @@ digraph "test_research_refine" {
         acceptance="G1 works correctly"
     ]
     validate_unit_g1 [
-        handler="wait.system3"
+        handler="wait.cobuilder"
         shape=hexagon
         label="Unit Test G1"
         gate_type="unit"

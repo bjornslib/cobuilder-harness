@@ -123,7 +123,7 @@ fix_gap_x1 -> revalidate_gap_x1 [label="impl_complete"];
 revalidate_gap_x1 [
     shape=hexagon
     label="Re-validate Gap X1"
-    handler="wait.system3"
+    handler="wait.cobuilder"
     gate_type="gap-closure"
     status="pending"
 ];

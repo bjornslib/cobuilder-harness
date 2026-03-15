@@ -1,3 +1,9 @@
+---
+title: ZeroRepo Architecture
+status: active
+type: reference
+last_verified: 2026-02-08T00:00:00.000Z
+---
 # ZeroRepo Architecture
 
 ## Overview
@@ -176,24 +182,24 @@ FUNCTION_AUGMENTED      Mapped to a function/class/method
 
 Key fields on `RPGNode`:
 
-| Field               | Type              | Description                                |
-|---------------------|-------------------|--------------------------------------------|
-| `id`                | `UUID`            | Unique identifier                          |
-| `name`              | `str`             | Human-readable name (1-200 chars)          |
-| `level`             | `NodeLevel`       | MODULE / COMPONENT / FEATURE               |
-| `node_type`         | `NodeType`        | FUNCTIONALITY through FUNCTION_AUGMENTED   |
-| `parent_id`         | `UUID?`           | Parent node in the hierarchy               |
-| `folder_path`       | `str?`            | Relative folder path                       |
-| `file_path`         | `str?`            | Relative file path                         |
-| `interface_type`    | `InterfaceType?`  | FUNCTION / CLASS / METHOD                  |
-| `signature`         | `str?`            | Python function/method signature           |
-| `docstring`         | `str?`            | Documentation string                       |
-| `implementation`    | `str?`            | Generated Python code                      |
-| `test_code`         | `str?`            | Generated pytest test code                 |
-| `test_status`       | `TestStatus`      | PENDING / PASSED / FAILED / SKIPPED        |
-| `serena_validated`  | `bool`            | Whether Serena MCP validated this node     |
-| `actual_dependencies` | `list[UUID]`    | Runtime dependencies (from Serena)         |
-| `metadata`          | `dict[str, Any]`  | Arbitrary metadata                         |
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | `UUID` | Unique identifier |
+| `name` | `str` | Human-readable name (1-200 chars) |
+| `level` | `NodeLevel` | MODULE / COMPONENT / FEATURE |
+| `node_type` | `NodeType` | FUNCTIONALITY through FUNCTION_AUGMENTED |
+| `parent_id` | `UUID?` | Parent node in the hierarchy |
+| `folder_path` | `str?` | Relative folder path |
+| `file_path` | `str?` | Relative file path |
+| `interface_type` | `InterfaceType?` | FUNCTION / CLASS / METHOD |
+| `signature` | `str?` | Python function/method signature |
+| `docstring` | `str?` | Documentation string |
+| `implementation` | `str?` | Generated Python code |
+| `test_code` | `str?` | Generated pytest test code |
+| `test_status` | `TestStatus` | PENDING / PASSED / FAILED / SKIPPED |
+| `serena_validated` | `bool` | Whether Serena MCP validated this node |
+| `actual_dependencies` | `list[UUID]` | Runtime dependencies (from Serena) |
+| `metadata` | `dict[str, Any]` | Arbitrary metadata |
 
 Cross-field validation constraints are enforced by Pydantic model validators:
 - `file_path` must be a child of `folder_path` when both present
@@ -217,16 +223,16 @@ INVOCATION      caller → callee         Function call relationship
 
 Key fields on `RPGEdge`:
 
-| Field             | Type        | Description                                  |
-|-------------------|-------------|----------------------------------------------|
-| `id`              | `UUID`      | Unique identifier                            |
-| `source_id`       | `UUID`      | Source node UUID                             |
-| `target_id`       | `UUID`      | Target node UUID (must differ from source)   |
-| `edge_type`       | `EdgeType`  | Relationship type                            |
-| `data_id`         | `str?`      | Data identifier (DATA_FLOW only)             |
-| `data_type`       | `str?`      | Type annotation (DATA_FLOW only)             |
-| `transformation`  | `str?`      | Transform description (DATA_FLOW only)       |
-| `validated`       | `bool`      | Whether this edge has been validated         |
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | `UUID` | Unique identifier |
+| `source_id` | `UUID` | Source node UUID |
+| `target_id` | `UUID` | Target node UUID (must differ from source) |
+| `edge_type` | `EdgeType` | Relationship type |
+| `data_id` | `str?` | Data identifier (DATA_FLOW only) |
+| `data_type` | `str?` | Type annotation (DATA_FLOW only) |
+| `transformation` | `str?` | Transform description (DATA_FLOW only) |
+| `validated` | `bool` | Whether this edge has been validated |
 
 Constraints: no self-loops; `data_id`/`data_type`/`transformation` only valid
 on `DATA_FLOW` edges.
@@ -244,13 +250,13 @@ class RPGGraph(BaseModel):
 
 Key methods:
 
-| Method         | Description                                         |
-|----------------|-----------------------------------------------------|
-| `add_node()`   | Add node; raises if duplicate ID                    |
-| `add_edge()`   | Add edge; validates both endpoints exist            |
-| `remove_node()`| Remove node + cascading edge removal                |
-| `to_json()`    | Serialize to JSON string                            |
-| `from_json()`  | Deserialize from JSON string (round-trip safe)      |
+| Method | Description |
+| --- | --- |
+| `add_node()` | Add node; raises if duplicate ID |
+| `add_edge()` | Add edge; validates both endpoints exist |
+| `remove_node()` | Remove node + cascading edge removal |
+| `to_json()` | Serialize to JSON string |
+| `from_json()` | Deserialize from JSON string (round-trip safe) |
 
 ---
 
@@ -343,12 +349,12 @@ Natural Language  ──▶  SpecParser  ──▶  RepositorySpec
 
 Key classes:
 
-| Class               | Role                                              |
-|---------------------|---------------------------------------------------|
-| `SpecParser`        | LLM-based NL parser (extraction + assembly)       |
-| `ConflictDetector`  | Detects contradictions between requirements        |
-| `SpecRefiner`       | Iterative spec improvement with LLM suggestions   |
-| `ReferenceProcessor`| Extracts concepts from URLs, PDFs, code samples   |
+| Class | Role |
+| --- | --- |
+| `SpecParser` | LLM-based NL parser (extraction + assembly) |
+| `ConflictDetector` | Detects contradictions between requirements |
+| `SpecRefiner` | Iterative spec improvement with LLM suggestions |
+| `ReferenceProcessor` | Extracts concepts from URLs, PDFs, code samples |
 
 The `RepositorySpec` model includes:
 - `TechnicalRequirement` -- languages, frameworks, platforms, deployment targets
@@ -480,15 +486,15 @@ The builder records timing and validation results for each step via
 
 Pure-function utilities for graph analysis and manipulation:
 
-| Module           | Functions                                          |
-|------------------|----------------------------------------------------|
-| `topological.py` | `topological_sort()`, `detect_cycles()`            |
-| `traversal.py`   | `get_ancestors()`, `get_descendants()`, `get_direct_dependencies()` |
-| `subgraph.py`    | `extract_subgraph_by_level()`, `..._by_module()`, `..._by_type()` |
-| `filtering.py`   | `filter_nodes()`, `filter_by_level()`, `..._by_status()`, `..._by_validation()` |
-| `diff.py`        | `diff_dependencies()` -- Compare planned vs actual deps |
+| Module | Functions |
+| --- | --- |
+| `topological.py` | `topological_sort()`, `detect_cycles()` |
+| `traversal.py` | `get_ancestors()`, `get_descendants()`, `get_direct_dependencies()` |
+| `subgraph.py` | `extract_subgraph_by_level()`, `..._by_module()`, `..._by_type()` |
+| `filtering.py` | `filter_nodes()`, `filter_by_level()`, `..._by_status()`, `..._by_validation()` |
+| `diff.py` | `diff_dependencies()` -- Compare planned vs actual deps |
 | `serialization.py` | `serialize_graph()` / `deserialize_graph()` (JSON files) |
-| `exceptions.py`  | `CycleDetectedError`                               |
+| `exceptions.py` | `CycleDetectedError` |
 
 Topological sort uses **Kahn's algorithm** considering HIERARCHY and DATA_FLOW
 edges for ordering.
@@ -768,19 +774,19 @@ Code generation follows the graph's topological order:
 
 ## Technology Stack
 
-| Layer              | Technology                                        |
-|--------------------|---------------------------------------------------|
-| Language           | Python 3.11+                                      |
-| Data Validation    | Pydantic v2                                       |
-| LLM Integration    | LiteLLM (multi-provider)                          |
-| Prompt Templates   | Jinja2                                            |
-| Vector Database    | ChromaDB + sentence-transformers                  |
-| Graph Library      | NetworkX (graph_construction)                     |
-| Container Runtime  | Docker SDK for Python                             |
-| Code Analysis      | Serena MCP (Pyright-based)                        |
-| CLI Framework      | Typer + Rich                                      |
-| Testing            | pytest + pytest-cov + pytest-mock                 |
-| Build System       | Hatchling                                         |
+| Layer | Technology |
+| --- | --- |
+| Language | Python 3.11+ |
+| Data Validation | Pydantic v2 |
+| LLM Integration | LiteLLM (multi-provider) |
+| Prompt Templates | Jinja2 |
+| Vector Database | ChromaDB + sentence-transformers |
+| Graph Library | NetworkX (graph_construction) |
+| Container Runtime | Docker SDK for Python |
+| Code Analysis | Serena MCP (Pyright-based) |
+| CLI Framework | Typer + Rich |
+| Testing | pytest + pytest-cov + pytest-mock |
+| Build System | Hatchling |
 
 ---
 
@@ -825,11 +831,11 @@ NEW                    Component does not exist in the baseline
 
 Three fields on `RPGNode` (at the `COMPONENT` level and below) support delta tracking:
 
-| Field                | Type                    | Description                                           |
-|----------------------|-------------------------|-------------------------------------------------------|
-| `delta_status`       | `DeltaClassification?`  | The classified delta status (EXISTING/MODIFIED/NEW)   |
-| `baseline_match_name`| `str?`                  | Name of the matched node in the baseline graph        |
-| `change_summary`     | `str?`                  | Human-readable summary of what changed (for MODIFIED) |
+| Field | Type | Description |
+| --- | --- | --- |
+| `delta_status` | `DeltaClassification?` | The classified delta status (EXISTING/MODIFIED/NEW) |
+| `baseline_match_name` | `str?` | Name of the matched node in the baseline graph |
+| `change_summary` | `str?` | Human-readable summary of what changed (for MODIFIED) |
 
 ### How Delta Classification Works
 

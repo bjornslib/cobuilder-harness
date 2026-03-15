@@ -77,7 +77,7 @@ During Phase 0, a `prd-contract.md` is automatically generated at `docs/prds/{in
 
 ### Contract Validation in Gates
 
-When a `wait.system3` node has `contract_ref` attribute, the validation includes:
+When a `wait.cobuilder` node has `contract_ref` attribute, the validation includes:
 - Reading the PRD Contract specified by contract_ref
 - Verifying each domain invariant holds in the current codebase
 - Checking that no files outside the frozen scope were modified

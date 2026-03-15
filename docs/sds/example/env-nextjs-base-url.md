@@ -1,7 +1,7 @@
 ---
 title: "SD: Add NEXTJS_BASE_URL, Update Email Templates, and Fix Variable Naming"
 status: active
-type: solution-design
+type: reference
 epic_id: MODEL-MIGRATION-001
 prd_ref: AgenCheck Configuration Consolidation
 last_verified: 2026-03-11

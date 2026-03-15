@@ -2,7 +2,7 @@
 prd_id: PRD-COBUILDER-001
 title: "Three-Way Context Enhancement: RepoMap + DOT + SD for TaskMaster"
 status: active
-type: solution-design
+type: reference
 epic: E3 (Context Injection)
 created: 2026-02-28
 last_verified: 2026-02-28

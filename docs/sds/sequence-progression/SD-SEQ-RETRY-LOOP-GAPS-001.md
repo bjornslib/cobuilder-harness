@@ -1,3 +1,9 @@
+---
+title: "SD-SEQ-RETRY-LOOP-GAPS-001: Gap Analysis — Sequence Routing & Deployment Convergence"
+status: active
+type: reference
+last_verified: 2026-03-10T00:00:00.000Z
+---
 # SD-SEQ-RETRY-LOOP-GAPS-001: Gap Analysis — Sequence Routing & Deployment Convergence
 
 **Status**: Draft
@@ -42,7 +48,7 @@ POST /api/v1/verify
 
 **Root cause**: The email-first sequence was added without deactivating the original voice-only sequence.
 
-**Proposed fix — Use the existing `replaceSequenceWithVersioning` API**:
+**Proposed fix — Use the existing \****`replaceSequenceWithVersioning`**\*\* API**:
 
 The SLA configuration page already has a `PUT /api/v1/check-types/:id/sequence` endpoint that atomically:
 1. Archives all existing active steps (`is_active = false`)
@@ -113,10 +119,10 @@ This is the approach recommended by the user — linking to the `check_types` ta
 
 **Proposed fix**:
 1. Guard the webhook calls with an env var check (immediate):
-   ```python
+```python
    if not os.getenv("SUPPORT_AGENT_URL"):
        return  # Skip webhook in environments without API
-   ```
+```
 2. Long-term: Remove the webhook hooks entirely. The direct DB updates in `log_state_to_db` + Logfire spans provide complete coverage. The webhook endpoint (`api/webhooks/prefect.py`) can be deprecated.
 
 ---

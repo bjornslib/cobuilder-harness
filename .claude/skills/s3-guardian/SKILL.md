@@ -213,7 +213,7 @@ Each level adds independent verification. The key constraint: each guardian stor
 | 2. Orchestrator Spawn | DOT dispatch, SDK / tmux patterns, wisdom inject | [guardian-workflow.md](references/guardian-workflow.md) |
 | 3. Monitoring | DOT polling (SDK), signal-file monitoring, progress monitoring | [monitoring-patterns.md](references/monitoring-patterns.md) |
 | 3.5 Pipeline Progress | Haiku sub-agent monitoring with stall/failure detection | [monitoring-patterns.md](references/monitoring-patterns.md) |
-| 3.6 Gate Monitoring | Detect wait.system3/wait.human gates via .gate-wait markers, System 3 response handlers | [monitoring-patterns.md](references/monitoring-patterns.md) § Section 8 |
+| 3.6 Gate Monitoring | Detect wait.cobuilder/wait.human gates via .gate-wait markers, System 3 response handlers | [monitoring-patterns.md](references/monitoring-patterns.md) § Section 8 |
 | 4. Validation | Score scenarios, run executable tests, weighted total. **ACCEPT ≥ 0.70** (solid quality; auto-create fix-it beads for minor gaps); **INVESTIGATE 0.50-0.69**; **REJECT < 0.50** | [validation-scoring.md](references/validation-scoring.md) |
 | 4.5 Regression | ZeroRepo diff before journey tests | [references/validation-scoring.md](references/validation-scoring.md) |
 | 4.6 Bead Closure | 6-step workflow: create fix-it bead → link to gap → assign → dispatch codergen node → validate → close | [guardian-workflow.md § 6.5](references/guardian-workflow.md) |
@@ -265,7 +265,7 @@ This creates a continuous monitoring cycle with predictable wake-up intervals an
 - `MONITOR_ERROR`: Node failed → Investigate root cause, requeue or escalate
 - `MONITOR_STALL`: No progress for >threshold → Check if worker hung, restart if needed
 - `MONITOR_ANOMALY`: Unexpected state → Investigate, may need manual DOT edit
-- `MONITOR_GATE_WAITING`: A `wait.system3` or `wait.human` gate is active (`.gate-wait` marker detected) → System 3 handles gate response
+- `MONITOR_GATE_WAITING`: A `wait.cobuilder` or `wait.human` gate is active (`.gate-wait` marker detected) → System 3 handles gate response
 
 **Monitoring Mechanism**:
 - **Signal directory polling**: Monitor `.pipelines/signals/` for new/modified `.json` files with status changes
@@ -276,7 +276,7 @@ This creates a continuous monitoring cycle with predictable wake-up intervals an
 
 See **[references/dot-pipeline-creation.md](references/dot-pipeline-creation.md)** for:
 - Minimal DOT example with full node types and attributes
-- Handler type mapping (start, codergen, research, refine, wait.system3, wait.human, exit)
+- Handler type mapping (start, codergen, research, refine, wait.cobuilder, wait.human, exit)
 - Required vs optional node attributes per handler
 - Validation via `cli.py validate`
 

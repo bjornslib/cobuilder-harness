@@ -244,7 +244,7 @@ HANDLER_REGISTRY: dict[str, str] = {
     "exit":       "_handle_exit",
     "gate":       "_handle_gate",
     "wait.human": "_handle_human",
-    "wait.system3": "_handle_gate",
+    "wait.cobuilder": "_handle_gate",
     "wait.cobuilder": "_handle_gate",
     "acceptance-test-writer": "_handle_worker",
 }
@@ -658,7 +658,7 @@ class PipelineRunner:
             # "active" in the DOT, but the dispatch loop only picks up "pending" nodes.
             # Expand to include all resumable handlers (Epic D)
             RESUMABLE_HANDLERS = frozenset({"codergen", "research", "refine", "acceptance-test-writer"})
-            GATE_HANDLERS = frozenset({"wait.system3", "wait.human"})
+            GATE_HANDLERS = frozenset({"wait.cobuilder", "wait.human"})
 
             orphaned_active_nodes = [
                 n for n in nodes
@@ -1042,7 +1042,7 @@ class PipelineRunner:
                 _span.__exit__(None, None, None)
 
     def _handle_gate(self, node: dict, data: dict) -> None:  # noqa: ARG002
-        """Gate/wait.system3 nodes: emit a gate-wait signal and mark as waiting.
+        """Gate/wait.cobuilder nodes: emit a gate-wait signal and mark as waiting.
 
         System 3 must write a pass signal to {signal_dir}/{node_id}.json to
         unblock the gate.
@@ -1060,7 +1060,7 @@ class PipelineRunner:
         with open(gate_marker, "w") as fh:
             json.dump({
                 "node_id": nid,
-                "gate_type": "wait.system3",
+                "gate_type": "wait.cobuilder",
                 "summary_ref": node["attrs"].get("summary_ref", ""),
                 "epic_id": node["attrs"].get("epic_id", ""),
                 "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -2294,7 +2294,7 @@ class PipelineRunner:
                 nid = node["id"]
                 handler = node["attrs"].get("handler", "")
                 log.info("[reset] Resetting active node %s -> pending (fresh start)", nid)
-                if handler in ("wait.system3", "wait.human", "gate"):
+                if handler in ("wait.cobuilder", "wait.human", "gate"):
                     # Gate nodes have no running worker — they were just waiting.
                     # Transition active→failed, then failed→pending so the gate
                     # can be re-dispatched cleanly. Both transitions go through

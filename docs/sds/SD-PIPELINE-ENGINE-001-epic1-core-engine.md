@@ -1,8 +1,8 @@
 ---
 title: "SD-PIPELINE-ENGINE-001 Epic 1: Core Execution Engine with Checkpoint/Resume"
 status: active
-type: solution-design
-last_verified: 2026-03-04T00:00:00.000Z
+type: reference
+last_verified: 2026-03-04
 grade: authoritative
 implementation_status: complete
 ---

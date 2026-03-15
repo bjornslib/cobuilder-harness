@@ -1,7 +1,7 @@
 ---
 title: "SD-COBUILDER-RESTRUCTURE-001: CoBuilder Standalone Harness Restructure"
 status: active
-type: solution-design
+type: reference
 last_verified: 2026-03-09
 grade: authoritative
 ---

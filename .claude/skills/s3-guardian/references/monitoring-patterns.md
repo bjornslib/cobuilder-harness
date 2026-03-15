@@ -653,7 +653,7 @@ tmux send-keys -t "orch-{epic}" Enter
 
 ## 8. Gate Monitor Pattern
 
-When the pipeline runner reaches a `wait.system3` or `wait.human` node, it writes a `.gate-wait` marker file to the signal directory and enters its poll loop. System 3 uses a Haiku monitor sub-agent to detect these gates and act on them.
+When the pipeline runner reaches a `wait.cobuilder` or `wait.human` node, it writes a `.gate-wait` marker file to the signal directory and enters its poll loop. System 3 uses a Haiku monitor sub-agent to detect these gates and act on them.
 
 ### Gate-Aware Monitor Prompt
 
@@ -688,12 +688,12 @@ Task(
 
 ### Gate-Wait Marker Schema
 
-Both `wait.system3` and `wait.human` nodes write `.gate-wait` markers with this structure:
+Both `wait.cobuilder` and `wait.human` nodes write `.gate-wait` markers with this structure:
 
 ```json
 {
     "node_id": "e1_gate",
-    "gate_type": "wait.system3",
+    "gate_type": "wait.cobuilder",
     "summary_ref": ".claude/summaries/E1-gate-summary.md",
     "epic_id": "E1",
     "timestamp": "2026-03-07T10:15:00Z"
@@ -706,7 +706,7 @@ For `wait.human` nodes, the marker also includes `"mode": "technical"`.
 
 When the monitor completes with `MONITOR_GATE_WAITING`, System 3 reads `gate_type` and acts:
 
-**wait.system3 — Run Blind Gherkin E2E:**
+**wait.cobuilder — Run Blind Gherkin E2E:**
 
 ```python
 # 1. Read the gate-wait marker
