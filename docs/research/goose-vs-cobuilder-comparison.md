@@ -1,7 +1,7 @@
 ---
 title: "Goose vs CoBuilder: AI Agent Orchestration Comparison"
 description: "Comparative analysis of Block's Goose and the CoBuilder pipeline engine for multi-agent AI orchestration"
-version: "1.0.0"
+version: "2.0.0"
 last-updated: 2026-03-15
 status: active
 type: research
@@ -254,10 +254,121 @@ CoBuilder is dramatically more cost-efficient for pipeline workloads. The zero-L
 
 ---
 
+## Architectural Convergence: Guardian-Spawns-Pipeline
+
+With the introduction of the **Agent-SDK Guardian** that autonomously spawns and iterates on DOT pipelines, CoBuilder has converged on a pattern structurally equivalent to Goose's agentic loop — but with a deterministic execution tier underneath.
+
+### The Convergence Pattern
+
+Both systems share the same fundamental shape: **an LLM in a loop that keeps working until the goal is achieved**.
+
+```
+Goose:
+  LLM → tool call → result → assess → next tool → ... → done
+         ↑_______________________________________________|
+
+CoBuilder Guardian:
+  LLM → spawn pipeline → monitor signals → validate → adjust → re-launch → ... → done
+         ↑__________________________________________________________________|
+```
+
+The Guardian IS a Goose-style agent. It receives a goal (completion promise), reasons about strategy, takes actions (spawning pipelines, handling gates, validating outcomes), observes results (signal files, checkpoint state), and iterates until acceptance criteria are met. It cannot exit until done — enforced by the stop hook, exactly as Goose's loop continues until the model decides the task is complete.
+
+### Mapping the Architectures
+
+| Goose Concept | CoBuilder Guardian Equivalent | Key Difference |
+|---------------|-------------------------------|----------------|
+| Agentic loop | Guardian's iterate-until-done loop | Same pattern |
+| Tool call | Spawn `pipeline_runner.py` | Pipeline dispatches N workers in parallel |
+| Tool result | Signal file (`NEEDS_REVIEW`, `GATE_WAIT_*`) | Structured protocol vs. raw output |
+| Error → feed back → retry | Failed signal → requeue node → re-run | Granular retry (per-node, not whole task) |
+| Context compaction (80%) | Checkpoint/resume across sessions | CoBuilder survives session death |
+| Sub-recipes | Recursive sub-pipelines (`manager_loop`) | DAG nesting vs. linear composition |
+| Extensions (MCP servers) | Worker agents (frontend, backend, TDD) | Agents > tools (workers reason, tools execute) |
+| `AGENTS.md` | DOT pipeline graph | Declarative task specification |
+| Recipe parameters | DOT node attributes (`llm_profile`, `worker_type`, `acceptance`) | Same idea, richer schema |
+
+### What the Guardian Adds Beyond Goose
+
+The Guardian loop isn't just "Goose but bigger." Each iteration dispatches an **entire coordinated pipeline** rather than a single tool call. This is a multiplier effect:
+
+```
+Goose iteration:
+  1 tool call → 1 result → 1 file changed
+
+Guardian iteration:
+  1 pipeline → N parallel workers → M files changed → validation gates → checkpoint
+```
+
+**Concrete example**: A single Guardian iteration can execute a full `cobuilder-lifecycle` pipeline — research (Context7 + Perplexity via Haiku) → solution design (Sonnet refine) → parallel implementation (frontend + backend workers) → validation gates. That's an entire feature delivered in one loop cycle, where Goose would need dozens of sequential tool calls.
+
+### The Zero-Cost Middle Layer
+
+This is the structural advantage CoBuilder retains even after convergence. In Goose, **every routing decision costs tokens** — the LLM decides which tool to call, what arguments to pass, whether to retry. In CoBuilder:
+
+| Decision Level | Who Decides | Cost |
+|----------------|-------------|------|
+| **Strategic** (what pipeline to run, how to handle failures) | Guardian (Opus) | Token cost |
+| **Tactical** (which node is ready, what worker to dispatch, state transitions) | `pipeline_runner.py` (Python) | $0 |
+| **Operational** (how to implement a feature) | Worker agents (Haiku/Sonnet) | Token cost |
+
+The middle layer — all the mechanical graph traversal, dependency resolution, signal routing, checkpoint management — runs for free. Goose pays tokens for the equivalent decisions at every step.
+
+### Iteration Granularity
+
+Goose's loop iterates at the **tool call** level. The Guardian's loop iterates at the **pipeline outcome** level. This means:
+
+| Aspect | Goose | Guardian |
+|--------|-------|---------|
+| Iteration grain | Single tool call | Entire pipeline run |
+| Decisions per iteration | 1 (which tool next?) | 1 (launch/adjust/validate pipeline) |
+| Work per iteration | 1 action | N parallel workers × M tasks |
+| Failure scope | Retry one tool | Requeue specific failed node |
+| Context cost per iteration | Grows linearly with tool calls | Constant (pipeline runner handles complexity) |
+
+### Convergence Timeline
+
+The evolution from "different architectures" to "same pattern, different execution tier":
+
+1. **Phase 1** (early CoBuilder): Pipeline runner was standalone. Human triggered runs, manually inspected results. No agentic loop — just batch execution.
+
+2. **Phase 2** (System 3 + monitoring): System 3 launched pipelines and used Haiku monitors to watch for completion. Closer to Goose, but the monitoring was passive — detect-and-report, not decide-and-act.
+
+3. **Phase 3** (Guardian-spawns-pipeline): The Guardian became a full agentic loop. It reasons about goals, spawns pipelines, handles gates, validates outcomes, adjusts strategy, and re-launches. This IS the Goose pattern — an autonomous agent iterating until done — with a structured execution engine inside each iteration.
+
+### When They Diverge
+
+Despite convergence at the loop level, the systems diverge on:
+
+| Dimension | Goose | Guardian |
+|-----------|-------|---------|
+| **Setup cost** | Near-zero (install + config.yaml) | High (DOT files, provider profiles, signal dirs) |
+| **Flexibility** | Can do anything via MCP tools | Constrained to pipeline-expressible workflows |
+| **Observability** | LLM's internal reasoning (opaque) | Signal files, DOT status, checkpoints (fully auditable) |
+| **Recovery from crash** | Session lost (memory extension preserves some) | Atomic checkpoint → `--resume` (exact state restored) |
+| **Validation model** | LLM self-assesses completion | Blind acceptance tests (Guardian never shares rubric with workers) |
+| **Cost at scale** | Linear with interaction count | Sub-linear (pipeline runner amortizes routing cost) |
+
+### The Synthesis
+
+The ideal framing is no longer "Goose vs. CoBuilder" but rather:
+
+> **CoBuilder's Guardian is a Goose-class agentic loop whose "tool" is an entire deterministic pipeline engine.**
+
+Where Goose calls `shell.execute("npm test")`, the Guardian calls `pipeline_runner.py --dot-file feature.dot`. Where Goose gets back stdout, the Guardian gets back a structured signal protocol with per-node validation scores. Where Goose retries a failed command, the Guardian requeues a specific pipeline node.
+
+The convergence validates both architectures:
+- **Goose proves** that an LLM-in-a-loop is the right top-level pattern for autonomous agents
+- **CoBuilder proves** that the *body* of that loop should be a structured execution engine, not ad-hoc tool calls, when the workflow is complex enough to warrant it
+
+---
+
 ## Conclusion
 
 **Goose** and **CoBuilder** are complementary rather than competing. Goose excels as an **interactive coding agent** — broad provider support, clean extension model, strong community, zero setup friction. CoBuilder excels as a **structured pipeline engine** — zero orchestration cost, formal state machines, checkpoint/resume, enterprise-grade audit trails.
 
-The ideal architecture might combine both: use Goose-style interactive agents for exploratory work and ad-hoc tasks, then graduate structured multi-step workflows to CoBuilder-style pipeline execution for cost efficiency, auditability, and fault tolerance.
+With the Guardian-spawns-pipeline pattern, CoBuilder has converged on Goose's core insight — an autonomous LLM loop that iterates until done — while retaining its structural advantages: zero-cost orchestration, blind validation, checkpoint/resume, and per-node granularity. The Guardian is effectively a Goose-class agent whose "tools" are entire multi-agent pipelines.
 
-**Key takeaway**: If your workflow is conversational and interactive, Goose wins on simplicity. If your workflow is structured, multi-agent, and needs to run reliably at scale, CoBuilder wins on architecture.
+The ideal architecture combines both philosophies: the Goose-style agentic loop for strategic reasoning and goal pursuit, with a CoBuilder-style pipeline engine as the execution substrate for each iteration. This is exactly what the Guardian pattern delivers.
+
+**Key takeaway**: The architectures have converged at the loop level. The remaining difference is what happens *inside* each iteration — ad-hoc tool calls (Goose) vs. deterministic pipeline dispatch (CoBuilder). For simple tasks, Goose's directness wins. For complex multi-agent workflows, CoBuilder's structured execution tier delivers cost efficiency, auditability, and fault tolerance that ad-hoc tool calling cannot match.
