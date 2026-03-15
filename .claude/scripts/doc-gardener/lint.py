@@ -993,6 +993,48 @@ def generate_frontmatter(filepath: Path, grades_data: dict, ctx: LintContext) ->
 
     today_str = date.today().isoformat()
 
+    # For non-.claude/ targets, include description/version/last-updated
+    if not ctx.is_claude_dir:
+        # Infer description from first content paragraph
+        try:
+            raw = filepath.read_text(encoding="utf-8")
+            _, body = parse_frontmatter(raw)
+            description = ""
+            for line in body.split("\n"):
+                line = line.strip()
+                if line and not line.startswith("#") and not line.startswith("---"):
+                    description = line[:200]
+                    break
+            if not description:
+                description = f"Documentation for {filepath.stem}"
+        except Exception:
+            description = f"Documentation for {filepath.stem}"
+
+        # Infer last-updated from git log
+        last_updated = today_str
+        try:
+            result = subprocess.run(
+                ["git", "log", "-1", "--format=%ai", str(filepath)],
+                capture_output=True, text=True, timeout=5,
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                last_updated = result.stdout.strip()[:10]
+        except Exception:
+            pass
+
+        return (
+            f"---\n"
+            f"title: \"{title}\"\n"
+            f"description: \"{description}\"\n"
+            f"version: \"1.0.0\"\n"
+            f"last-updated: {last_updated}\n"
+            f"status: {status}\n"
+            f"type: {doc_type}\n"
+            f"last_verified: {today_str}\n"
+            f"grade: {grade}\n"
+            f"---\n\n"
+        )
+
     return (
         f"---\n"
         f"title: \"{title}\"\n"
