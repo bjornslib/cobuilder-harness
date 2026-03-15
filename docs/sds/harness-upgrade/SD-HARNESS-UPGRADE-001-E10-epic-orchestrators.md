@@ -2,13 +2,12 @@
 title: "SD-HARNESS-UPGRADE-001 Epic 10: Epic-Scoped Orchestrators + Parallel Execution"
 status: draft
 type: solution-design
-last_verified: 2026-03-06
+last_verified: 2026-03-06T00:00:00.000Z
 grade: draft
 ---
-
 # SD-HARNESS-UPGRADE-001 Epic 10: Epic-Scoped Orchestrators + Parallel Execution
 
-> **Phase 3 — Future Work (~6-12 months)**. This SD is a vision document, not an implementation spec.
+> **Phase 3 — Future Work (\~6-12 months)**. This SD is a vision document, not an implementation spec.
 
 ## 1. Problem Statement
 
@@ -34,7 +33,7 @@ Key design decisions:
 ## 3. Files Changed
 
 | File | Change |
-|------|--------|
+| --- | --- |
 | `pipeline_orchestrator.py` | Epic-level parallelism via asyncio.TaskGroup |
 | `worktree-manager` | Programmatic worktree creation per epic |
 | `initiative.json` | Per-epic status tracking |

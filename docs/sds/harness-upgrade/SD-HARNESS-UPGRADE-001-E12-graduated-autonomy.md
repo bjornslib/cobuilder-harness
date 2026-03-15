@@ -2,13 +2,12 @@
 title: "SD-HARNESS-UPGRADE-001 Epic 12: Graduated Autonomy Model"
 status: draft
 type: solution-design
-last_verified: 2026-03-06
+last_verified: 2026-03-06T00:00:00.000Z
 grade: draft
 ---
-
 # SD-HARNESS-UPGRADE-001 Epic 12: Graduated Autonomy Model
 
-> **Phase 3 — Future Work (~6-12 months)**. This SD is a vision document, not an implementation spec.
+> **Phase 3 — Future Work (\~6-12 months)**. This SD is a vision document, not an implementation spec.
 
 ## 1. Problem Statement
 
@@ -19,7 +18,7 @@ Every pipeline currently requires the same level of human oversight regardless o
 Three autonomy levels based on PRD Contract satisfaction track record:
 
 | Level | Name | wait.human Behavior | Earned By |
-|-------|------|---------------------|-----------|
+| --- | --- | --- | --- |
 | 1 | **Supervised** | Every epic gate requires explicit human approval | Default for new domains |
 | 2 | **Guided** | wait.system3 auto-approves if score >= 0.8; wait.human only for scores < 0.8 | 3 consecutive epics at score >= 0.8 |
 | 3 | **Autonomous** | wait.system3 auto-approves; wait.human only for contract violations | 5 consecutive initiatives completed successfully |
@@ -43,7 +42,7 @@ Three autonomy levels based on PRD Contract satisfaction track record:
 ## 3. Files Changed
 
 | File | Change |
-|------|--------|
+| --- | --- |
 | `initiative.json` | `domain_autonomy` section |
 | `pipeline_orchestrator.py` | `_handle_human` checks autonomy level before blocking |
 | `wait.system3` handler | Auto-approve logic based on score + autonomy level |
