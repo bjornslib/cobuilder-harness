@@ -442,7 +442,7 @@ import os
 sys.path.insert(0, os.path.join(os.environ.get('CLAUDE_PROJECT_DIR', os.getcwd()), '.claude', 'hooks'))
 
 try:
-    from unified_stop_gate.system3_continuation_judge import System3ContinuationJudgeChecker
+    from unified_stop_gate.cobuilder_continuation_judge import System3ContinuationJudgeChecker
     from unified_stop_gate.config import EnvironmentConfig
     from unified_stop_gate.checkers import SessionInfo
 
