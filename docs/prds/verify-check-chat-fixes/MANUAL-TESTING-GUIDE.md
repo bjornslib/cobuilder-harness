@@ -173,9 +173,3 @@ If you only have 5 minutes, run these critical path tests:
 - **E2 transcript merge**: Voice + chat transcripts are uploaded to S3 separately but NOT yet merged into `sub_threads.all_messages`. Dashboard may show only voice OR chat, not unified. (Separate initiative planned)
 - **E3 context via SDK**: Context transfer relies on LK SDK's `session.chat_ctx` auto-population. If SDK behavior changes, context may break.
 - **E4 JSON detection**: Mode switch detection uses `text.strip().startswith('{"type"')` — any user message starting with this pattern would be caught by the filter (unlikely in practice).
-
-## Implementation Status
-
-| Epic | Status | Date | Commit |
-| --- | --- | --- | --- |
-| - | Remaining | - | - |

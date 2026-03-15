@@ -101,7 +101,7 @@ Architect SD documents preserved in `docs/prds/SD-COBUILDER-CONSOLIDATION-*.md` 
 claude-harness-setup/
 ├── .claude/                     # Claude Code native config ONLY (<5MB)
 │   ├── settings.json
-│   ├── output-styles/           # orchestrator.md, system3-meta-orchestrator.md
+│   ├── output-styles/           # orchestrator.md, cobuilder-guardian.md
 │   ├── hooks/                   # Lifecycle handlers
 │   ├── skills/                  # Skill implementations
 │   ├── commands/                # Slash commands
@@ -226,8 +226,8 @@ claude-harness-setup/
 ### E7: Documentation & Path Reference Updates
 **Effort**: 1 day | **Risk**: Low
 - Update 49 markdown path references across output-styles/ and skills/
-- Update `system3-meta-orchestrator.md` pipeline launch commands
-- Update `s3-guardian/SKILL.md` and all reference files
+- Update `cobuilder-guardian.md` pipeline launch commands
+- Update `cobuilder-guardian/SKILL.md` and all reference files
 - Update `orchestrator.md` if it references attractor paths
 - Update `worker-tool-reference.md` if needed
 - Update `CLAUDE.md` architecture section
@@ -310,7 +310,7 @@ The following remaining hardening epics from PRD-HARNESS-UPGRADE-001 / SD-PIPELI
 | **E0: Dead Code Cleanup** | **DONE** | 2026-03-10 | `5333115` | 23 files deleted, 3,232 lines removed. 11 dead attractor files + superseded cobuilder/orchestration/pipeline_runner.py + 10 root artifacts + empty dirs + empty CLI group. |
 | **E8: Security Remediation** | **DONE** | 2026-03-10 | `5333115` | private.pem deleted, *.pem added to .gitignore, worktree copies cleaned. |
 | **Bugfix: Liveness Race** | **DONE** | 2026-03-10 | `6337153` | Liveness checker now checks node status before writing error signals. Prevents spurious failures from overwriting processed signals. |
-| **Bugfix: Monitor Cycles** | **DONE** | 2026-03-10 | `6337153` | Monitor pattern updated to blocking 10min cycles in s3-guardian SKILL.md and system3-meta-orchestrator.md. |
+| **Bugfix: Monitor Cycles** | **DONE** | 2026-03-10 | `6337153` | Monitor pattern updated to blocking 10min cycles in cobuilder-guardian SKILL.md and cobuilder-guardian.md. |
 | ~~E1: dirs.py~~ | **Dropped** | 2026-03-11 | — | Replaced by `COBUILDER_STATE_DIR` env var in `.cobuilder/.env`. Pipeline runner computes paths relative to DOT files — no centralized resolver needed. |
 | **E2: Fix Divergences (+D, E.3)** | **DONE** | 2026-03-10 | `bb5b60e` | Added validated→accepted, failed→pending to cobuilder transition.py. check_finalize_gate accepts both states. Persistent requeue guidance loader. 18 new tests. |
 | E3: State Migration (+.env) | **Next** | — | — | Includes .env move from .claude/attractor/ to .cobuilder/. No longer depends on E1. |

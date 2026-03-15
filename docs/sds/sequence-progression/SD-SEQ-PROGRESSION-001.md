@@ -897,7 +897,7 @@ PRD-DASHBOARD-AUDIT-001 will display sequence progression in the timeline view. 
 
 ### Remaining Open Questions (For Implementation)
 
-1. **Same-step retry backoff**: ~~Should we also replace the hardcoded \~~~~`RETRY_BACKOFF_HOURS = [2, 4, 24, 48]`~~\~\~?~~ **DECIDED: YES — replace in same PR.** Replace hardcoded backoff in `process_result.py` with DB-driven intervals from the step's `delay_hours` and `max_attempts` config. The step config already has `delay_hours` per step — use it for same-step retries too. See Section 2.7.
+1. **Same-step retry backoff**: ~~Should we also replace the hardcoded ~~~~`RETRY_BACKOFF_HOURS = [2, 4, 24, 48]`~~~~?~~ **DECIDED: YES — replace in same PR.** Replace hardcoded backoff in `process_result.py` with DB-driven intervals from the step's `delay_hours` and `max_attempts` config. The step config already has `delay_hours` per step — use it for same-step retries too. See Section 2.7.
 2. **Manual review step**: When step 3 (`channel_type='manual'`) fires, should it create a queue entry in a `manual_reviews` table, or just update `cases.status = 'requires_review'`? Recommend `cases.status` update for MVP; dedicated table for Phase 2.
 
 ### 2.7 Replace Hardcoded Retry Backoff (In Scope)
@@ -924,7 +924,7 @@ async def get_retry_config(task_id: int, conn) -> tuple[float, int]:
     return float(row['delay_hours']), row['max_attempts']
 ```
 
-**Changes to \****`process_result.py`**:
+**Changes to ****`process_result.py`**:
 - Remove `RETRY_BACKOFF_HOURS` constant
 - Remove `MAX_CALL_RETRIES` constant
 - Call `get_retry_config(task_id, conn)` to get delay and max from DB
@@ -945,9 +945,3 @@ async def get_retry_config(task_id: int, conn) -> tuple[float, int]:
 | `database/migrations/049_add_step_resolution_index.sql` | **NEW** | Performance indexes for step resolution + attempt counting |
 | `tests/unit/test_sequence_advancement.py` | **NEW** | Unit tests for all advancement functions |
 | `tests/integration/test_sequence_progression.py` | **NEW** | Integration test for full 3-step progression |
-
-## Implementation Status
-
-| Epic | Status | Date | Commit |
-| --- | --- | --- | --- |
-| - | Remaining | - | - |

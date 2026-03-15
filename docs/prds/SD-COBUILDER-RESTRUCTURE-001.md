@@ -130,7 +130,7 @@ claude-harness-setup/
 │   ├── settings.json
 │   ├── output-styles/
 │   │   ├── orchestrator.md
-│   │   └── system3-meta-orchestrator.md
+│   │   └── cobuilder-guardian.md
 │   ├── hooks/
 │   ├── skills/
 │   ├── commands/
@@ -350,8 +350,8 @@ from cobuilder.pipeline.transition import *  # noqa: F401,F403
 ```
 
 However, given that the only callers of `.claude/scripts/attractor/*.py` are:
-- `system3-meta-orchestrator.md` (hardcoded `python3 .claude/scripts/attractor/pipeline_runner.py`)
-- `s3-guardian/SKILL.md` (same path)
+- `cobuilder-guardian.md` (hardcoded `python3 .claude/scripts/attractor/pipeline_runner.py`)
+- `cobuilder-guardian/SKILL.md` (same path)
 - `orchestrator-multiagent/SKILL.md`
 
 ...it is simpler to update those 3 references to point at the cobuilder CLI
@@ -432,8 +432,8 @@ _DEFAULT_PIPELINES_DIR: str = "data/pipelines"
 ```
 
 **And** skills/output-styles that reference `pipeline_runner.py` directly:
-- `.claude/output-styles/system3-meta-orchestrator.md` line 600, 842
-- `.claude/skills/s3-guardian/SKILL.md` lines 260-261
+- `.claude/output-styles/cobuilder-guardian.md` line 600, 842
+- `.claude/skills/cobuilder-guardian/SKILL.md` lines 260-261
 - `.claude/skills/orchestrator-multiagent/SKILL.md` lines 381, 387
 
 These should reference the new `cobuilder pipeline run` CLI command instead
@@ -637,11 +637,11 @@ prose references in skills and output styles.
     `cobuilder.orchestration.spawn_orchestrator`
 6.3 Add `cobuilder orchestration research` and `cobuilder orchestration refine`
     wired to `run_research.py` and `run_refine.py`
-6.4 Update `.claude/output-styles/system3-meta-orchestrator.md`:
+6.4 Update `.claude/output-styles/cobuilder-guardian.md`:
     - Line 600: `python3 .claude/scripts/attractor/pipeline_runner.py --dot-file <path>`
       → `cobuilder pipeline run <path>`
     - Line 842: same update
-6.5 Update `.claude/skills/s3-guardian/SKILL.md`:
+6.5 Update `.claude/skills/cobuilder-guardian/SKILL.md`:
     - Lines 260-261: `python3 .claude/scripts/attractor/pipeline_runner.py` →
       `cobuilder pipeline run`
     - Signal directory reference: `.claude/attractor/signals/` → `data/signals/`

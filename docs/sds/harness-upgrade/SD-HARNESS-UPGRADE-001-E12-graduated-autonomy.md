@@ -1,7 +1,7 @@
 ---
 title: "SD-HARNESS-UPGRADE-001 Epic 12: Graduated Autonomy Model"
 status: draft
-type: reference
+type: solution-design
 last_verified: 2026-03-06T00:00:00.000Z
 grade: draft
 ---
@@ -53,9 +53,3 @@ Three autonomy levels based on PRD Contract satisfaction track record:
 - AC-12.2: `wait.human` behavior varies by autonomy level
 - AC-12.3: Domain history tracked and used for level assignment
 - AC-12.4: Failure resets domain to Level 1
-
-## Implementation Status
-
-| Epic | Status | Date | Commit |
-| --- | --- | --- | --- |
-| - | Remaining | - | - |

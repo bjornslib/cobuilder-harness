@@ -1064,7 +1064,7 @@ All task closures must go through validation-agent with --mode=implementation.
 
 ## Environment Variables
 - `CLAUDE_SESSION_ID`: Unique session identifier
-- `CLAUDE_OUTPUT_STYLE`: Active output style (system3/orchestrator)
+- `CLAUDE_OUTPUT_STYLE`: Active output style (cobuilder-guardian/orchestrator)
 - `CLAUDE_PROJECT_DIR`: Project root directory
 - `ANTHROPIC_API_KEY`: API authentication
 - `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS`: Enable native Agent Teams (1)

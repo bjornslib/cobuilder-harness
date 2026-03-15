@@ -769,9 +769,3 @@ Timeline query now returns:
 | Email verification links use correct task_id | PENDING |
 
 ---
-
-## Implementation Status
-
-| Epic | Status | Date | Commit |
-| --- | --- | --- | --- |
-| - | Remaining | - | - |

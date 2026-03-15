@@ -340,7 +340,7 @@ async def schedule_next_orchestrator_run(
 ### Epic A: Orchestrator Retry Loop (Core)
 **Files**: `prefect_flows/flows/verification_orchestrator.py`, `prefect_flows/hooks/state_hooks.py`, new `prefect_flows/flows/flow_helpers/scheduling.py`
 
-**PREREQUISITE — Fix task status lifecycle**: The `log_state_to_db` hook currently only updates `background_tasks.status` on `Completed` and `Failed/Crashed`. There is **no \****`Running`***\* → \****`processing`**\*\* transition** — tasks jump from `pending` directly to `completed`/`failed`. The guard depends on seeing `processing` to know a flow is actively running. Fix:
+**PREREQUISITE — Fix task status lifecycle**: The `log_state_to_db` hook currently only updates `background_tasks.status` on `Completed` and `Failed/Crashed`. There is **no ****`Running`**** → ****`processing`**** transition** — tasks jump from `pending` directly to `completed`/`failed`. The guard depends on seeing `processing` to know a flow is actively running. Fix:
 
 Add to `log_state_to_db` in `state_hooks.py` (alongside the existing `Failed`/`Completed` blocks):
 ```python
@@ -435,9 +435,3 @@ The template selection should be based on the attempt number from the retry task
 | `catch_up_poller.py` | **Fix** | All action_types, scheduled_time guard, case status check |
 | `sequence_advancement.py` | **Fix** | Correct deployment name, return delay_hours, remove direct scheduling |
 | `channel_dispatch.py` | **Enhancement** | Attempt-based template selection, context_data carryover |
-
-## Implementation Status
-
-| Epic | Status | Date | Commit |
-| --- | --- | --- | --- |
-| - | Remaining | - | - |

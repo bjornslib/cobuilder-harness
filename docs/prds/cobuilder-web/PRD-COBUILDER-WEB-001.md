@@ -261,7 +261,7 @@ The Guardian is launched in a tmux session with a scoped prompt. It receives EXA
 
 ```
 Session: guardian-{prd-id}
-Output style: system3-meta-orchestrator
+Output style: cobuilder-guardian
 Environment: CLAUDE_SESSION_ID, PRD_ID, PIPELINE_DOT_PATH
 
 Injected prompt:
@@ -508,7 +508,7 @@ Build the tmux-based Guardian launcher with scoped prompt injection and "Open in
 - `guardian_launcher.py`: `launch(prd_id, dot_path, target_repo)` → creates tmux session
 - Session naming: `guardian-{prd-id}`
 - Environment injection: `CLAUDE_SESSION_ID`, `PRD_ID`, `PIPELINE_DOT_PATH`
-- Output style: `system3-meta-orchestrator` (via `--output-style` flag)
+- Output style: `cobuilder-guardian` (via `--output-style` flag)
 - Scoped prompt: tells Guardian its exact role (acceptance tests + monitoring + validation)
 - `attach(prd_id)` → returns tmux session name for "Open in Terminal" deep-link
 - `list_active()` → returns running Guardian sessions with their PRD associations
@@ -517,7 +517,7 @@ Build the tmux-based Guardian launcher with scoped prompt injection and "Open in
 **Acceptance Criteria:**
 - [ ] `launch()` creates tmux session with correct name and environment
 - [ ] Guardian receives scoped prompt specifying PRD path, SD paths, DOT path, worktree path
-- [ ] Guardian's output style is `system3-meta-orchestrator`
+- [ ] Guardian's output style is `cobuilder-guardian`
 - [ ] `attach()` returns session name that can be opened via `open -a Terminal` or `tmux attach`
 - [ ] Guardian cannot create new DOT files or modify graph structure (scoped to tests + validation)
 

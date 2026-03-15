@@ -585,9 +585,3 @@ Status labels come exclusively from the backend `status_label` field — no fron
 - **Solution**: Import from CI-generated `statusLabels.ts` constants rather than hardcoding
 
 ---
-
-## Implementation Status
-
-| Epic | Status | Date | Commit |
-| --- | --- | --- | --- |
-| - | Remaining | - | - |

@@ -76,11 +76,11 @@ self.signal_dir = os.path.join(self.dot_dir, "signals", self.pipeline_id)
 
 Output styles and skills do reference hardcoded attractor script paths. The complete inventory:
 
-**`.claude/output-styles/system3-meta-orchestrator.md`** — 4 references:
+**`.claude/output-styles/cobuilder-guardian.md`** — 4 references:
 - Line 600: `python3 .claude/scripts/attractor/pipeline_runner.py --dot-file <path.dot>`
 - Lines 677/680/683/686/842: `cobuilder pipeline status .claude/attractor/pipelines/${INITIATIVE}.dot`
 
-**`.claude/skills/s3-guardian/references/guardian-workflow.md`** — 18 references to:
+**`.claude/skills/cobuilder-guardian/references/guardian-workflow.md`** — 18 references to:
 - `.claude/scripts/attractor/spawn_orchestrator.py`
 - `.claude/scripts/attractor/runner.py`
 - `.claude/scripts/attractor/cli.py`
@@ -89,15 +89,15 @@ Output styles and skills do reference hardcoded attractor script paths. The comp
 - `.claude/attractor/pipelines/`
 - `.claude/attractor/checkpoints/`
 
-**`.claude/skills/s3-guardian/references/monitoring-patterns.md`** — 12 references
+**`.claude/skills/cobuilder-guardian/references/monitoring-patterns.md`** — 12 references
 
-**`.claude/skills/s3-guardian/references/gap-closure-protocol.md`** — 4 references
+**`.claude/skills/cobuilder-guardian/references/gap-closure-protocol.md`** — 4 references
 
-**`.claude/skills/s3-guardian/references/phase0-prd-design.md`** — 4 references
+**`.claude/skills/cobuilder-guardian/references/phase0-prd-design.md`** — 4 references
 
-**`.claude/skills/s3-guardian/references/validation-scoring.md`** — 6 references
+**`.claude/skills/cobuilder-guardian/references/validation-scoring.md`** — 6 references
 
-**`.claude/skills/s3-guardian/references/dot-pipeline-creation.md`** — 1 reference
+**`.claude/skills/cobuilder-guardian/references/dot-pipeline-creation.md`** — 1 reference
 
 Total: approximately 49 path strings across 7 markdown files that must be updated in lockstep with any code moves.
 
@@ -175,14 +175,14 @@ Every reference that must be updated when code moves. Grouped by destination.
 
 ### Group A: Output Styles (owned by .claude/output-styles/)
 
-File: `.claude/output-styles/system3-meta-orchestrator.md`
+File: `.claude/output-styles/cobuilder-guardian.md`
 
 | Old path | New path | Nature |
 |---|---|---|
 | `python3 .claude/scripts/attractor/pipeline_runner.py --dot-file` | `python3 -m cobuilder.orchestration.pipeline_engine --dot-file` OR `cobuilder pipeline run` | CLI invocation |
 | `.claude/attractor/pipelines/${INITIATIVE}.dot` | `.claude/attractor/pipelines/${INITIATIVE}.dot` | **No change** — pipeline store stays |
 
-### Group B: Skills (owned by .claude/skills/s3-guardian/)
+### Group B: Skills (owned by .claude/skills/cobuilder-guardian/)
 
 Files: `guardian-workflow.md`, `monitoring-patterns.md`, `gap-closure-protocol.md`, `phase0-prd-design.md`, `validation-scoring.md`, `dot-pipeline-creation.md`
 
@@ -244,10 +244,10 @@ Phases are sequenced with highest-risk items deferred until backward compatibili
 2. Update any scripts that invoke it by filename:
    - Any shell scripts or Python scripts that call `python3 pipeline_runner.py`
    - `hooks/` scripts (verify via grep — currently none found)
-3. Update the invocation in `.claude/output-styles/system3-meta-orchestrator.md` line 600:
+3. Update the invocation in `.claude/output-styles/cobuilder-guardian.md` line 600:
    - Old: `python3 .claude/scripts/attractor/pipeline_runner.py --dot-file`
    - New: `python3 .claude/scripts/attractor/pipeline_engine.py --dot-file`
-4. Update all references in s3-guardian skill markdown files
+4. Update all references in cobuilder-guardian skill markdown files
 5. Rename `cobuilder/orchestration/pipeline_runner.py` → `cobuilder/orchestration/runner_agent.py` (clarifies it is the old LLM-agent runner pattern, distinct from the engine)
 6. Update `cobuilder/orchestration/__init__.py` exports
 7. Run tests
@@ -586,8 +586,8 @@ Two Hindsight reflect calls were made before finalizing this document.
 - Pipeline state: `/Users/theb/Documents/Windsurf/claude-harness-setup/.claude/attractor/pipelines/`
 - Code to migrate: `/Users/theb/Documents/Windsurf/claude-harness-setup/.claude/scripts/attractor/`
 - Migration target: `/Users/theb/Documents/Windsurf/claude-harness-setup/cobuilder/`
-- Output style to update: `/Users/theb/Documents/Windsurf/claude-harness-setup/.claude/output-styles/system3-meta-orchestrator.md`
-- Skills to update: `/Users/theb/Documents/Windsurf/claude-harness-setup/.claude/skills/s3-guardian/references/` (7 files)
+- Output style to update: `/Users/theb/Documents/Windsurf/claude-harness-setup/.claude/output-styles/cobuilder-guardian.md`
+- Skills to update: `/Users/theb/Documents/Windsurf/claude-harness-setup/.claude/skills/cobuilder-guardian/references/` (7 files)
 - Test suite: `/Users/theb/Documents/Windsurf/claude-harness-setup/.claude/scripts/attractor/tests/` (12,299 lines, 19 files)
 - Package manifest: `/Users/theb/Documents/Windsurf/claude-harness-setup/pyproject.toml`
 

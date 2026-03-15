@@ -502,7 +502,7 @@ Gastown's Mayor decomposes work dynamically at runtime. This is flexible but not
 - `.claude/scripts/attractor/spawn_orchestrator.py` — Orchestrator spawner
 - `.claude/scripts/attractor/run_research.py` — Research node agent
 - `.claude/scripts/attractor/validator.py` — DOT schema validator
-- `.claude/skills/s3-guardian/SKILL.md` — S3 Guardian skill (v0.4.0)
+- `.claude/skills/cobuilder-guardian/SKILL.md` — CoBuilder Guardian skill (v0.4.0)
 - `CLAUDE.md` — Harness configuration and orchestration rules
 
 ### Prior Analysis Referenced

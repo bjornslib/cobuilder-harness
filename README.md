@@ -205,8 +205,7 @@ Reusable pipeline topologies defined as Jinja2 templates. Templates provide stru
 |----------|-------------|----------|
 | `sequential-validated` | Linear pipeline with research→refine→codergen chains | Standard feature development |
 | `hub-spoke` | Central coordinator with N parallel spoke workers | Parallel implementation work |
-| `s3-lifecycle` | System 3 meta-orchestration lifecycle | Strategic oversight pipelines |
-| `cobuilder-lifecycle` | Guardian lifecycle with loop-back edges | Full CoBuilder self-driving cycle |
+| `cobuilder-lifecycle` | Full lifecycle pipeline (research → design → implement → validate) | Strategic oversight and self-driving cycle |
 
 **Instantiate a template:**
 ```bash
@@ -289,9 +288,8 @@ cobuilder/
 .cobuilder/
 └── templates/                    # Jinja2 pipeline templates
     ├── sequential-validated/
-    ├── cobuilder-lifecycle/
     ├── hub-spoke/
-    └── s3-lifecycle/
+    └── cobuilder-lifecycle/
 
 .pipelines/                       # Runtime state (gitignored)
 ├── pipelines/                    # Active DOT pipeline files

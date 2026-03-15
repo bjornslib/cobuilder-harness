@@ -52,10 +52,10 @@ clear ownership:
 │  │  • Writes blind Gherkin tests (before implementation)     │  │
 │  │  • Creates DOT pipelines with research + codergen nodes   │  │
 │  │  • Launches pipeline_runner.py (pure Python, no LLM)      │  │
-│  │  • Post-pipeline blind validation (Phase 4 of s3-guardian)│  │
+│  │  • Post-pipeline blind validation (Phase 4 of cobuilder-guardian)│  │
 │  │  • UUID-based completion promises (multi-session aware)   │  │
 │  │                                                            │  │
-│  │  Skills: s3-guardian/, completion-promise                 │  │
+│  │  Skills: cobuilder-guardian/, completion-promise          │  │
 │  └───────────────────────────────────────────────────────────┘  │
 │                              │                                   │
 │                              │ Launches with --dot-file          │
@@ -193,7 +193,7 @@ cobuilder/
 - `failed` → pipeline stops, requires user intervention
 - `requeue` → retry at specified node (predecessor back to pending)
 - `pass` (validation) → `accepted`
-- `fail` (validation) → blocked, requires system3 intervention
+- `fail` (validation) → blocked, requires System 3 intervention
 
 **Atomic writes**: tmp file → rename (prevents partial writes if process crashes)
 
@@ -604,13 +604,13 @@ Notification (On notifications)
 ```
  1. User defines feature in PRD
         ↓
- 2. System 3 writes blind Gherkin acceptance tests (s3-guardian Phase 1)
+ 2. System 3 writes blind Gherkin acceptance tests (cobuilder-guardian Phase 1)
         acceptance-tests/PRD-XXX/{feature}.feature
         ↓
- 3. System 3 creates Solution Designs per epic (s3-guardian Phase 2)
+ 3. System 3 creates Solution Designs per epic (cobuilder-guardian Phase 2)
         docs/sds/{sd-name}.md ← detailed implementation brief
         ↓
- 4. System 3 creates DOT pipeline with all node types (s3-guardian Phase 3)
+ 4. System 3 creates DOT pipeline with all node types (cobuilder-guardian Phase 3)
         start → research_X → codergen_X → wait.cobuilder → exit
         (research validates framework patterns before implementation)
         ↓

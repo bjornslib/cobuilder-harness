@@ -1,7 +1,7 @@
 ---
 title: "SD-HARNESS-UPGRADE-001 Epic 8: Initiative Graph"
 status: draft
-type: reference
+type: solution-design
 last_verified: 2026-03-06T00:00:00.000Z
 grade: draft
 ---
@@ -49,7 +49,7 @@ Benefits:
 | File | Change |
 | --- | --- |
 | `.claude/state/initiative.json` (new) | Initiative state schema and file |
-| `output-styles/system3-meta-orchestrator.md` | Startup reads initiative.json |
+| `output-styles/cobuilder-guardian.md` | Startup reads initiative.json |
 | `pipeline_orchestrator.py` | Updates initiative.json after pipeline transitions |
 
 ## 4. Acceptance Criteria (Draft)
@@ -57,9 +57,3 @@ Benefits:
 - AC-8.1: `initiative.json` schema defined with validation
 - AC-8.2: System 3 startup reads initiative state from file
 - AC-8.3: Pipeline transitions update initiative state
-
-## Implementation Status
-
-| Epic | Status | Date | Commit |
-| --- | --- | --- | --- |
-| - | Remaining | - | - |

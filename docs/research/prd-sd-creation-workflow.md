@@ -191,7 +191,7 @@ The `filter_beads_for_prd()` function matches beads to the PRD by title/descript
 
 ### Step 7: Acceptance Tests
 
-**Who**: Guardian (Phase 1 of s3-guardian skill)
+**Who**: Guardian (Phase 1 of cobuilder-guardian skill)
 **Input**: SD documents (per-epic Gherkin) + PRD (journey tests)
 **Output**: `acceptance-tests/PRD-{ID}/` in config repo
 
@@ -216,7 +216,7 @@ Orchestrators delegate to workers via native Agent Teams.
 
 ### Step 9: Validation
 
-**Who**: Guardian (Phase 4 of s3-guardian skill)
+**Who**: Guardian (Phase 4 of cobuilder-guardian skill)
 **Input**: Blind acceptance tests + actual code
 **Output**: Evidence at `.claude/evidence/PRD-{ID}/`
 

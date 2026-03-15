@@ -15,8 +15,8 @@ This setup implements a sophisticated multi-agent system with three distinct lev
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │  LEVEL 1: SYSTEM 3 (Meta-Orchestrator)                              │
-│  Output Style: system3-meta-orchestrator.md                         │
-│  Skills: s3-guardian/, completion-promise                           │
+│  Output Style: cobuilder-guardian.md                                │
+│  Skills: cobuilder-guardian/, completion-promise                    │
 │  Role: Strategic planning, OKR tracking, business validation        │
 ├─────────────────────────────────────────────────────────────────────┤
 │  LEVEL 2: ORCHESTRATOR                                              │
@@ -55,7 +55,7 @@ This setup implements a sophisticated multi-agent system with three distinct lev
 ├── settings.local.json           # Local overrides
 ├── output-styles/                # Automatically loaded agent behaviors
 │   ├── orchestrator.md           # Level 2 orchestrator behavior
-│   └── system3-meta-orchestrator.md  # Level 1 meta-orchestrator behavior
+│   └── cobuilder-guardian.md         # Level 1 meta-orchestrator behavior
 ├── skills/                       # Explicitly invoked agent skills
 │   ├── orchestrator-multiagent/  # Multi-agent orchestration patterns
 │   ├── completion-promise/       # Session completion tracking
@@ -115,8 +115,7 @@ cobuilder/                        # Pipeline execution engine (Python package)
 └── templates/                    # Jinja2 DOT templates
     ├── sequential-validated/     # Linear pipeline with validation gates
     ├── hub-spoke/                # Fan-out parallel dispatch
-    ├── s3-lifecycle/             # System 3 lifecycle pipeline
-    └── cobuilder-lifecycle/      # CoBuilder self-upgrade pipeline
+    └── cobuilder-lifecycle/      # Full lifecycle pipeline (research → design → implement → validate)
 
 cobuilder/engine/providers.yaml   # Named LLM profiles (shared config, lives next to providers.py)
 ```
@@ -239,7 +238,7 @@ Each orchestrator session should have:
 | Variable | Purpose | Set By |
 |----------|---------|--------|
 | `CLAUDE_SESSION_ID` | Unique session identifier | Launch scripts |
-| `CLAUDE_OUTPUT_STYLE` | Active output style (system3/orchestrator) | Claude Code CLI |
+| `CLAUDE_OUTPUT_STYLE` | Active output style (cobuilder-guardian/orchestrator) | Claude Code CLI |
 | `CLAUDE_PROJECT_DIR` | Project root directory | Claude Code CLI |
 | `ANTHROPIC_API_KEY` | API authentication | `.mcp.json` env |
 | `ANTHROPIC_BASE_URL` | Override API base URL (e.g. DashScope proxy) | `cobuilder/engine/.env` |
@@ -421,8 +420,7 @@ Jinja2 DOT templates in `.cobuilder/templates/`. Instantiated via `cobuilder/tem
 
 - `sequential-validated` — Linear pipeline with validation gates after each codergen node
 - `hub-spoke` — Fan-out parallel dispatch to multiple workers
-- `s3-lifecycle` — System 3 full lifecycle (research → design → implement → validate)
-- `cobuilder-lifecycle` — CoBuilder self-upgrade pipeline pattern
+- `cobuilder-lifecycle` — Full lifecycle pipeline (research → design → implement → validate)
 
 ### Logfire Observability
 
@@ -505,7 +503,7 @@ When dispatching workers (via `subagent_type` in Agent Teams or `worker_type` in
 | Agent | Role |
 |-------|------|
 | `orchestrator` (Level 2) | Multi-agent task coordination, delegates to workers above |
-| `system3-meta-orchestrator` (Level 1) | Strategic planning, business validation, pipeline oversight |
+| `cobuilder-guardian` (Level 1) | Strategic planning, business validation, pipeline oversight |
 
 ### Agent Selection Decision Tree
 
@@ -793,9 +791,9 @@ Skills are explicitly invoked via `Skill("skill-name")`. Use this library to kno
 
 | Skill | Invoke When |
 |-------|------------|
-| `s3-guardian` | Spawning orchestrators, creating blind acceptance tests, monitoring and independent validation |
+| `cobuilder-guardian` | Spawning orchestrators, creating blind acceptance tests, monitoring and independent validation |
 | `orchestrator-multiagent` | Orchestrator setting up a native Agent Team and delegating to workers |
-| `s3-heartbeat` | Setting up a session-scoped keep-alive agent that scans for work on a cycle |
+| `cobuilder-heartbeat` | Setting up a session-scoped keep-alive agent that scans for work on a cycle |
 | `completion-promise` | Tracking session-level goals with verifiable acceptance criteria |
 | `worker-focused-execution` | A worker agent needs persistent task claiming and completion reporting patterns |
 
@@ -863,8 +861,8 @@ Skills are explicitly invoked via `Skill("skill-name")`. Use this library to kno
 
 **Before any new initiative** → `acceptance-test-writer` (blind tests first)
 **Before researching a framework** → `research-first`
-**Before spawning an orchestrator** → `s3-guardian`
+**Before spawning an orchestrator** → `cobuilder-guardian`
 **Before designing UI** → `website-ux-audit` → `website-ux-design-concepts` → `frontend-design`
 **Before deploying to Railway** → `railway-stat` → `railway-deploy`
-**After orchestrator claims done** → `s3-guardian` or validation-test-agent
+**After orchestrator claims done** → `cobuilder-guardian` or validation-test-agent
 **When navigating unfamiliar code** → Serena MCP (`mcp__serena__find_symbol`, `mcp__serena__search_for_pattern`)

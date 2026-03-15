@@ -168,7 +168,7 @@ Workers write signals to this directory. Runner polls this directory. Mismatch w
 |------|--------|
 | `guardian-workflow.md` | SD pinning protocol, skill-first dispatch table, concern queue processing, guardian reflection at gates, signal dir docs |
 | `phase0-prd-design.md` | SD tagging step after refine nodes |
-| `output-styles/system3-meta-orchestrator.md` | Confidence baseline query in Step 2, session handoff write/read, living narrative append |
+| `output-styles/cobuilder-guardian.md` | Confidence baseline query in Step 2, session handoff write/read, living narrative append |
 
 ## 4. Testing
 

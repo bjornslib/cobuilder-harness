@@ -2,7 +2,7 @@
 title: "CoBuilder Upgrade: Templates, Worktrees & Guardian Meta-Pipeline"
 prd_id: PRD-COBUILDER-UPGRADE-001
 status: draft
-type: reference
+type: prd
 created: 2026-03-14T00:00:00.000Z
 last_verified: 2026-03-15T00:00:00.000Z
 grade: authoritative
@@ -20,7 +20,7 @@ note: This is the LAST document using PRD/SD terminology. E6 migrates to Busines
 | P3 | **No Guardian meta-pipeline.** The CoBuilder Guardian's lifecycle (research → refine → plan → execute → validate → evaluate) is implicit prose. No executable representation that can be paused, resumed, inspected, or looped. | No audit trail, no bounded retry, no programmatic introspection |
 | P4 | **No per-node LLM configuration.** All workers use the same model, API key, and base URL. Cannot mix providers (Anthropic, OpenRouter, local) or models (Haiku for research, Opus for codergen) within one pipeline. | Over-spend on cheap tasks, cannot leverage specialized models, single-provider lock-in |
 | P5 | **Runtime state mixed into \****`.claude/`**\*\*.** Pipeline DOT files, signal files, and transition logs live under `.claude/attractor/`. This repo ships publicly on GitHub — runtime state would pollute the published repo. **RESOLVED:** Runtime state migrated to `.pipelines/` (gitignored). | Accidental commits of signal/state files; fragile `.gitignore` rules |
-| P6 | **Stale terminology and fragmented guardian skill.** `system3-meta-orchestrator`, `s3-guardian`, `wait.cobuilder`, agent teams, tmux spawning — legacy concepts that confuse new contributors and leak into agent prompts as cognitive momentum. PRD/SD naming is project-specific rather than generalised. | Contributor confusion, stale mental models in agent prompts, inconsistent vocabulary |
+| P6 | **Stale terminology and fragmented guardian skill.** `system3-meta-orchestrator`, `s3-guardian`, `wait.system3`, agent teams, tmux spawning — legacy concepts that confuse new contributors and leak into agent prompts as cognitive momentum. PRD/SD naming is project-specific rather than generalised. | Contributor confusion, stale mental models in agent prompts, inconsistent vocabulary |
 
 ## 2. Goals
 
@@ -33,7 +33,7 @@ note: This is the LAST document using PRD/SD terminology. E6 migrates to Busines
 | G5 | **Child pipeline spawning via SDK**: ManagerLoopHandler EXECUTE node spawns child EngineRunner. Parent monitors child signal directory for `wait.cobuilder` gates (not just exit code). No tmux anywhere. | Parent handles child gates correctly; no deadlocks | P0 |
 | G6 | **Per-node LLM config via named profiles**: DOT nodes reference `llm_profile` names from `providers.yaml`. Profile keys translate to Anthropic SDK equivalents. 5-layer resolution: node → handler defaults → manifest defaults → env vars → runner defaults | Mixed-model pipeline: Haiku research + Sonnet codergen in same graph | P1 |
 | G7 | **Bounded loops**: `loop_constraint` in manifest caps iteration count. ManagerLoopHandler tracks loop counter. | Loop terminates at bound; counter visible in status output | P1 |
-| G8 | **Unified cobuilder-guardian skill**: Merge `s3-guardian` + `system3-meta-orchestrator` into single `cobuilder-guardian` skill. Strip all legacy terminology (system3, agent teams, sub agents, tmux). Rename `wait.cobuilder` → `wait.cobuilder` globally. Migrate PRD→Business Spec (BS), SD→Technical Spec (TS) with per-initiative directories. | Zero references to "system3", "agent teams", or "tmux" in skills/output-styles | P1 |
+| G8 | **Unified cobuilder-guardian skill**: Merge `s3-guardian` + `system3-meta-orchestrator` into single `cobuilder-guardian` skill. Strip all legacy terminology (system3, agent teams, sub agents, tmux). Rename `wait.system3` → `wait.cobuilder` globally. Migrate PRD→Business Spec (BS), SD→Technical Spec (TS) with per-initiative directories. | Zero references to "system3", "agent teams", or "tmux" in skills/output-styles | P1 |
 | G9 | **GitHub publication readiness**: Secret scrubbing, LICENSE, CONTRIBUTING.md, onboarding docs, CI/CD via GitHub Actions. | Repo passes `git-secrets` scan; README has Getting Started section; CI runs on PR | P1 |
 | G10 | **Logfire observability preserved**: All existing Logfire spans survive the merge and package rename. New features (ManagerLoopHandler upgrade, child signal monitoring) add their own spans. | Zero span regression; `CaptureLogfire` assertions in all handler tests | P0 |
 | G11 | **90% unit test coverage**: CI enforces `fail_under=90` on all PRs. Coverage baseline established in E0, gaps filled progressively, gate enforced in E5. | `pytest --cov-fail-under=90` passes; no PR reduces coverage | P1 |
@@ -651,8 +651,8 @@ directory = "htmlcov"
 **Scope**:
 - Merge `s3-guardian` skill + `system3-meta-orchestrator` output style → `cobuilder-guardian` skill
 - Strip all legacy concepts: agent teams, sub agents, tmux spawning, system3
-- Rename globally: `system3` → `cobuilder`, `wait.cobuilder` → `wait.cobuilder`
-- Update stop gate: `wait.cobuilder` → `wait.cobuilder` in unified-stop-gate
+- Rename globally: `system3` → `cobuilder`, `wait.system3` → `wait.cobuilder`
+- Update stop gate: `wait.system3` → `wait.cobuilder` in unified-stop-gate
 - Migrate specification terminology: PRD → Business Spec (BS), SD → Technical Spec (TS)
 - Create `docs/specs/` directory structure with per-initiative subdirectories
 - Move existing PRDs/SDs to new locations with new prefixes
@@ -747,10 +747,10 @@ Last updated: 2026-03-15
 | E0: Pipeline Infra (Merge Template System + ManagerLoopHandler) | **Done** | E0.1 Code Merge, E0.2 Logfire Preservation, E0.3 Coverage Baseline (67%), E0.4 Fix 195 test failures (0 remaining). `pipeline_runner.py`, DOT parsing, signal protocol, checkpoint system all operational. |
 | E1: Handler Consolidation (Per-Node LLM Profiles) | **Done** | `providers.yaml` with 5 Anthropic + 2 Alibaba Cloud profiles. `cobuilder/engine/providers.py` (530 LOC). 53 unit tests. research, refine, codergen, wait.cobuilder, wait.human handlers all working. Integrated into pipeline_runner dispatch. |
 | E2: Template Migration + Stop Gate + Docs | **Done** | 34 files moved, 17 env vars renamed ATTRACTOR_→PIPELINE_, `.pipelines/` gitignored, templates migrated to `.cobuilder/`, stop gate sources `.env` for env var resolution, doc paths updated. 109 files changed, zero regressions. |
-| E3: Event Bus + Watchdog | **Partial** | Signal-based event system operational. Watchdog monitoring via `SignalFileHandler` + `DotFileHandler` — event-driven (no polling). DOT graph-level config via `target_dir`/`worktree_id` attributes. **GAP: \****`WorktreeManager`**\*\* class NOT implemented** — `get_or_create()`, `cleanup()`, `list()`, `detect_stale()` methods do not exist in codebase. CoBuilder Web depends on this. |
+| E3: Event Bus + Watchdog | **Done** | Signal-based event system operational. Watchdog monitoring via `SignalFileHandler` + `DotFileHandler` — event-driven (no polling). `WorktreeManager.get_or_create()` idempotent lifecycle with existing-branch support. DOT graph-level config via `target_dir`/`worktree_id` attributes. |
 | E4: Manager Loop | **Done** | Child signal monitoring in `_monitor_child_process()`. `CloseHandler` (push, PR). `MaxNestingDepthError` for nesting depth enforcement. manager_loop 87%, close 98% coverage. E2E test validates parent→child pipeline flow with `wait.cobuilder` gate handling (no deadlocks). |
 | E5: GitHub Publication | **Done** | LICENSE (MIT), CONTRIBUTING.md covering architecture + setup + testing, CI workflow (lint + pytest + 90% coverage gate). Secret scrubbing: `.mcp.json` env var refs only, `.mcp.json.example` with placeholders. `git-secrets` pre-commit hook. No stale branches. |
-| E6: Terminology Migration + LLM Profiles | **Done** | system3→cobuilder rename complete (86+ files across skills, output-styles, hooks, tests, engine). wait.system3→wait.cobuilder handler rename complete (Python source, tests, DOT examples, architecture docs). PRD→Business Spec (BS) / SD→Technical Spec (TS) prose-level rename in cobuilder-guardian skill. s3-guardian/→cobuilder-guardian/, s3-heartbeat/→cobuilder-heartbeat/ directory renames. providers.yaml moved to cobuilder/engine/ (co-located with providers.py). 5 SDK bug fixes: cancel scope crash handling, BaseException catch for CancelledError, Logfire inspect_arguments=False, watchdog signal debounce, deploy-harness.sh updated. 224 engine tests pass. |
+| E6: LLM Profile System | **Remaining (partial)** | DashScope/Alibaba Cloud profiles work (`qwen3-coder-plus` validated in 6 live pipeline runs). `wait.cobuilder` handler implemented. Full `providers.yaml` profile registry schema not formalized. system3→cobuilder global rename and PRD→BS/SD→TS terminology migration not started. |
 | E7: Guardian Lifecycle Template | **Done** | `cobuilder-lifecycle/template.dot.j2` + `manifest.yaml` with RESEARCH→REFINE→PLAN→wait.human→EXECUTE→VALIDATE→EVALUATE→CLOSE topology. Loop-back edges EVALUATE→RESEARCH with `loop_constraint.max_iterations=3`. `require_human_before_launch=true` default. |
 | E8: Initiative Graph (Hub-Spoke Template) | **Remaining** | Not started. Hub-spoke topology with parameterized `spoke_count`, per-spoke `llm_profile`. |
 | E9: Web Dashboard (Template CLI) | **Remaining** | Not started. `cobuilder template {list,show,instantiate,validate}` commands. |
@@ -784,27 +784,3 @@ This spec provides **backend infrastructure** that the CoBuilder Web spec consum
 | Signal file protocol | SSE bridge — event source |
 
 The two specs can be developed in parallel. CoBuilder Web depends on E3 (worktrees) and E1 (per-node config).
-
-## Implementation Status (Detailed)
-
-| Epic | Status | Date | Key Commits |
-| --- | --- | --- | --- |
-| E0: Pipeline Infra | Done | 2026-03-01 | Merge template system, fix 195 test failures |
-| E1: Handler Consolidation | Done | 2026-03-02 | providers.py (530 LOC), 53 unit tests |
-| E2: Template Migration | Done | 2026-03-03 | 34 files moved, 17 env vars renamed |
-| E3: Event Bus + Watchdog | **Partial** | 2026-03-04 | Signal-based events, watchdog monitoring. **WorktreeManager NOT built.** |
-| E4: Manager Loop | Done | 2026-03-10 | d424573 (child signal monitoring + close handler) |
-| E5: GitHub Publication | Done | 2026-03-11 | LICENSE, CONTRIBUTING.md, CI workflow |
-| E6: Terminology Migration | Done | 2026-03-15 | 748cc02, e1436de (system3→cobuilder), 78d0d88 (5 SDK fixes) |
-| E7: Guardian Lifecycle Template | Done | 2026-03-12 | template.dot.j2 + manifest.yaml |
-| E8: Initiative Graph | Remaining | — | Not started |
-| E9: Web Dashboard CLI | Remaining | — | Not started |
-| E10: Stream Summarizer | Remaining | — | Not started |
-
-### Known Gaps
-
-| Gap | Severity | Details |
-| --- | --- | --- |
-| Test coverage at 3.2% (package-wide) | Medium | Engine tests (224) cover core pipeline_runner, providers, handlers. repomap/ and templates/ modules have minimal coverage. CI gate set to 90% but only enforced per-module, not package-wide. Recommend: add focused test coverage for repomap/ and templates/ as separate epic. |
-| `ccsystem3` shell function name not renamed | Low | The ZSH function `ccsystem3` in user's shell profile still uses old name. launch_cobuilder.sh is the portable replacement. Shell function rename is a user-environment change, not codebase. |
-| `WorktreeManager` not implemented (E3 gap) | High | PRD E3 specified `WorktreeManager` with `get_or_create()`, `cleanup()`, `list()`, `detect_stale()` at `cobuilder/worktrees/manager.py`. Class does NOT exist in codebase. CoBuilder Web depends on this. Event Bus + Watchdog portion of E3 was delivered, but worktree management was not. |

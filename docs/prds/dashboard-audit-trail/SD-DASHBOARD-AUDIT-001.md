@@ -163,7 +163,7 @@ Initial Call (Voicemail Left) → First Retry (No Answer) → Second Retry (In P
 
 **Key design decisions in this contract:**
 
-1. **Future steps appear in the timeline with \****`status: "pending"`***\* and \****`task_id: null`**. They come from `background_check_sequence_steps` joined against the case's `sequence_id`. The frontend renders them as unfilled circles. This is what transforms the view from "flat history" to "full workflow awareness."
+1. **Future steps appear in the timeline with ****`status: "pending"`**** and ****`task_id: null`**. They come from `background_check_sequence_steps` joined against the case's `sequence_id`. The frontend renders them as unfilled circles. This is what transforms the view from "flat history" to "full workflow awareness."
 
 2. **`result_label`**** is computed server-side**, not by the frontend. This guarantees terminology consistency without duplicating the mapping table in TypeScript.
 
@@ -232,7 +232,7 @@ COMMENT ON COLUMN background_tasks.sequence_step_order IS
    NULL for non-sequence tasks. Set by Prefect flow at task creation.';
 ```
 
-**Why \****`step_order`***\* not \****`step_id`**\*\*?** Step order is stable and human-readable. If the sequence configuration changes (a step is deleted and re-added), using `step_id` FK would leave orphan references. `step_order` is the position in the sequence, not a pointer — it degrades gracefully.
+**Why ****`step_order`**** not ****`step_id`****?** Step order is stable and human-readable. If the sequence configuration changes (a step is deleted and re-added), using `step_id` FK would leave orphan references. `step_order` is the position in the sequence, not a pointer — it degrades gracefully.
 
 ### Change 3: No additional changes required
 
@@ -267,7 +267,7 @@ async def _generate_case_reference(self, conn, created_at: datetime) -> str:
 
 Call this before the `INSERT INTO cases ...` and pass `case_reference` as a column value.
 
-**Update \****`list_verifications`**\*\* query** — add to the SELECT:
+**Update ****`list_verifications`**** query** — add to the SELECT:
 
 ```sql
 SELECT
@@ -499,9 +499,3 @@ Reflected against `claude-code-agencheck` bank (2026-03-09).
 
 **New finding from this analysis:**
 - The frontend `work-history.ts` line 368 maps `case_id: v.task_id`. This is the single root cause of the identity confusion. All downstream components that read `case_id` are actually reading the `task_id` UUID. This must be corrected at the API client layer — not in each component individually.
-
-## Implementation Status
-
-| Epic | Status | Date | Commit |
-| --- | --- | --- | --- |
-| - | Remaining | - | - |

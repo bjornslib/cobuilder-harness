@@ -122,7 +122,7 @@ Uses `fcntl.flock()` for file-level locking. All transitions are atomic — part
 
 Every transition is logged to `<pipeline>.transitions.jsonl`:
 ```json
-{"timestamp": "2026-02-25T11:28:06Z", "node": "impl_auth", "from": "pending", "to": "active", "actor": "system3"}
+{"timestamp": "2026-02-25T11:28:06Z", "node": "impl_auth", "from": "pending", "to": "active", "actor": "cobuilder"}
 ```
 
 ## Pipeline Generation (`generate.py`)

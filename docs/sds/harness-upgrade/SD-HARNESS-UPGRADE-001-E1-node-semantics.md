@@ -10,7 +10,7 @@ grade: authoritative
 
 ## 1. Problem Statement
 
-The DOT pipeline schema currently treats `wait.cobuilder` and `wait.human` as informal conventions rather than formally defined handler types. Their behavior, required attributes, and topology constraints are documented inconsistently across `guardian-workflow.md`, `schema.md`, and `output-styles/system3-meta-orchestrator.md`. This leads to:
+The DOT pipeline schema currently treats `wait.cobuilder` and `wait.human` as informal conventions rather than formally defined handler types. Their behavior, required attributes, and topology constraints are documented inconsistently across `guardian-workflow.md`, `schema.md`, and `output-styles/cobuilder-guardian.md`. This leads to:
 
 - Pipelines where codergen nodes have no downstream E2E validation gate
 - `wait.human` nodes placed without a preceding summary-generating node
@@ -100,7 +100,7 @@ The `acceptance-test-writer` node generates blind Gherkin tests from the PRD bef
 |------|--------|
 | `agent-schema.md` (docs section) | Add `wait.cobuilder` and `wait.human` handler definitions, attribute table, topology rules |
 | `guardian-workflow.md` | Add topology validation to Phase 2 dispatch logic; add gate processing to Phase 4 |
-| `output-styles/system3-meta-orchestrator.md` | Update DOT Graph Navigation section with gate pair requirement |
+| `output-styles/cobuilder-guardian.md` | Update DOT Graph Navigation section with gate pair requirement |
 
 ## 4. Testing
 

@@ -42,7 +42,7 @@ These numbers drive all probability estimates. All counts are from the
 | — in JSON files (checkpoint/signal history) | 256 | Historical artifacts; NOT live code paths |
 | — in shell scripts (`.sh`) | 9 | 3 in live skills + 6 in frozen worktrees |
 | — in Python files (`.py`) | 20 | 13 in dead/poc files; 7 in comments/docstrings |
-| Active skill/output-style files referencing attractor path | 7 files, 24 refs | system3-meta-orchestrator.md, SKILL.md, guardian-workflow.md, etc. |
+| Active skill/output-style files referencing attractor path | 7 files, 24 refs | cobuilder-guardian.md, SKILL.md, guardian-workflow.md, etc. |
 | Cross-imports attractor → cobuilder | 1 | `spawn_orchestrator.py` imports `cobuilder.bridge.scoped_refresh` |
 | Cross-imports cobuilder → attractor | 0 | Clean one-way dependency |
 | Dead code candidates in attractor | 13 | From 2026-03-04 cleanup analysis (Hindsight) |
@@ -421,9 +421,3 @@ Findings from `mcp__hindsight__reflect()` consulted during this analysis (bank_i
 *This document was produced by Architect 6 (Probabilistic Reasoning mode). All
 probability estimates are empirically grounded; the confidence intervals in
 Section 5 document where estimates rely on unverified assumptions.*
-
-## Implementation Status
-
-| Epic | Status | Date | Commit |
-| --- | --- | --- | --- |
-| - | Remaining | - | - |

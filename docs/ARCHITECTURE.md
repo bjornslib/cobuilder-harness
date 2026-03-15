@@ -521,9 +521,9 @@ The main orchestrator coordinates the full code generation pipeline:
 │     │    RepositoryCodeView (source reading + AST)             │ │
 │     │    DependencyExplorer (N-hop neighbourhood)              │ │
 │     │    LocalizationTracker (query dedup)                     │ │
-│     └──────────────────────┬───────────────────────────────────┘ │
-│                            │ context                             │
-│                            ▼                                     │
+│     └──────────────────────────┬───────────────────────────────┘ │
+│                                │ context                         │
+│                                ▼                                 │
 │     ┌──────────────────────────────────────────────────────────┐ │
 │     │  TDDLoop (up to max_retries iterations)                  │ │
 │     │    1. Generate tests (TestGenerator protocol)            │ │
@@ -531,9 +531,9 @@ The main orchestrator coordinates the full code generation pipeline:
 │     │    3. Run in sandbox (SandboxExecutor protocol)          │ │
 │     │    4. On failure: diagnose (MajorityVoteDiagnoser)       │ │
 │     │    5. Repeat until PASSED or retries exhausted           │ │
-│     └──────────────────────┬───────────────────────────────────┘ │
-│                            │                                     │
-│                            ▼                                     │
+│     └──────────────────────────┬───────────────────────────────┘ │
+│                                │                                 │
+│                                ▼                                 │
 │     ┌──────────────────────────────────────────────────────────┐ │
 │     │  Staged Validation                                       │ │
 │     │    UnitValidator (per-node test verification)            │ │
@@ -924,9 +924,3 @@ When `--baseline` is provided, the pipeline:
 3. Injects context into the LLM prompt via the Jinja2 template
 4. Tags delta status on all generated components
 5. Produces `05-delta-report.md` alongside the standard outputs
-
-## Implementation Status
-
-| Epic | Status | Date | Commit |
-| --- | --- | --- | --- |
-| - | Remaining | - | - |

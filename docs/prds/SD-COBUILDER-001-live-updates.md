@@ -57,7 +57,7 @@ Six ACs from PRD-COBUILDER-001 Epic 4:
 | AC-2 | Scoped refresh completes in <10 seconds for typical node file scope |
 | AC-3 | Worktrees created via `claude --worktree` contain `.repomap/` with current baseline |
 | AC-4 | `cs-verify --check` blocks if baseline not refreshed since last node validation |
-| AC-5 | s3-guardian SKILL.md includes CoBuilder tmux commands for orchestrator boot |
+| AC-5 | cobuilder-guardian SKILL.md includes CoBuilder tmux commands for orchestrator boot |
 | AC-6 | `spawn_orchestrator.py` runs `cobuilder repomap refresh` during cleanup |
 
 AC-3 is satisfied by design (`.repomap/` is already committed to git and worktrees are full git checkouts), not by code. No implementation is required for AC-3. The remaining five ACs require code.
@@ -690,9 +690,9 @@ These are set by the guardian when spawning orchestrators alongside `CLAUDE_SESS
 
 ---
 
-### F4.7: s3-guardian SKILL.md CoBuilder Command Reference
+### F4.7: cobuilder-guardian SKILL.md CoBuilder Command Reference
 
-**File**: `.claude/skills/s3-guardian/SKILL.md`
+**File**: `.claude/skills/cobuilder-guardian/SKILL.md`
 
 **What it does**: Adds a new subsection to Phase 2 (Orchestrator Spawning) documenting the CoBuilder commands that every orchestrator receives in its boot sequence.
 
@@ -820,7 +820,7 @@ F4.1 (walk_paths)
               ├── F4.5 (spawn_orchestrator cleanup) ← uses scoped_refresh
               └── F4.6 (cs-verify check) ← reads config.yaml last_synced written by scoped_refresh
 
-F4.7 (s3-guardian SKILL.md) ← documentation only, no code dependencies
+F4.7 (cobuilder-guardian SKILL.md) ← documentation only, no code dependencies
 ```
 
 **External dependencies**:
@@ -849,7 +849,7 @@ F4.7 (s3-guardian SKILL.md) ← documentation only, no code dependencies
 | F4.5 | — | `--on-cleanup` flag triggers cleanup path in spawn_orchestrator.py | test | yes |
 | F4.6 | AC-4 | `cs-verify --check` with `COBUILDER_ENFORCE_FRESHNESS=1` blocks when baseline stale | test | yes |
 | F4.6 | — | `cs-verify --check` passes when `last_synced` > last validated transition | test | yes |
-| F4.7 | AC-5 | s3-guardian SKILL.md contains "CoBuilder Boot Sequence for Orchestrators" section | manual | yes |
+| F4.7 | AC-5 | cobuilder-guardian SKILL.md contains "CoBuilder Boot Sequence for Orchestrators" section | manual | yes |
 | — | AC-3 | `claude --worktree test-wt` produces worktree with `.repomap/` directory present | manual | yes |
 
 ---
@@ -898,7 +898,7 @@ None. All implementation is in modifications to existing modules.
 | `cobuilder/orchestration/spawn_orchestrator.py` | Add `cleanup_orchestrator()` function; add `--on-cleanup` and `--repo-name` CLI args; add `--promise-id` for AC injection | ~80 |
 | `cobuilder/cli.py` | Add `refresh` subcommand to `repomap_app` | ~30 |
 | `.claude/scripts/completion-state/cs-verify` | Add `check_repomap_freshness()` bash function and call site | ~50 lines bash |
-| `.claude/skills/s3-guardian/SKILL.md` | Add "CoBuilder Boot Sequence for Orchestrators" subsection in Phase 2 | ~40 lines markdown |
+| `.claude/skills/cobuilder-guardian/SKILL.md` | Add "CoBuilder Boot Sequence for Orchestrators" subsection in Phase 2 | ~40 lines markdown |
 
 **Total**: ~515 lines of new code across 8 files.
 

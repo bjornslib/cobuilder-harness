@@ -360,7 +360,7 @@ cobuilder pipeline run pipeline.dot
 | `checkpoint.py` (existing) | Checkpoint format | Engine checkpoints extend existing format with visit counts + context |
 | Logfire | LogfireEmitter + LogfireMiddleware | Pipeline spans with node children, token tracking |
 | Beads | Context variable | `$bead_id` available in context from node attributes |
-| Completion promises | ExitHandler | On successful exit, emit event that s3-guardian translates to cs-verify |
+| Completion promises | ExitHandler | On successful exit, emit event that cobuilder-guardian translates to cs-verify |
 
 ### Key Design Decisions
 
@@ -529,7 +529,7 @@ All 4 are in the E3↔E1 integration boundary (edge selector condition evaluatio
 **Files modified**:
 - `spawn_orchestrator.py`: Added headless branch in `main()`, wiring existing `_build_headless_worker_cmd()` and `run_headless_worker()` functions
 - `runner_agent.py`: Added `"headless"` to argparse choices
-- s3-guardian skill: Updated across 5 files to promote headless, demote tmux to legacy
+- cobuilder-guardian skill: Updated across 5 files to promote headless, demote tmux to legacy
 
 **Rationale**: Headless mode provides structured JSON output, no terminal dependency, and deterministic signal file completion detection — enabling fully automated pipeline execution without tmux session management overhead.
 

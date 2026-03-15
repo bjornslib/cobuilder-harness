@@ -154,8 +154,8 @@ if os.path.exists(gate_marker):
 | File | Change |
 |------|--------|
 | `.claude/scripts/attractor/pipeline_runner.py` | `_handle_human`: add `.gate-wait` marker write with `gate_type`, `summary_ref`, `mode`. `_handle_gate`: add `summary_ref` and `epic_id` to existing marker. `_apply_signal`: clean up `.gate-wait` after processing. |
-| `.claude/skills/s3-guardian/references/monitoring-patterns.md` | New Section 8: "Gate Monitor Pattern" with gate-aware Haiku prompt, System 3 response handlers for both gate types, AskUserQuestion template for wait.human |
-| `.claude/skills/s3-guardian/SKILL.md` | Update Phase 3 row in Quick Reference to mention gate monitoring. Add brief gate monitor summary to Pipeline Progress Monitor Pattern section. |
+| `.claude/skills/cobuilder-guardian/references/monitoring-patterns.md` | New Section 8: "Gate Monitor Pattern" with gate-aware Haiku prompt, System 3 response handlers for both gate types, AskUserQuestion template for wait.human |
+| `.claude/skills/cobuilder-guardian/SKILL.md` | Update Phase 3 row in Quick Reference to mention gate monitoring. Add brief gate monitor summary to Pipeline Progress Monitor Pattern section. |
 
 ## 4. Testing
 
@@ -173,7 +173,7 @@ if os.path.exists(gate_marker):
 - AC-7.3.3: `_apply_signal` cleans up `.gate-wait` marker after processing the corresponding signal
 - AC-7.3.4: `monitoring-patterns.md` Section 8 documents gate-aware Haiku monitor prompt with `MONITOR_GATE_WAITING` status
 - AC-7.3.5: `monitoring-patterns.md` Section 8 documents System 3 response handlers for both `wait.cobuilder` (Gherkin E2E) and `wait.human` (AskUserQuestion) gates
-- AC-7.3.6: s3-guardian SKILL.md Quick Reference updated with gate monitoring guidance
+- AC-7.3.6: cobuilder-guardian SKILL.md Quick Reference updated with gate monitoring guidance
 - AC-7.3.7: All existing pipeline tests pass (no regressions from marker enrichment or cleanup)
 
 ## Implementation Status

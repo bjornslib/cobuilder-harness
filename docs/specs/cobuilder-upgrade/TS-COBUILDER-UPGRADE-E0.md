@@ -43,8 +43,8 @@ Epic 0 establishes the foundation by merging 5,061 lines from the `abstract-work
 - `cobuilder/sidecar/stream_summarizer.py` (255 LOC)
 - `.cobuilder/templates/hub-spoke/manifest.yaml` (87 LOC)
 - `.cobuilder/templates/hub-spoke/template.dot.j2` (217 LOC)
-- `.cobuilder/templates/s3-lifecycle/manifest.yaml` (85 LOC)
-- `.cobuilder/templates/s3-lifecycle/template.dot.j2` (182 LOC)
+- `.cobuilder/templates/cobuilder-lifecycle/manifest.yaml` (85 LOC)
+- `.cobuilder/templates/cobuilder-lifecycle/template.dot.j2` (182 LOC)
 - `.cobuilder/templates/sequential-validated/manifest.yaml` (53 LOC)
 - `.cobuilder/templates/sequential-validated/template.dot.j2` (113 LOC)
 - `tests/templates/__init__.py`

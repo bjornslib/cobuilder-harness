@@ -440,9 +440,3 @@ The `cases` table intentionally has no `check_type_id` FK. `case_type` (VARCHAR)
 - Dependency-graph view for non-linear workflows (Architect 6)
 - Real-time WebSocket status updates
 - CSV/PDF export of audit trail
-
-## Implementation Status
-
-| Epic | Status | Date | Commit |
-| --- | --- | --- | --- |
-| - | Remaining | - | - |

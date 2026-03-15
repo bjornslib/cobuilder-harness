@@ -98,7 +98,7 @@ As a guardian spawning orchestrators in tmux, I want each orchestrator's worktre
 - `cobuilder repomap context --format sd-injection` outputs YAML context optimised for SD authoring
 - Context includes: module inventory with delta status, dependency subgraph, protected file list, key interfaces
 - Relevant module filtering by PRD/epic keywords (no LLM in this step — deterministic)
-- Update s3-guardian Phase 0 to inject RepoMap context when delegating SD creation
+- Update cobuilder-guardian Phase 0 to inject RepoMap context when delegating SD creation
 - Update `cobuilder pipeline create` to append RepoMap context to TaskMaster input
 - YAML format with markdown values (block scalars for narrative text)
 
@@ -107,7 +107,7 @@ As a guardian spawning orchestrators in tmux, I want each orchestrator's worktre
 - [ ] `cobuilder repomap context --name repo --prd PRD-ID --format sd-injection` produces YAML
 - [ ] Context includes: repository name, total nodes/files, relevant modules with delta + interfaces, dependency graph, protected files
 - [ ] Module filtering is deterministic (no LLM, keyword-based matching against PRD)
-- [ ] s3-guardian skill (SKILL.md) documents RepoMap context injection in Phase 0
+- [ ] cobuilder-guardian skill (SKILL.md) documents RepoMap context injection in Phase 0
 - [ ] TaskMaster tasks include file paths and delta classification from RepoMap context
 - [ ] Output is reproducible: same input → same output
 
@@ -123,7 +123,7 @@ As a guardian spawning orchestrators in tmux, I want each orchestrator's worktre
 - Orchestrator cleanup: `spawn_orchestrator.py` triggers baseline sync on orchestrator completion
 - Completion promise AC: "RepoMap baseline updated post-implementation" added programmatically
 - cs-verify integration: event-driven check (baseline refreshed after last validated node, not time-based)
-- s3-guardian skill update: document `cobuilder` commands for tmux orchestrator boot sequence
+- cobuilder-guardian skill update: document `cobuilder` commands for tmux orchestrator boot sequence
 
 ### Acceptance Criteria
 
@@ -131,7 +131,7 @@ As a guardian spawning orchestrators in tmux, I want each orchestrator's worktre
 - [ ] Scoped refresh completes in <10 seconds for typical node file scope
 - [ ] Worktrees created via `claude --worktree` contain `.repomap/` with current baseline
 - [ ] `cs-verify --check` blocks if baseline not refreshed since last node validation
-- [ ] s3-guardian SKILL.md includes CoBuilder tmux commands for orchestrator boot
+- [ ] cobuilder-guardian SKILL.md includes CoBuilder tmux commands for orchestrator boot
 - [ ] `spawn_orchestrator.py` runs `cobuilder repomap refresh` during cleanup
 
 ## 8. Technical Approach

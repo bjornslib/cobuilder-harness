@@ -38,7 +38,7 @@ When the solution-design-architect lacks codebase context, SDs describe interfac
 
 | PRD Goal | Description | How Epic 3 Satisfies It |
 |----------|-------------|------------------------|
-| G1 | SDs receive codebase context automatically | RepoMap YAML injected into s3-guardian Phase 0 prompt |
+| G1 | SDs receive codebase context automatically | RepoMap YAML injected into cobuilder-guardian Phase 0 prompt |
 | G5 | Task Master receives codebase context | `repomap_context` wired through `cli.py` → `taskmaster_bridge.py` |
 
 ---
@@ -68,7 +68,7 @@ When the solution-design-architect lacks codebase context, SDs describe interfac
    YAML string (structured: repository, total_nodes, modules_relevant_to_epic,
                               dependency_graph, protected_files)
 
-3A. s3-guardian (Phase 0) injects YAML into solution-design-architect Task prompt
+3A. cobuilder-guardian (Phase 0) injects YAML into solution-design-architect Task prompt
        |
        v
    solution-design-architect writes SD with accurate file paths and interfaces
@@ -180,7 +180,7 @@ Even after the function parameter is wired, `cli.py` does not generate `repomap_
 
 ### Tertiary Gap: SD Injection Documentation
 
-The s3-guardian SKILL.md mentions "Designs PRDs with CoBuilder RepoMap context (Phase 0)" in its diagram (SKILL.md line 16) but does not contain the actual commands or prompt template for injecting context. Phase 0 of the SKILL.md needs a concrete procedure.
+The cobuilder-guardian SKILL.md mentions "Designs PRDs with CoBuilder RepoMap context (Phase 0)" in its diagram (SKILL.md line 16) but does not contain the actual commands or prompt template for injecting context. Phase 0 of the SKILL.md needs a concrete procedure.
 
 ### What Is NOT Missing
 
@@ -268,13 +268,13 @@ The PRD acceptance criterion references `--format sd-injection`. Examination of 
 
 ---
 
-### F3.3: Update s3-guardian SKILL.md Phase 0
+### F3.3: Update cobuilder-guardian SKILL.md Phase 0
 
 **Status**: Partially documented. The diagram references it; the procedure is absent.
 
 **What the worker does**:
 
-Add a "Phase 0: Codebase Context Injection" section to `.claude/skills/s3-guardian/SKILL.md` between the diagram and the "Guardian Disposition" section. The section must contain:
+Add a "Phase 0: Codebase Context Injection" section to `.claude/skills/cobuilder-guardian/SKILL.md` between the diagram and the "Guardian Disposition" section. The section must contain:
 
 1. A concrete bash command showing how to generate RepoMap context.
 2. A prompt template for injecting context into the `solution-design-architect` Task call.
@@ -359,7 +359,7 @@ Skip Phase 0 if:
 In these cases, proceed directly to Phase 1 and note in the SD that RepoMap context was unavailable.
 ```
 
-**Files touched**: `.claude/skills/s3-guardian/SKILL.md` only.
+**Files touched**: `.claude/skills/cobuilder-guardian/SKILL.md` only.
 
 **Dependencies**: F3.1 must be complete (and ideally verified working) before this documentation is finalized, to ensure the command examples are accurate.
 
@@ -491,7 +491,7 @@ The temp file containing this content is written to `tempfile.NamedTemporaryFile
 | AC-3.2.3 | Output contains keys: `repository`, `total_nodes`, `total_files` | YAML parse + key check |
 | AC-3.2.4 | When `--prd` is provided, output contains `modules_relevant_to_epic` with at least one entry | Manual run with valid PRD keyword |
 
-### F3.3: s3-guardian SKILL.md Phase 0
+### F3.3: cobuilder-guardian SKILL.md Phase 0
 
 | # | Criterion | Verification Method |
 |---|-----------|---------------------|
@@ -520,7 +520,7 @@ The temp file containing this content is written to `tempfile.NamedTemporaryFile
 | `--format sd-injection` is hardcoded somewhere in downstream tooling | Medium | Low | Audit grep across codebase before shipping; add alias if found |
 | Protected files list is always empty (bridge.py line 401) | Low | High | Known limitation documented; Epic 4 will add protected file detection from git history |
 | Task matching in `extract_task_ids_for_node()` uses 40% word overlap (may miss) | Low | Medium | Matching is best-effort; DOT nodes still carry accurate file_path from other enrichers |
-| s3-guardian SKILL.md update breaks existing Phase 0 workflow | Low | Low | Phase 0 is currently undocumented; addition cannot break what doesn't exist |
+| cobuilder-guardian SKILL.md update breaks existing Phase 0 workflow | Low | Low | Phase 0 is currently undocumented; addition cannot break what doesn't exist |
 
 ---
 
@@ -531,7 +531,7 @@ The temp file containing this content is written to `tempfile.NamedTemporaryFile
 | File | Change Type | Size | Notes |
 |------|-------------|------|-------|
 | `cobuilder/cli.py` | Modify | ~12 lines added, 3 modified | F3.1: wire `repomap_context` into Step 3 of `pipeline_create` |
-| `.claude/skills/s3-guardian/SKILL.md` | Modify | ~60 lines added | F3.3: add Phase 0 section |
+| `.claude/skills/cobuilder-guardian/SKILL.md` | Modify | ~60 lines added | F3.3: add Phase 0 section |
 
 ### Files That Workers Read (Reference Only — Do Not Modify)
 
@@ -680,7 +680,7 @@ The PRD (Section 6, Epic 3) lists 6 acceptance criteria. This SD maps them to fe
 | `cobuilder repomap context --name repo --prd PRD-ID --format sd-injection` produces YAML | F3.2 | Flag name correction needed | Use `--format yaml`; `sd-injection` does not exist |
 | Context includes: repository name, total nodes/files, relevant modules with delta + interfaces, dependency graph, protected files | F3.2 | Partial | All fields except `protected_files` are produced; that list is always empty (known limitation) |
 | Module filtering is deterministic (no LLM, keyword-based matching against PRD) | F3.2 | Complete | `context_filter.py` implements 3-strategy deterministic filter |
-| s3-guardian skill (SKILL.md) documents RepoMap context injection in Phase 0 | F3.3 | Not done | No Phase 0 section exists |
+| cobuilder-guardian skill (SKILL.md) documents RepoMap context injection in Phase 0 | F3.3 | Not done | No Phase 0 section exists |
 | TaskMaster tasks include file paths and delta classification from RepoMap context | F3.4 | Not done | Depends on F3.1 |
 | Output is reproducible: same input → same output | F3.2 | Complete | Deterministic algorithm, no LLM, hash-stable baseline |
 

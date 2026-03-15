@@ -58,12 +58,12 @@ As the pipeline runner, during a `wait.cobuilder` gate, I want to read a `concer
 
 Phase 1 consists of documentation changes that System 3 can make directly. No guardian/runner dispatch needed — these are updates to schema docs, workflow references, skills, and output styles.
 
-### Epic 0 — Pipeline Progress Monitor (s3-guardian Enhancement)
+### Epic 0 — Pipeline Progress Monitor (cobuilder-guardian Enhancement)
 
-**Goal**: Enhance the s3-guardian skill so that System 3 can launch a Haiku 4.5 sub-agent to monitor pipeline runner progress, reporting back when intervention is needed.
+**Goal**: Enhance the cobuilder-guardian skill so that System 3 can launch a Haiku 4.5 sub-agent to monitor pipeline runner progress, reporting back when intervention is needed.
 
 **Scope**:
-- New sub-agent pattern in s3-guardian SKILL.md: "Progress Monitor" mode
+- New sub-agent pattern in cobuilder-guardian SKILL.md: "Progress Monitor" mode
 - System 3 spawns Haiku 4.5 sub-agent via `Task(subagent_type="monitor", model="haiku")`
 - Monitor polls signal directory for state changes (new/modified signal files)
 - Monitor reads DOT graph file for node status transitions
@@ -72,10 +72,10 @@ Phase 1 consists of documentation changes that System 3 can make directly. No gu
 - Completion detection: all nodes terminal triggers completion report
 - Monitor completes (waking System 3) only when attention is needed — cyclic re-launch pattern
 
-**Files changed**: s3-guardian `SKILL.md`, s3-guardian `references/monitoring-patterns.md`
+**Files changed**: cobuilder-guardian `SKILL.md`, cobuilder-guardian `references/monitoring-patterns.md`
 
 **Acceptance criteria**:
-- AC-0.1: s3-guardian SKILL.md documents the progress monitor sub-agent pattern
+- AC-0.1: cobuilder-guardian SKILL.md documents the progress monitor sub-agent pattern
 - AC-0.2: Monitor poll mechanism documented (signal dir + DOT file mtime)
 - AC-0.3: Stall/error/completion detection rules documented with thresholds
 
@@ -96,7 +96,7 @@ Phase 1 consists of documentation changes that System 3 can make directly. No gu
 - Node attribute schema: `gate_type` (enum: "unit", "e2e", "contract"), `summary_ref` (file path), `contract_ref` (file path)
 - Retry mechanism: when `wait.cobuilder` fails, runner can transition predecessor codergen node back to `pending` for requeue
 
-**Files changed**: `agent-schema.md` (docs section), `guardian-workflow.md`, `output-styles/system3-meta-orchestrator.md`
+**Files changed**: `agent-schema.md` (docs section), `guardian-workflow.md`, `output-styles/cobuilder-guardian.md`
 
 **Acceptance criteria**:
 - AC-1.1: `wait.cobuilder` and `wait.human` fully documented with attribute schemas
@@ -139,7 +139,7 @@ Phase 1 consists of documentation changes that System 3 can make directly. No gu
 - **Concern queue**: workers write to `concerns.jsonl`; `wait.cobuilder` reads and processes concerns
 - **Signal dir mitigation**: `ATTRACTOR_SIGNAL_DIR` env var documented as preflight check
 
-**Files changed**: `guardian-workflow.md`, `phase0-prd-design.md`, `output-styles/system3-meta-orchestrator.md`
+**Files changed**: `guardian-workflow.md`, `phase0-prd-design.md`, `output-styles/cobuilder-guardian.md`
 
 **Acceptance criteria**:
 - AC-3.1: SD version pinning protocol documented with git tag naming convention
@@ -166,7 +166,7 @@ Phase 2 involves code changes. Each epic MUST be implemented via the pipeline ru
 - `agent-schema.md`: `worker_type` enum with all 6 agent types (`frontend-dev-expert`, `backend-solutions-engineer`, `tdd-test-engineer`, `solution-architect`, `validation-test-agent`, `ux-designer`)
 - Output style Step 2: startup confidence reflection query referencing agent capability assessments
 
-**Files changed**: `.claude/agents/*.md` (verify/update), `agent-schema.md`, `dispatch_worker.py`, `output-styles/system3-meta-orchestrator.md`
+**Files changed**: `.claude/agents/*.md` (verify/update), `agent-schema.md`, `dispatch_worker.py`, `output-styles/cobuilder-guardian.md`
 
 **Acceptance criteria**:
 - AC-4.1: All 6 agent types have `.claude/agents/*.md` definition files with `skills_required` in frontmatter
@@ -265,7 +265,7 @@ Phase 2 involves code changes. Each epic MUST be implemented via the pipeline ru
 - Signal-file wait: runner uses watchdog-based file monitoring on `{signal_dir}/` for worker completion signals
 - Checkpoint after every transition
 - Parallel dispatch via asyncio for independent ready nodes
-- `_handle_gate()`: two-stage gate processing:
+- `_handle_system3()`: two-stage gate processing:
   - Stage 1 (at `impl_complete`): dispatches `validation-test-agent` via AgentSDK for technical checks (tests pass, code compiles, contract invariants hold). On success, transitions node to `validated`.
   - Stage 2 (at `validated`): System 3's Haiku monitor detects the `validated` status and wakes System 3 to run blind Gherkin E2E acceptance tests. System 3 writes acceptance signal → runner transitions to `accepted`.
 - Retry: on validation failure, can transition predecessor codergen back to `pending`
@@ -288,7 +288,7 @@ System 3 (LLM — blind Gherkin E2E at gate boundaries, ACCEPT/REJECT)
 | `research` | `_handle_research()` — dispatch AgentSDK research worker | No (dispatch only) |
 | `refine` | `_handle_refine()` — dispatch AgentSDK refine worker | No (dispatch only) |
 | `tool` | `_handle_tool()` — `subprocess.run(command)` | No |
-| `wait.cobuilder` | `_handle_gate()` — dispatch validation agent (AgentSDK), signal System 3 | Yes (validation agent) |
+| `wait.cobuilder` | `_handle_system3()` — dispatch validation agent (AgentSDK), signal System 3 | Yes (validation agent) |
 | `wait.human` | `_handle_human()` — emit GChat, poll for response signal | No |
 | `conditional` | `_handle_conditional()` — evaluate condition expr | No |
 | `parallel` | `_handle_parallel()` — asyncio fan-out/fan-in | No |
@@ -312,7 +312,7 @@ The `wait.cobuilder` handler is the only handler that involves LLM cost, and tha
 - AC-7.2.2: `_find_dispatchable_nodes()` returns only nodes with all deps accepted
 - AC-7.2.3: `_handle_codergen()` calls `dispatch_worker.py` with correct args including skill injection
 - AC-7.2.4: `_handle_tool()` runs command and writes signal without any LLM call
-- AC-7.2.5: `_handle_gate()` reads signals, reflects via Hindsight, runs E2E tests
+- AC-7.2.5: `_handle_system3()` reads signals, reflects via Hindsight, runs E2E tests
 - AC-7.2.6: Full pipeline run on `simple-pipeline.dot` completes with 0 LLM graph traversal tokens
 - AC-7.2.7: Signal-file wait uses watchdog-based file monitoring
 - AC-7.2.8: Multiple ready nodes dispatched concurrently via asyncio
@@ -397,7 +397,7 @@ All 4 epics completed via pipeline dispatch. Documentation-only changes to schem
 
 | Epic | Status | Key Commits |
 | --- | --- | --- |
-| E0: Pipeline Progress Monitor | **DONE** | s3-guardian SKILL.md + monitoring-patterns.md |
+| E0: Pipeline Progress Monitor | **DONE** | cobuilder-guardian SKILL.md + monitoring-patterns.md |
 | E1: Node Semantics Clarification | **DONE** | wait.cobuilder/wait.human schemas, topology rules |
 | E2: PRD Contract + E2E Gate Protocol | **DONE** | prd-contract template, guardian-workflow.md |
 | E3: Workflow Protocol Enhancements | **DONE** | SD pinning, confidence baselines, concern queue |
@@ -434,7 +434,7 @@ Post-E7.2 hardening addressing latent bugs discovered via stress testing and res
 
 **E2E Test Suite**: 33 tests in `tests/e2e/test_pipeline_hardening.py`, all passing (`cda90ed`).
 
-> **Note (2026-03-10)**: Remaining hardening epics D, E.3, and F have been absorbed into PRD-COBUILDER-CONSOLIDATION-001.md to avoid migrating known-buggy code. See Section 13 of that PRD.
+> **Note (2026-03-10)**: Remaining hardening epics D, E.3, and F have been absorbed into [PRD-COBUILDER-CONSOLIDATION-001.md](./../../PRD-COBUILDER-CONSOLIDATION-001.md) to avoid migrating known-buggy code. See Section 13 of that PRD.
 
 ### Phase 3: Architecture Vision (E8-E12) — Future Work
 
@@ -458,11 +458,11 @@ Not started. Strategic alignment documented; no immediate implementation planned
 | `cobuilder pipeline validate` CLI | E5 | Exists (basic rules) |
 | `dispatch_worker.py` | E6, E7.2 | Exists (needs enhancement) |
 | `runner.py` / `guardian.py` | E7.1 (prompt restructure), E7.2 (replacement) | Exists |
-| `acceptance-test-runner` skill | E7.2 (`_handle_gate` — used by `validation-test-agent`) | Exists |
+| `acceptance-test-runner` skill | E7.2 (`_handle_system3` — used by `validation-test-agent`) | Exists |
 | Hindsight MCP | E3, E7.2 | Exists |
 | GChat bridge | E7.2 (`_handle_human`) | Exists |
 | `claude_code_sdk` | E6, E7.1, E7.2 | Exists |
-| Chrome MCP (claude-in-chrome) | E7.2 (`_handle_gate` browser tests) | Exists |
+| Chrome MCP (claude-in-chrome) | E7.2 (`_handle_system3` browser tests) | Exists |
 | E7.1 — Worker Prompt Restructuring | E7.2 | Not started |
 | `.claude/agents/` directory | E4 | Exists (partial) |
 | `.claude/skills/` library | E4 (skill injection) | Exists |
@@ -471,7 +471,7 @@ Not started. Strategic alignment documented; no immediate implementation planned
 
 | Epic | Phase | Status | Notes |
 | --- | --- | --- | --- |
-| E0 — Pipeline Progress Monitor | 1 | **Complete** | s3-guardian skill enhancement. Haiku monitor pattern documented. |
+| E0 — Pipeline Progress Monitor | 1 | **Complete** | cobuilder-guardian skill enhancement. Haiku monitor pattern documented. |
 | E1 — Node Semantics | 1 | **Complete** | Documentation: handler types, topology rules, schema docs. |
 | E2 — PRD Contract | 1 | **Complete** | Documentation: prd-contract.md generation, compliance gate protocol. |
 | E3 — Workflow Protocols | 1 | **Complete** | Documentation: SD pinning, confidence baseline, concern queue, session handoff, living narrative. |
@@ -486,9 +486,3 @@ Not started. Strategic alignment documented; no immediate implementation planned
 | E10 — Epic-Scoped Runners | 3 | Future | ~6-12 months |
 | E11 — Async Review | 3 | Future | ~6-12 months |
 | E12 — Graduated Autonomy | 3 | Future | ~6-12 months |
-
-## Implementation Status
-
-| Epic | Status | Date | Commit |
-| --- | --- | --- | --- |
-| - | Remaining | - | - |

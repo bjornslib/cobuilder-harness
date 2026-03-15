@@ -133,9 +133,3 @@ On error: show inline error banner on the form.
 - [ ] Cancel button returns to `/checks-dashboard`
 - [ ] Error from API is shown as inline error banner
 - [ ] Page inherits checks-dashboard layout (sidebar + shared nav visible)
-
-## Implementation Status
-
-| Epic | Status | Date | Commit |
-| --- | --- | --- | --- |
-| - | Remaining | - | - |

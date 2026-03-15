@@ -95,9 +95,9 @@ System 3                    Monitor (Haiku 4.5)
 
 ### 2.5 DOT Pipeline Creation Guidance (Skill Gap Fix)
 
-**Root cause**: The s3-guardian skill documents how to *launch* pipelines but not how to *create* DOT files from scratch. This causes agents to explore source code (guardian.py, runner.py, dispatch_worker.py) to reverse-engineer the DOT format — wasting 500+ context tokens on information the skill should provide.
+**Root cause**: The cobuilder-guardian skill documents how to *launch* pipelines but not how to *create* DOT files from scratch. This causes agents to explore source code (guardian.py, runner.py, dispatch_worker.py) to reverse-engineer the DOT format — wasting 500+ context tokens on information the skill should provide.
 
-**Fix**: Add a "Creating a New Pipeline" quick-start section to s3-guardian SKILL.md with:
+**Fix**: Add a "Creating a New Pipeline" quick-start section to cobuilder-guardian SKILL.md with:
 1. **Inline minimal DOT example** — complete, valid pipeline showing all attribute conventions
 2. **Handler type mapping table** — which `handler` value for which task type
 3. **Required vs optional node attributes** — what the runner/guardian expects
@@ -119,9 +119,9 @@ Handler type mapping:
 
 | File | Change |
 |------|--------|
-| s3-guardian `SKILL.md` | Add "Pipeline Progress Monitor" section with spawn template; Add "Creating a New Pipeline" quick-start with inline DOT example and handler mapping table |
-| s3-guardian `references/monitoring-patterns.md` | Add Haiku monitor pattern alongside existing tmux/SDK monitoring |
-| s3-guardian `references/dot-pipeline-creation.md` (new) | Detailed DOT format reference: graph attributes, node attributes per handler, edge labels, checkpoint conventions |
+| cobuilder-guardian `SKILL.md` | Add "Pipeline Progress Monitor" section with spawn template; Add "Creating a New Pipeline" quick-start with inline DOT example and handler mapping table |
+| cobuilder-guardian `references/monitoring-patterns.md` | Add Haiku monitor pattern alongside existing tmux/SDK monitoring |
+| cobuilder-guardian `references/dot-pipeline-creation.md` (new) | Detailed DOT format reference: graph attributes, node attributes per handler, edge labels, checkpoint conventions |
 
 ## 4. Testing
 
@@ -132,10 +132,10 @@ Handler type mapping:
 
 ## 5. Acceptance Criteria
 
-- AC-0.1: s3-guardian SKILL.md documents the progress monitor sub-agent pattern with spawn template
+- AC-0.1: cobuilder-guardian SKILL.md documents the progress monitor sub-agent pattern with spawn template
 - AC-0.2: Monitor poll mechanism documented (signal dir mtime + DOT file mtime)
 - AC-0.3: Stall/error/completion detection rules documented with configurable thresholds
-- AC-0.4: s3-guardian SKILL.md includes "Creating a New Pipeline" quick-start with inline DOT example
+- AC-0.4: cobuilder-guardian SKILL.md includes "Creating a New Pipeline" quick-start with inline DOT example
 - AC-0.5: Handler type mapping table in SKILL.md covers all 8 handler types
 - AC-0.6: `references/dot-pipeline-creation.md` exists with full DOT format reference
 

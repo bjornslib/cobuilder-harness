@@ -309,7 +309,7 @@ This PRD was created during the investigation phase of PRD-DASHBOARD-AUDIT-001 (
 
 **Key relationship**: PRD-DASHBOARD-AUDIT-001's timeline feature will show "Step 1 of 3" with steps 2-3 as "Pending" until this PRD is implemented. Once sequence progression works, the timeline automatically shows real progression without further frontend changes.
 
-**Hindsight bank**: Findings stored in `system3-orchestrator` bank under context `design-decisions` (2026-03-09).
+**Hindsight bank**: Findings stored in `cobuilder` bank under context `design-decisions` (2026-03-09).
 
 ### Files to Start With
 
@@ -320,9 +320,3 @@ This PRD was created during the investigation phase of PRD-DASHBOARD-AUDIT-001 (
 | `utils/background_task_helpers.py` | Has `create_retry_task()` — extend or create `create_next_step_task()` |
 | `models/check_sequence.py` | Data models for sequences — already complete |
 | `prefect_flows/flows/verification_orchestrator.py` | Main orchestrator — may need to handle new channel types (email) |
-
-## Implementation Status
-
-| Epic | Status | Date | Commit |
-| --- | --- | --- | --- |
-| - | Remaining | - | - |

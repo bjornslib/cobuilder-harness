@@ -48,7 +48,7 @@ POST /api/v1/verify
 
 **Root cause**: The email-first sequence was added without deactivating the original voice-only sequence.
 
-**Proposed fix — Use the existing \****`replaceSequenceWithVersioning`**\*\* API**:
+**Proposed fix — Use the existing ****`replaceSequenceWithVersioning`**** API**:
 
 The SLA configuration page already has a `PUT /api/v1/check-types/:id/sequence` endpoint that atomically:
 1. Archives all existing active steps (`is_active = false`)
@@ -279,9 +279,3 @@ The `replaceSequenceWithVersioning` API endpoint ensures atomic sequence replace
 3. **CheckTypeEnum → DB-driven**: Confirmed — link to `check_types` table as source of truth?
 
 4. **Webhook deprecation**: Since `log_state_to_db` already updates `background_tasks.status` directly AND Logfire traces all transitions — should we deprecate the webhook hooks, or keep the belt-and-suspenders pattern?
-
-## Implementation Status
-
-| Epic | Status | Date | Commit |
-| --- | --- | --- | --- |
-| - | Remaining | - | - |

@@ -33,7 +33,7 @@ Without this, the web server cannot fulfil US-1 (starting a new initiative end-t
 Programmatic launcher for Guardian tmux sessions. Provides launch, attach,
 list, health-check, and kill operations for the web server.
 
-The Guardian runs Claude Code with the system3-meta-orchestrator output style
+The Guardian runs Claude Code with the cobuilder-guardian output style
 and a scoped prompt that restricts it to acceptance tests + monitoring +
 validation. It does NOT create PRDs, SDs, pipelines, or launch the runner.
 """
@@ -167,11 +167,11 @@ class GuardianLauncher:
                 message=f"Claude launch failed: {exc.stderr or exc}",
             )
 
-        # 3. Set output style to system3-meta-orchestrator
+        # 3. Set output style to cobuilder-guardian
         try:
             self._tmux_send(
                 session,
-                "/output-style system3-meta-orchestrator",
+                "/output-style cobuilder-guardian",
                 pause=self.OUTPUT_STYLE_PAUSE,
                 post_pause=self.OUTPUT_STYLE_POST,
             )
@@ -443,14 +443,14 @@ When the pipeline reaches validation gates (wait.cobuilder nodes), independently
 - READ the pipeline DOT file (for monitoring progress).
 - WRITE acceptance tests in acceptance-tests/{prd_id}/ (config repo only).
 - WRITE signal files when you complete validation (signal protocol).
-- USE Hindsight for memory (bank_id: system3-orchestrator for private, $CLAUDE_PROJECT_BANK for project).
-- USE Skill("s3-guardian") for your workflow patterns.
+- USE Hindsight for memory (bank_id: cobuilder for private, $CLAUDE_PROJECT_BANK for project).
+- USE Skill("cobuilder-guardian") for your workflow patterns.
 - USE Skill("acceptance-test-writer") for Gherkin test generation.
 - USE Skill("acceptance-test-runner") for running tests against implementations.
 
 ## Getting Started
 
-1. Invoke Skill("s3-guardian") to load your workflow patterns.
+1. Invoke Skill("cobuilder-guardian") to load your workflow patterns.
 2. If the PRD exists, begin Phase 1: read the PRD and write blind acceptance tests.
 3. If the pipeline is already running, begin Phase 2: monitor node status changes.
 4. When validation gates activate, execute Phase 3."""
@@ -559,7 +559,7 @@ The prompt uses two clearly separated sections:
 - **"What You CANNOT Do (HARD CONSTRAINTS)"** -- 6 prohibitions that prevent the Guardian from overstepping into web server or runner territory.
 - **"What You CAN Do"** -- 7 capabilities that give the Guardian clear operational boundaries.
 
-This dual-section approach was chosen over a single "allowed actions" list because LLMs respond better to explicit prohibitions. The existing s3-guardian SKILL.md already defines the Guardian's validation workflow; the scoped prompt constrains it to a single initiative.
+This dual-section approach was chosen over a single "allowed actions" list because LLMs respond better to explicit prohibitions. The existing cobuilder-guardian SKILL.md already defines the Guardian's validation workflow; the scoped prompt constrains it to a single initiative.
 
 ### 3.2 Context Injection
 
@@ -575,7 +575,7 @@ The prompt includes all file paths the Guardian needs to do its job:
 
 ### 3.3 Skill Invocation Hints
 
-The prompt tells the Guardian which skills to invoke and in what order. This is necessary because the system3-meta-orchestrator output style provides generic Guardian guidance, but the scoped prompt must direct the Guardian to the correct skill for this specific initiative.
+The prompt tells the Guardian which skills to invoke and in what order. This is necessary because the cobuilder-guardian output style provides generic Guardian guidance, but the scoped prompt must direct the Guardian to the correct skill for this specific initiative.
 
 ## 4. tmux Integration Details
 
@@ -601,7 +601,7 @@ tmux send-keys -t guardian-prd-dashboard-audit-001 Enter
 
 # Step 4: Set output style
 tmux send-keys -t guardian-prd-dashboard-audit-001 \
-    "/output-style system3-meta-orchestrator"
+    "/output-style cobuilder-guardian"
 # (wait 3s)
 tmux send-keys -t guardian-prd-dashboard-audit-001 Enter
 # (wait 5s for output style to take effect)
@@ -687,8 +687,8 @@ Filtering by `SESSION_PREFIX` ("guardian-") isolates Guardian sessions from orch
 | File | Integration |
 |------|------------|
 | `cobuilder/orchestration/spawn_orchestrator.py` | Reference for tmux patterns only -- NOT imported or called. `GuardianLauncher` reimplements the tmux primitives because the Guardian has different env vars, output style, and no identity/hook registration. |
-| `.claude/output-styles/system3-meta-orchestrator.md` | Loaded automatically by Claude Code when `/output-style system3-meta-orchestrator` is sent |
-| `.claude/skills/s3-guardian/SKILL.md` | Invoked by the Guardian via `Skill("s3-guardian")` after receiving the scoped prompt |
+| `.claude/output-styles/cobuilder-guardian.md` | Loaded automatically by Claude Code when `/output-style cobuilder-guardian` is sent |
+| `.claude/skills/cobuilder-guardian/SKILL.md` | Invoked by the Guardian via `Skill("cobuilder-guardian")` after receiving the scoped prompt |
 
 ## 6. Implementation Priority
 
@@ -720,7 +720,7 @@ E2 (Web Server) ┘                                       |
 |----|-----------|-------------|
 | AC-E5.1 | `launch()` creates a tmux session named `guardian-{prd-id-lowercase}` in the target repo directory | `tmux has-session -t guardian-prd-test-001` returns 0 |
 | AC-E5.2 | Guardian receives `CLAUDE_SESSION_ID`, `PRD_ID`, and `PIPELINE_DOT_PATH` environment variables | `tmux capture-pane` shows env vars in Claude startup |
-| AC-E5.3 | Guardian's output style is `system3-meta-orchestrator` | `tmux capture-pane` shows System 3 Meta-Orchestrator behavior |
+| AC-E5.3 | Guardian's output style is `cobuilder-guardian` | `tmux capture-pane` shows System 3 Meta-Orchestrator behavior |
 | AC-E5.4 | Scoped prompt includes PRD path, SD paths, DOT path, worktree path, and explicit CAN/CANNOT constraints | Inspect prompt text via `tmux capture-pane` after launch |
 | AC-E5.5 | `launch()` with an already-running session returns `status="already_running"` without creating a duplicate | Call `launch()` twice with same PRD ID; second returns "already_running" |
 | AC-E5.6 | `attach()` returns the session name for an active Guardian, `None` for inactive | Call `attach()` before and after `launch()` |
@@ -769,7 +769,7 @@ E2 (Web Server) ┘                                       |
 
 ### R5: Output Style Not Applied
 
-**Risk**: If `/output-style system3-meta-orchestrator` fails silently (e.g., output style file missing), the Guardian runs without the System 3 behavior, potentially violating scope constraints.
+**Risk**: If `/output-style cobuilder-guardian` fails silently (e.g., output style file missing), the Guardian runs without the System 3 behavior, potentially violating scope constraints.
 
 **Likelihood**: Low. The output style file is part of this repository and is always present.
 

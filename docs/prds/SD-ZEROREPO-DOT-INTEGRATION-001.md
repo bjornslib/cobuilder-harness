@@ -513,7 +513,7 @@ python3 cli.py zerorepo context --unified --repos agencheck,harness --format sd-
 
 ## 4. Integration Points
 
-### 4.1 With s3-guardian Skill (Phase 0)
+### 4.1 With cobuilder-guardian Skill (Phase 0)
 
 Guardian Phase 0 currently writes PRDs and creates DOT pipelines. With this integration:
 
@@ -605,7 +605,7 @@ mcp__hindsight__retain(
 1. Implement `--format sd-injection` output mode
 2. Add relevant module filtering by PRD keywords
 3. Add dependency subgraph extraction
-4. Update s3-guardian Phase 0 to include RPG context in SD delegation
+4. Update cobuilder-guardian Phase 0 to include RPG context in SD delegation
 5. Test with real PRD + SD cycle
 
 ### Phase 4: Live Updates (Epic 4) — Keep Baselines Fresh
@@ -650,7 +650,7 @@ mcp__hindsight__retain(
 | `.claude/scripts/attractor/generate.py` | 2 | Add `--rpg-source`, `--no-beads` flags; hybrid generation |
 | `.claude/scripts/attractor/transition.py` | 4 | Add post-validation baseline refresh hook |
 | `.claude/scripts/attractor/spawn_orchestrator.py` | 4 | Add cleanup baseline sync |
-| `.claude/skills/s3-guardian/SKILL.md` | 3 | Update Phase 0 to inject RPG context |
+| `.claude/skills/cobuilder-guardian/SKILL.md` | 3 | Update Phase 0 to inject RPG context |
 | `.claude/skills/orchestrator-multiagent/ZEROREPO.md` | 2 | Update to reference hybrid generation |
 
 ### Unchanged (Reference Only)

@@ -6,7 +6,7 @@ title: "LiveKit Agent — Validator Loop, TTS Crash, and Playout Deadlock Fixes"
 version: "0.2"
 status: draft
 created: "2026-03-09"
-author: "system3-meta-orchestrator"
+author: "cobuilder-guardian"
 ---
 
 # SD-AURA-LIVEKIT-FIXES-001: LiveKit Agent Bug Fixes
@@ -327,8 +327,8 @@ All four changes can be made in a single pass — the snapshot is a prompt chang
 
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
-| 0.1 | 2026-03-09 | system3-meta-orchestrator | Initial design from live session root cause analysis |
-| 0.2 | 2026-03-09 | system3-meta-orchestrator | Added Feature: Pre-Call Claimed-Values Snapshot for Voice Mode; updated File Scope to include verification_prompts.py; updated dependency graph and risks; aligned with chat mode pattern in chat_prompts.py |
+| 0.1 | 2026-03-09 | cobuilder-guardian | Initial design from live session root cause analysis |
+| 0.2 | 2026-03-09 | cobuilder-guardian | Added Feature: Pre-Call Claimed-Values Snapshot for Voice Mode; updated File Scope to include verification_prompts.py; updated dependency graph and risks; aligned with chat mode pattern in chat_prompts.py |
 
 ## Implementation Status
 
