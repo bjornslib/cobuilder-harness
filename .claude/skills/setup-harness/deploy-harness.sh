@@ -256,6 +256,15 @@ deploy_to_target() {
 
     ok "Copied harness to $target_dir/.claude/"
 
+    # ── Copy cobuilder/engine/providers.yaml ──
+    mkdir -p "$target_dir/cobuilder/engine"
+    if [ -f "$HARNESS_SOURCE/cobuilder/engine/providers.yaml" ]; then
+        cp "$HARNESS_SOURCE/cobuilder/engine/providers.yaml" "$target_dir/cobuilder/engine/providers.yaml"
+        ok "Copied cobuilder/engine/providers.yaml"
+    else
+        warn "No cobuilder/engine/providers.yaml found in harness source"
+    fi
+
     # ── Handle .mcp.json ──
     if [ "$INCLUDE_MCP" = true ]; then
         if [ -f "$HARNESS_SOURCE/.mcp.json" ]; then

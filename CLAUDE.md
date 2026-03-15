@@ -118,7 +118,7 @@ cobuilder/                        # Pipeline execution engine (Python package)
     ├── s3-lifecycle/             # System 3 lifecycle pipeline
     └── cobuilder-lifecycle/      # CoBuilder self-upgrade pipeline
 
-providers.yaml                    # Named LLM profiles (root-level, shared config)
+cobuilder/engine/providers.yaml   # Named LLM profiles (shared config, lives next to providers.py)
 ```
 
 ## Core Systems
@@ -375,7 +375,7 @@ On `requeue`: the runner mechanically sets the requeue target back to `pending`.
 
 ### LLM Profiles (providers.yaml)
 
-Named profiles are defined in `providers.yaml` at the repo root. DOT nodes reference profiles via `llm_profile="..."`. The runner resolves the profile to Anthropic SDK parameters at dispatch time.
+Named profiles are defined in `cobuilder/engine/providers.yaml`. DOT nodes reference profiles via `llm_profile="..."`. The runner resolves the profile to Anthropic SDK parameters at dispatch time.
 
 Key profiles:
 

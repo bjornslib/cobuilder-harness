@@ -631,10 +631,18 @@ class TestLoadProvidersFile:
         providers = load_providers_file(str(sample_profiles_yaml))
         assert len(providers.list_profiles()) == 4
 
-    def test_load_from_manifest_dir(self, tmp_path: Path) -> None:
-        """Load from manifest directory when no explicit path."""
+    def test_load_from_manifest_dir(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Load from manifest directory when no explicit path and no engine-bundled file."""
+        import cobuilder.engine.providers as providers_module
+
         providers_yaml = tmp_path / "providers.yaml"
         providers_yaml.write_text(yaml.dump({"profiles": {"test": {"model": "test-model"}}}))
+
+        # Patch __file__ so the engine-bundled path points to a nonexistent file,
+        # allowing manifest_dir to be reached (new Layer 3 in the search order).
+        fake_engine_dir = tmp_path / "engine_fake"
+        fake_engine_dir.mkdir()
+        monkeypatch.setattr(providers_module, "__file__", str(fake_engine_dir / "providers.py"))
 
         providers = load_providers_file(
             providers_file_path=None,
@@ -643,13 +651,21 @@ class TestLoadProvidersFile:
         )
         assert "test" in providers.list_profiles()
 
-    def test_load_from_project_root(self, tmp_path: Path) -> None:
-        """Load from project root when not in manifest dir."""
+    def test_load_from_project_root(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Load from project root when not in manifest dir and no engine-bundled file."""
+        import cobuilder.engine.providers as providers_module
+
         providers_yaml = tmp_path / "providers.yaml"
         providers_yaml.write_text(yaml.dump({"profiles": {"root": {"model": "root-model"}}}))
 
         manifest_dir = tmp_path / "manifest"
         manifest_dir.mkdir()
+
+        # Patch __file__ so the engine-bundled path points to a nonexistent file,
+        # allowing project_root to be reached (new Layer 4 in the search order).
+        fake_engine_dir = tmp_path / "engine_fake"
+        fake_engine_dir.mkdir()
+        monkeypatch.setattr(providers_module, "__file__", str(fake_engine_dir / "providers.py"))
 
         providers = load_providers_file(
             providers_file_path=None,
@@ -658,8 +674,16 @@ class TestLoadProvidersFile:
         )
         assert "root" in providers.list_profiles()
 
-    def test_returns_empty_if_not_found(self, tmp_path: Path) -> None:
-        """Returns empty ProvidersFile when no file found."""
+    def test_returns_empty_if_not_found(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Returns empty ProvidersFile when no file found (including engine-bundled path)."""
+        import cobuilder.engine.providers as providers_module
+
+        # Patch __file__ so the engine-bundled path points to a nonexistent directory,
+        # ensuring we reach the "not found" path.
+        fake_engine_dir = tmp_path / "engine_fake"
+        fake_engine_dir.mkdir()
+        monkeypatch.setattr(providers_module, "__file__", str(fake_engine_dir / "providers.py"))
+
         providers = load_providers_file(
             providers_file_path=None,
             manifest_dir=str(tmp_path / "nonexistent"),

@@ -219,7 +219,7 @@ Each template ships with a `manifest.yaml` defining parameters, constraints (top
 
 ### Per-Node LLM Configuration
 
-DOT nodes reference named profiles from `providers.yaml`. Mix providers and models within a single pipeline:
+DOT nodes reference named profiles from `cobuilder/engine/providers.yaml`. Mix providers and models within a single pipeline:
 
 ```yaml
 # providers.yaml — available LLM profiles
@@ -309,7 +309,7 @@ cobuilder/
 - **Automatic validation gates** — `wait.cobuilder` nodes trigger validation-test-agent dispatch automatically
 - **Human review gates** — `wait.human` nodes emit GChat notifications and wait for manual signal file response
 - **Pipeline templates** — Jinja2 parametrization for reusable topologies with constraint enforcement
-- **Per-node LLM profiles** — mix Haiku (research) and Sonnet (codergen) within one pipeline via `providers.yaml`
+- **Per-node LLM profiles** — mix Haiku (research) and Sonnet (codergen) within one pipeline via `cobuilder/engine/providers.yaml`
 - **Logfire observability** — full span tracing with service naming (`worker_dispatch_start`, `worker_first_message`, `worker_tool`)
 - **Blind acceptance testing** — Gherkin rubrics stored outside implementation repo for unbiased E2E validation
 - **Completion promise tracking** — verifiable session goals with acceptance criteria

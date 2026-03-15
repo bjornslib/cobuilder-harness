@@ -479,9 +479,10 @@ def load_providers_file(
 
     Search order:
     1. Explicit path provided
-    2. manifest_dir/providers.yaml (next to manifest.yaml)
-    3. project_root/providers.yaml (repo root)
-    4. Return empty ProvidersFile if not found
+    2. cobuilder/engine/providers.yaml (next to providers.py itself)
+    3. manifest_dir/providers.yaml (next to manifest.yaml)
+    4. project_root/providers.yaml (repo root)
+    5. Return empty ProvidersFile if not found
 
     Args:
         providers_file_path: Explicit path to providers.yaml (may be None).
@@ -502,19 +503,24 @@ def load_providers_file(
         )
         return ProvidersFile.empty()
 
-    # Layer 2: manifest_dir/providers.yaml
+    # Layer 2: cobuilder/engine/providers.yaml (next to this file)
+    engine_path = Path(__file__).parent / DEFAULT_PROVIDERS_FILE
+    if engine_path.exists():
+        return ProvidersFile.from_file(engine_path)
+
+    # Layer 3: manifest_dir/providers.yaml
     if manifest_dir:
         manifest_path = Path(manifest_dir) / DEFAULT_PROVIDERS_FILE
         if manifest_path.exists():
             return ProvidersFile.from_file(manifest_path)
 
-    # Layer 3: project_root/providers.yaml
+    # Layer 4: project_root/providers.yaml
     if project_root:
         root_path = Path(project_root) / DEFAULT_PROVIDERS_FILE
         if root_path.exists():
             return ProvidersFile.from_file(root_path)
 
-    # Layer 4: Not found, return empty
+    # Layer 5: Not found, return empty
     logger.debug("No providers.yaml found, using environment defaults")
     return ProvidersFile.empty()
 
