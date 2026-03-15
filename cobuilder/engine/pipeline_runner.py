@@ -329,6 +329,25 @@ class PipelineRunner:
 
     HANDLER_REGISTRY = HANDLER_REGISTRY
 
+    @classmethod
+    def from_dot_file(cls, dot_path: str, resume: bool = False) -> "PipelineRunner":
+        """Blessed entry point for creating a PipelineRunner.
+
+        Equivalent to ``PipelineRunner(dot_path, resume)`` but makes the
+        intended API explicit.  The ``main()`` function at module bottom
+        is the CLI entry point; this classmethod is the programmatic one.
+
+        Usage::
+
+            runner = PipelineRunner.from_dot_file("pipeline.dot")
+            success = runner.run()
+
+        Or from the CLI::
+
+            python3 cobuilder/engine/pipeline_runner.py --dot-file pipeline.dot
+        """
+        return cls(dot_path, resume=resume)
+
     def __init__(self, dot_path: str, resume: bool = False) -> None:
         self.dot_path = os.path.abspath(dot_path)
         self.dot_dir = os.path.dirname(self.dot_path)
@@ -339,6 +358,18 @@ class PipelineRunner:
 
         # Load attractor .env if present (sets ANTHROPIC_MODEL, ANTHROPIC_BASE_URL, etc.)
         self._load_engine_env()
+
+        # Guard: warn loudly if no API credentials are configured.
+        # Without credentials, SDK dispatch silently returns empty results and
+        # the runner enters an infinite retry loop (the original P1 bug).
+        if not os.environ.get("ANTHROPIC_API_KEY"):
+            log.warning(
+                "[env] ANTHROPIC_API_KEY not set after loading .env. "
+                "SDK workers will fail silently. Either:\n"
+                "  1. Create cobuilder/engine/.env with 'export ANTHROPIC_API_KEY=sk-...'\n"
+                "  2. Set ANTHROPIC_API_KEY in your environment\n"
+                "  3. Use the CLI: python3 cobuilder/engine/pipeline_runner.py --dot-file <path>"
+            )
 
         # Active workers: node_id -> worker metadata dict
         self.active_workers: dict[str, dict[str, Any]] = {}

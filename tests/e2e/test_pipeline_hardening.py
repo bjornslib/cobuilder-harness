@@ -104,6 +104,60 @@ def _make_runner(tmp_path: Path, dot_content: str = MINIMAL_DOT) -> PipelineRunn
 
 
 # =========================================================================
+# P1 Bug: PipelineRunner Env Guard
+# =========================================================================
+
+class TestEnvGuard:
+    """PipelineRunner warns when ANTHROPIC_API_KEY is not set."""
+
+    def test_missing_api_key_logs_warning(self, tmp_path, caplog):
+        """PipelineRunner.__init__ logs a warning when ANTHROPIC_API_KEY is missing."""
+        dot_file = tmp_path / "test.dot"
+        dot_file.write_text(MINIMAL_DOT)
+
+        # Ensure ANTHROPIC_API_KEY is not set
+        env = os.environ.copy()
+        env.pop("ANTHROPIC_API_KEY", None)
+
+        with patch.dict(os.environ, env, clear=True), \
+             patch.object(PipelineRunner, "_load_engine_env"):
+            # _load_engine_env is patched to prevent it from loading .env
+            # which might set the key. We want to test the guard AFTER loading.
+            import logging
+            with caplog.at_level(logging.WARNING):
+                runner = PipelineRunner(str(dot_file), resume=False)
+
+            assert "ANTHROPIC_API_KEY not set" in caplog.text, \
+                "Should warn when API key is missing"
+
+    def test_api_key_present_no_warning(self, tmp_path, caplog):
+        """No warning when ANTHROPIC_API_KEY is set."""
+        dot_file = tmp_path / "test.dot"
+        dot_file.write_text(MINIMAL_DOT)
+
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-test-key"}), \
+             patch.object(PipelineRunner, "_load_engine_env"):
+            import logging
+            with caplog.at_level(logging.WARNING):
+                runner = PipelineRunner(str(dot_file), resume=False)
+
+            assert "ANTHROPIC_API_KEY not set" not in caplog.text, \
+                "Should NOT warn when API key is present"
+
+    def test_from_dot_file_classmethod(self, tmp_path):
+        """from_dot_file() classmethod creates a PipelineRunner."""
+        dot_file = tmp_path / "test.dot"
+        dot_file.write_text(MINIMAL_DOT)
+
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-test"}), \
+             patch.object(PipelineRunner, "_load_engine_env"):
+            runner = PipelineRunner.from_dot_file(str(dot_file))
+
+        assert isinstance(runner, PipelineRunner)
+        assert runner.dot_path == str(dot_file.resolve())
+
+
+# =========================================================================
 # Epic H: Dead Worker Detection
 # =========================================================================
 
