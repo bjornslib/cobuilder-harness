@@ -1300,9 +1300,18 @@ class PipelineRunner:
     }
 
     def _get_allowed_tools(self, handler: str) -> list[str]:
-        """Build the allowed_tools list for a given handler type."""
+        """Build the allowed_tools list for a given handler type.
+
+        For non-Anthropic models, MCP tools (Serena, Hindsight, Context7) are
+        excluded to prevent turn-budget exhaustion on tool discovery/activation.
+        """
         extra = self._HANDLER_EXTRA_TOOLS.get(handler, self._SERENA_TOOLS)
-        return self._BASE_TOOLS + extra
+        tools = self._BASE_TOOLS + extra
+        if not self._is_anthropic_model():
+            # Strip MCP tools — non-Anthropic models waste turns on activation
+            mcp_prefixes = ("mcp__serena__", "mcp__hindsight__", "mcp__context7__", "mcp__perplexity__")
+            tools = [t for t in tools if not any(t.startswith(p) for p in mcp_prefixes)]
+        return tools
 
     def _dispatch_via_sdk(self, node_id: str, worker_type: str, prompt: str, handler: str = "codergen", target_dir: str = "", llm_config: ResolvedLLMConfig | None = None) -> None:
         """Dispatch worker using claude_code_sdk."""
@@ -1342,11 +1351,17 @@ class PipelineRunner:
             clean_env["PROJECT_TARGET_DIR"] = effective_dir
             # Apply LLM config env vars (api_key, base_url) from resolved profile
             clean_env.update(llm_config.to_env_dict())
+            # Max turns: configurable via env (default 300).  GLM-5 workers were
+            # exhausting the default SDK limit on MCP tool loading and file reading
+            # before reaching implementation.  300 gives agents enough room for
+            # real work.  See Hindsight "GLM-5 Pipeline Worker Failure" RCA.
+            _max_turns = int(os.environ.get("PIPELINE_SDK_MAX_TURNS", "300"))
             options = claude_code_sdk.ClaudeCodeOptions(  # type: ignore[attr-defined]
                 system_prompt=self._build_system_prompt(worker_type),
                 allowed_tools=tools,
                 permission_mode="bypassPermissions",
                 model=worker_model,
+                max_turns=_max_turns,
                 cwd=effective_dir,
                 env=clean_env,
             )
@@ -2509,8 +2524,39 @@ class PipelineRunner:
 
         return "\n".join(lines)
 
+    # Sections in worker-tool-reference.md that instruct MCP tool loading.
+    # Non-Anthropic models (e.g. GLM-5) follow these eagerly and exhaust their
+    # turn budget on Serena activation / Hindsight recall before writing any code.
+    # Stripping these sections saves ~6 KB of prompt and ~20 tokens of MCP overhead.
+    _MCP_HEAVY_SECTIONS = frozenset({
+        "## ToolSearch — Discover MCP Tools Before Use",
+        "## Hindsight Memory — Recall and Retain Across Sessions",
+        "## Context7 — Official Framework/Library Documentation",
+        "## Serena MCP (semantic code navigation)",
+    })
+
+    @staticmethod
+    def _strip_sections(text: str, headings: frozenset[str]) -> str:
+        """Remove H2 sections whose heading is in *headings* from markdown *text*."""
+        import re
+        lines = text.split("\n")
+        out: list[str] = []
+        skip = False
+        for line in lines:
+            if line.startswith("## "):
+                skip = line.strip() in headings
+            if not skip:
+                out.append(line)
+        return "\n".join(out)
+
     def _build_system_prompt(self, worker_type: str) -> str:
-        """Load system prompt from .claude/agents/{worker_type}.md + tool reference."""
+        """Load system prompt from .claude/agents/{worker_type}.md + tool reference.
+
+        For non-Anthropic models (GLM-5, Qwen, etc.) the heavy MCP-loading sections
+        (Serena, Hindsight, Context7, ToolSearch) are stripped from the tool reference
+        to prevent the worker from spending all its turns on tool discovery instead of
+        implementation.  See Hindsight "GLM-5 Pipeline Worker Failure" RCA.
+        """
         # Use repo root for agent files (they live at <repo>/.claude/agents/)
         repo_root = self._get_repo_root()
         agents_dir = os.path.join(repo_root, ".claude", "agents")
@@ -2548,10 +2594,31 @@ class PipelineRunner:
         if not role_content:
             role_content = f"You are a specialist agent ({worker_type}). Implement features directly using the provided tools."
 
+        # For non-Anthropic models, strip MCP-heavy sections to save turns.
+        # These models follow MCP loading instructions too eagerly and exhaust
+        # their turn budget before reaching implementation.
+        if tool_ref and not self._is_anthropic_model():
+            tool_ref = self._strip_sections(tool_ref, self._MCP_HEAVY_SECTIONS)
+            # Also strip MCP references from role content
+            role_content = self._strip_sections(role_content, self._MCP_HEAVY_SECTIONS)
+
         # Tool reference goes FIRST so it's always visible, even if role prompt is long
         if tool_ref:
             return f"{tool_ref}\n\n---\n\n{role_content}"
         return role_content
+
+    def _is_anthropic_model(self) -> bool:
+        """Check if the current pipeline's default model is an Anthropic model."""
+        # Check the default LLM profile — if it references a non-Anthropic provider,
+        # the pipeline is running on a third-party model.
+        default_profile = self._graph_attrs.get("llm_profile", "")
+        if default_profile and any(k in default_profile.lower() for k in ("alibaba", "glm", "qwen", "dashscope")):
+            return False
+        # Check env-level model override
+        env_model = os.environ.get("ANTHROPIC_MODEL", "")
+        if env_model and not env_model.startswith("claude"):
+            return False
+        return True
 
 
 # ---------------------------------------------------------------------------

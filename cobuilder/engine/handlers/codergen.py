@@ -310,12 +310,14 @@ class CodergenHandler:
 
         prompt = node.prompt or f"Execute task: {node.id}"
         try:
-            result = await claude_code_sdk.query(prompt=prompt)
+            messages = []
+            async for message in claude_code_sdk.query(prompt=prompt):
+                messages.append(message)
             return Outcome(
                 status=OutcomeStatus.SUCCESS,
                 context_updates={f"${node.id}.status": "success"},
                 metadata={"dispatch_strategy": "sdk"},
-                raw_messages=list(result) if hasattr(result, "__iter__") else [result],
+                raw_messages=messages,
             )
         except Exception as exc:
             return Outcome(

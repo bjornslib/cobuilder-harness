@@ -127,7 +127,9 @@ class Node:
         # Distinguished by explicit 'handler' attribute in attrs
         explicit_handler = self.attrs.get("handler")
         if explicit_handler:
-            return explicit_handler
+            # Normalize dot notation (wait.cobuilder) to underscore (wait_cobuilder)
+            # so it matches SHAPE_TO_HANDLER values used by validation rules.
+            return explicit_handler.replace(".", "_")
         return SHAPE_TO_HANDLER.get(self.shape, "unknown")
 
     @property

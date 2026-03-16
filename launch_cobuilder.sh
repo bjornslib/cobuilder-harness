@@ -14,7 +14,7 @@ _derive_project_bank() {
     basename "$(pwd)" | tr '[:upper:]' '[:lower:]' | sed 's/_/-/g' | sed 's/ /-/g'
 }
 
-MODE="system3"
+MODE="cobuilder-guardian"
 PRD_NAME=""
 EXTRA_ARGS=()
 
@@ -44,7 +44,7 @@ export CLAUDE_PROJECT_BANK="$(_derive_project_bank)"
 # Add completion-state scripts to PATH
 export PATH="${CLAUDE_PROJECT_DIR:-.}/.claude/scripts/completion-state:$PATH"
 
-if [[ "$MODE" == "system3" ]]; then
+if [[ "$MODE" == "cobuilder-guardian" ]]; then
     # System 3 meta-orchestrator mode (equivalent to ccsystem3)
     export CLAUDE_SESSION_ID="system3-$(date -u +%Y%m%dT%H%M%SZ)-$(openssl rand -hex 4)"
     export CLAUDE_ENFORCE_PROMISE=true

@@ -21,7 +21,7 @@ import re
 import sys
 
 from cobuilder.engine.dispatch_parser import parse_dot, parse_file
-from cobuilder.engine.validator import VALID_HANDLERS, HANDLER_SHAPE_MAP, VALID_STATUSES
+from cobuilder.engine.schema import VALID_HANDLERS, HANDLER_SHAPE_MAP, VALID_STATUSES
 
 
 # ---------------------------------------------------------------------------

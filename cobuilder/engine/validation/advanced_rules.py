@@ -10,6 +10,7 @@ Implements the following requirements from PRD-HARNESS-UPGRADE-001:
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
+from cobuilder.engine.schema import VALID_WORKER_TYPES
 from cobuilder.engine.validation import RuleViolation, Severity
 from cobuilder.engine.validation.rules import _error, _warning
 
@@ -49,16 +50,7 @@ class SdPathOnCodergen:
 # Rule 15: WorkerTypeRegistry (Enforces AC-5.3)
 # ---------------------------------------------------------------------------
 
-# Valid worker types from PRD-HARNESS-UPGRADE-001 section 5
-VALID_WORKER_TYPES = {
-    "frontend-dev-expert",
-    "backend-solutions-engineer",
-    "tdd-test-engineer",
-    "solution-architect",
-    "solution-design-architect",
-    "validation-test-agent",
-    "ux-designer"
-}
+# VALID_WORKER_TYPES is imported from cobuilder.engine.schema (single source of truth).
 
 class WorkerTypeRegistry:
     """worker_type attribute must be from the known registry (AC-5.3)."""
@@ -152,7 +144,7 @@ class FullClusterTopology:
 
                 # Look for a wait.cobuilder downstream
                 has_wait_cobuilder = any(
-                    n.handler_type == "wait_cobuilder" for n in codergen_successors.values()
+                    n.handler_type in ("wait_cobuilder", "wait.cobuilder") for n in codergen_successors.values()
                 )
 
                 if not has_wait_cobuilder:
@@ -167,11 +159,11 @@ class FullClusterTopology:
                     continue
 
                 # For each wait.cobuilder found, check if it has a wait.human downstream
-                cobuilder_nodes = [n for n in codergen_successors.values() if n.handler_type == "wait_cobuilder"]
+                cobuilder_nodes = [n for n in codergen_successors.values() if n.handler_type in ("wait_cobuilder", "wait.cobuilder")]
                 for sys3_node in cobuilder_nodes:
                     sys3_downstream = self._get_downstream_nodes(graph, sys3_node.id)
                     has_wait_human = any(
-                        n.handler_type == "wait_human" and n.attrs.get("mode") == "e2e-review"
+                        n.handler_type in ("wait_human", "wait.human") and n.attrs.get("mode") == "e2e-review"
                         for n in sys3_downstream.values()
                     )
 
@@ -228,7 +220,7 @@ class WaitCobuilderRequirements:
         violations = []
 
         for node in graph.nodes.values():
-            if node.handler_type == "wait_cobuilder":
+            if node.handler_type in ("wait_cobuilder", "wait.cobuilder"):
                 # Check required attributes
                 gate_type = node.attrs.get("gate_type", "").strip()
                 summary_ref = node.attrs.get("summary_ref", "").strip()

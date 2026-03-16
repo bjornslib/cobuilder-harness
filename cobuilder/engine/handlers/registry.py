@@ -99,4 +99,7 @@ class HandlerRegistry:
         registry.register("parallelogram", ToolHandler())
         registry.register("house", ManagerLoopHandler())
         registry.register("octagon", CloseHandler())
+        # Aliases: research (tab) and refine (note) use CodergenHandler dispatch
+        registry.register("tab", CodergenHandler())
+        registry.register("note", CodergenHandler())
         return registry
