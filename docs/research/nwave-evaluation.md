@@ -205,24 +205,35 @@ If we decide to pursue P1-P2:
 
 ## Deep Dive: Rigor Profiles
 
-### How nWave's Rigor Profiles Work
+### How nWave's Rigor Profiles Work (From Source)
 
-nWave defines five named profiles that bundle four dimensions together:
+nWave defines five named profiles that bundle **7 dimensions** together:
 
-| Dimension | Lean | Standard | Thorough | Exhaustive | Custom |
-|-----------|------|----------|----------|------------|--------|
-| **Worker model** | Haiku | Sonnet | Opus | Opus | user choice |
-| **Reviewer model** | none | Haiku | Sonnet | Opus | user choice |
-| **TDD depth** | RED→GREEN only | full 5-phase | full 5-phase | full 5-phase | user choice |
-| **Mutation testing** | no | no | no | >=80% kill rate | user choice |
-| **Cost** | ~$0.01/task | ~$0.10/task | ~$1/task | ~$5/task | varies |
+| Dimension | Lean | Standard | Thorough | Exhaustive | Inherit |
+|-----------|------|----------|----------|------------|---------|
+| **agent_model** | haiku | sonnet | opus | opus | session model |
+| **reviewer_model** | skip | haiku | sonnet | opus | haiku |
+| **review_enabled** | false | true | true | true | true |
+| **double_review** | false | false | true | true | false |
+| **tdd_phases** | RED_UNIT, GREEN only | full 5-phase | full 5-phase | full 5-phase | full 5-phase |
+| **refactor_pass** | false | true | true | true | true |
+| **mutation_enabled** | false | false | false | true (≥80% kill) | false |
 
-The profile is selected per-feature, not per-session. A config file or `/nw:rigor` command switches the active profile. The system then:
+**Key detail**: Lean doesn't just simplify TDD — it **drops 3 phases entirely** (PREPARE, RED_ACCEPTANCE, COMMIT). The DES prompt template for lean profiles strips those section instructions completely.
 
-1. Injects the appropriate model into agent dispatch
-2. Conditionally spawns (or skips) the reviewer agent
-3. Adjusts TDD phase requirements in DES enforcement
-4. Enables/disables mutation testing gates
+The profile is selected per-feature via `/nw:rigor` command or config file. Persists to `.nwave/des-config.json` (project-local, overrides global `~/.nwave/global-config.json`).
+
+**Priority cascade**: project config → global config → standard defaults.
+
+The system then:
+1. Passes `agent_model` as the model parameter to Task invocations (omits if "inherit")
+2. Passes `reviewer_model` to reviewer Tasks; skips review entirely if "skip"
+3. Replaces the TDD_PHASES section in the DES template based on `tdd_phases` array
+4. Skips refactor pass if `refactor_pass: false`
+5. Skips mutation testing if `mutation_enabled: false`
+6. If `double_review: true`, runs two separate review passes (different reviewers)
+
+**Critical constraint**: The DES hook validates the complete prompt BEFORE the sub-agent starts. Abbreviated prompts that delegate template reading to the sub-agent are BLOCKED. The orchestrator must embed the complete template inline.
 
 ### CoBuilder Adaptation Design
 
@@ -230,38 +241,57 @@ Our adaptation maps to existing CoBuilder primitives:
 
 ```yaml
 # providers.yaml — extended with rigor_profiles section
+# Mirrors nWave's 7-dimension schema, adapted for CoBuilder multi-provider
 rigor_profiles:
   lean:
     worker_profile: alibaba-glm5         # near-$0
-    reviewer_profile: null               # skip review
-    tdd_depth: red-green                 # minimal TDD
-    mutation_testing: false
-    test_budget_multiplier: 1            # 2x behaviors
+    reviewer_profile: null               # skip review entirely
+    review_enabled: false
+    double_review: false
+    tdd_phases: [red_unit, green]        # drop prepare, red_acceptance, commit
+    refactor_pass: false
+    mutation_enabled: false
     anti_pattern_check: false
 
   standard:
     worker_profile: anthropic-fast       # Haiku
     reviewer_profile: alibaba-glm5       # cheap reviewer
-    tdd_depth: full                      # all 5 phases
-    mutation_testing: false
-    test_budget_multiplier: 2
+    review_enabled: true
+    double_review: false
+    tdd_phases: [prepare, red_acceptance, red_unit, green, commit]
+    refactor_pass: true
+    mutation_enabled: false
     anti_pattern_check: true
 
   thorough:
     worker_profile: anthropic-smart      # Sonnet
     reviewer_profile: anthropic-fast     # Haiku reviewer
-    tdd_depth: full
-    mutation_testing: false
-    test_budget_multiplier: 2
+    review_enabled: true
+    double_review: true                  # two review passes
+    tdd_phases: [prepare, red_acceptance, red_unit, green, commit]
+    refactor_pass: true
+    mutation_enabled: false
     anti_pattern_check: true
 
   exhaustive:
     worker_profile: anthropic-opus       # Opus
     reviewer_profile: anthropic-smart    # Sonnet reviewer
-    tdd_depth: full-mutation
-    mutation_testing: true
+    review_enabled: true
+    double_review: true
+    tdd_phases: [prepare, red_acceptance, red_unit, green, commit]
+    refactor_pass: true
+    mutation_enabled: true
     mutation_kill_threshold: 80
-    test_budget_multiplier: 2
+    anti_pattern_check: true
+
+  inherit:
+    worker_profile: null                 # use session model
+    reviewer_profile: anthropic-fast
+    review_enabled: true
+    double_review: false
+    tdd_phases: [prepare, red_acceptance, red_unit, green, commit]
+    refactor_pass: true
+    mutation_enabled: false
     anti_pattern_check: true
 ```
 
@@ -410,6 +440,33 @@ if rigor.anti_pattern_check and signal.get("test_files_changed"):
         # Requeue with guidance
         write_signal({"status": "requeue", "reason": f"Testing theater detected: {anti_patterns}"})
 ```
+
+### Extended: Test Code Smells Catalog (Beyond the 7 Deadly Patterns)
+
+nWave also defines a **severity-tiered test smells catalog** (from `test-refactoring-catalog.md`):
+
+| Severity | Smell | Description |
+|----------|-------|-------------|
+| **L1 Readability** | Obscure Test | Name doesn't reveal business scenario |
+| L1 | Hard-Coded Test Data | Magic numbers lacking business context |
+| L1 | Assertion Roulette | Multiple assertions without failure messages |
+| **L2 Complexity** | Eager Test | Single test verifies multiple unrelated behaviors |
+| L2 | Test Code Duplication | Repeated setup across 3+ tests |
+| L2 | Conditional Test Logic | if/switch creating non-deterministic tests |
+| **L3 Organization** | Mystery Guest | Tests depend on external files without explicit dependencies |
+| L3 | Test Class Bloat | 15+ unrelated tests in one class |
+| L3 | General Fixture | Shared setup used selectively |
+
+**Detection heuristic from review-dimensions.md** — the "delete production code" falsifiability test:
+1. Delete the production code body → does the test fail? If no → testing theater
+2. Introduce a deliberate bug → does the test catch it? If no → testing theater
+
+**Additional review signals**:
+- Weakened assertions (`assertEquals` → `assertNotNull`) across commits
+- Decreased assertion count between RED and GREEN phases
+- "Test + implementation changed in same commit" during GREEN → automatic rejection
+
+These L1-L3 smells are lower priority than the 7 deadly patterns but worth including in the `tdd-test-engineer` prompt for thoroughness.
 
 ### Recommendation
 
