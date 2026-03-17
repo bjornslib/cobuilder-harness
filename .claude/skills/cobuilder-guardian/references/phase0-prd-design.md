@@ -212,6 +212,8 @@ The `cobuilder pipeline create` command performs 7 steps automatically:
 
 **Do NOT build pipelines manually** with `node-add` / `edge-add` commands. Use `cobuilder pipeline create` which produces a properly structured pipeline from your SD + RepoMap context.
 
+**If validation fails**: Load [references/dot-pipeline-creation.md](dot-pipeline-creation.md) for correct node shapes, required attributes per handler, edge rules, and cluster topology constraints. Common errors include wrong shapes (`house`/`octagon` instead of `Mdiamond`/`Msquare`), missing required attributes on codergen nodes (`bead_id`, `worker_type`, `sd_path`), and missing `wait.cobuilder → wait.human` chains after codergen nodes.
+
 ### Checkpoint A: PRD & Pipeline Review
 
 Before proceeding to Task Master parsing, pause and present the user with a summary of what Phase 0 has produced so far. This is the last opportunity to adjust Business Spec (BS) scope or pipeline structure before the task hierarchy is locked in.

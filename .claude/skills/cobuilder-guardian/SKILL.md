@@ -190,7 +190,7 @@ This makes the skip visible. If you delete "Phase 1" from the todo list, you're 
 
 | Phase | Purpose | Reference |
 |-------|---------|-----------|
-| **Phase 0** | Business Spec (BS) authoring with CoBuilder RepoMap context injection, DOT pipeline creation (with research→refine→codergen chain validation), Task Master parsing, design challenge. **2 user checkpoints**: Checkpoint A (after pipeline creation) and Checkpoint B (after design challenge) | [references/phase0-prd-design.md](references/phase0-prd-design.md), [references/dot-pipeline-creation.md](references/dot-pipeline-creation.md) |
+| **Phase 0** | Business Spec (BS) authoring with CoBuilder RepoMap context injection, DOT pipeline creation (with research→refine→codergen chain validation), Task Master parsing, design challenge. **2 user checkpoints**: Checkpoint A (after pipeline creation) and Checkpoint B (after design challenge) | [references/phase0-prd-design.md](references/phase0-prd-design.md) |
 | **Phase 1** | Generate per-epic Gherkin tests, journey tests, and executable browser test scripts | [references/gherkin-test-patterns.md](references/gherkin-test-patterns.md) |
 | **Phase 2** | Orchestrator spawning via `spawn_orchestrator.py`, headless/SDK/tmux dispatch, DOT-driven dispatch | [references/guardian-workflow.md](references/guardian-workflow.md) |
 | **Phase 3** | Monitoring cadence, pause-and-check pattern, intervention triggers, AskUserQuestion handling | [references/monitoring-patterns.md](references/monitoring-patterns.md) |
@@ -244,20 +244,6 @@ When investigating implementation during validation (Phase 4):
 - **LSP** (`hover`, `goToDefinition`, `documentSymbol`) — types, signatures, and diagnostics
 
 Diagnostics surfaced by LSP (e.g., import errors, type mismatches) count as validation evidence — document them in the scorecard.
-
----
-
-## DOT Pipeline Authoring
-
-When creating DOT pipelines in Phase 0, load **[references/dot-pipeline-creation.md](references/dot-pipeline-creation.md)** for:
-- Correct shape-to-handler mapping (e.g., `Mdiamond` for start, `Msquare` for exit — NOT `house`/`octagon`)
-- Required attributes per handler type (codergen needs `bead_id`, `worker_type`, `sd_path`)
-- Cluster topology rules (every codergen must chain to `wait.cobuilder → wait.human`)
-- Diamond node edge rules (exactly 2 outgoing: `condition="pass"` + `condition="fail"`)
-- Valid worker types, gate types, and modes
-- Complete working example that passes all 20 validation rules
-
-Validate before committing: `python3 cobuilder/engine/cli.py validate <pipeline.dot>`
 
 ---
 
@@ -405,7 +391,7 @@ Load these reference files when entering each phase or when you need detailed gu
 | [references/gherkin-test-patterns.md](references/gherkin-test-patterns.md) | Phase 1: Writing Gherkin acceptance tests and executable browser tests |
 | [references/guardian-workflow.md](references/guardian-workflow.md) | Phase 2-3: Orchestrator spawning, monitoring patterns, intervention triggers |
 | [references/validation-scoring.md](references/validation-scoring.md) | Phase 4: Independent validation, evidence gathering, gap closure protocol |
-| [references/dot-pipeline-creation.md](references/dot-pipeline-creation.md) | DOT pipeline syntax, handler types, node attributes, validation |
+| [references/dot-pipeline-creation.md](references/dot-pipeline-creation.md) | Writing or editing DOT pipeline files manually, fixing validation errors from `cobuilder pipeline validate`, or understanding node shapes and required attributes |
 | [references/gap-closure-protocol.md](references/gap-closure-protocol.md) | Phase 4.5: Autonomous closure of validation gaps via fix-it codergen nodes |
 | [references/guardian-workflow.md](references/guardian-workflow.md) | Phase 2-3: Orchestrator spawning, monitoring patterns, intervention triggers, anti-patterns |
 
