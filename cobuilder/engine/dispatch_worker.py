@@ -62,8 +62,33 @@ def create_signal_evidence(node_id: str, status: str, sd_content: str = "", sd_p
     return signal
 
 
-# Keys that load_engine_env() is permitted to return.
-_ENGINE_ENV_KEYS = frozenset({"ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "ANTHROPIC_MODEL"})
+# Keys that load_engine_env() always loads (Anthropic SDK defaults).
+# Additional keys referenced by providers.yaml profiles (e.g. $OPENROUTER_API_KEY)
+# are also loaded — see _load_providers_env_keys().
+_CORE_ENV_KEYS = frozenset({"ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL", "ANTHROPIC_MODEL"})
+
+
+def _load_providers_env_keys() -> frozenset[str]:
+    """Scan providers.yaml for $VAR references and return the var names.
+
+    This allows load_engine_env() to load provider-specific keys like
+    OPENROUTER_API_KEY or MINIMAX_API_KEY from .env without hardcoding them.
+    """
+    import re
+
+    providers_path = _this_dir / "providers.yaml"
+    if not providers_path.exists():
+        return frozenset()
+
+    env_var_pattern = re.compile(r"\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?")
+    keys: set[str] = set()
+    try:
+        for line in providers_path.read_text(encoding="utf-8").splitlines():
+            for match in env_var_pattern.finditer(line):
+                keys.add(match.group(1))
+    except Exception:  # noqa: BLE001
+        pass
+    return frozenset(keys)
 
 
 # ---------------------------------------------------------------------------
@@ -79,7 +104,7 @@ def _find_attractor_env() -> Path:
 
 
 def load_engine_env() -> dict[str, str]:
-    """Load Anthropic credentials from ``cobuilder/engine/.env``.
+    """Load LLM credentials from ``cobuilder/engine/.env``.
 
     Reads the ``.env`` file co-located with this module and parses
     lines in the forms::
@@ -89,21 +114,23 @@ def load_engine_env() -> dict[str, str]:
         KEY="VALUE"
         KEY='VALUE'
 
-    Only keys in ``_ENGINE_ENV_KEYS`` (``ANTHROPIC_API_KEY``,
-    ``ANTHROPIC_BASE_URL``, ``ANTHROPIC_MODEL``) are returned; all other
-    lines are silently ignored.
+    Loads the core Anthropic SDK keys (``ANTHROPIC_API_KEY``,
+    ``ANTHROPIC_BASE_URL``, ``ANTHROPIC_MODEL``), **plus** any env var
+    keys referenced in ``providers.yaml`` (e.g. ``$OPENROUTER_API_KEY``,
+    ``$MINIMAX_API_KEY``).  Keys also matching the ``PIPELINE_*`` prefix
+    are loaded for runner configuration.
 
     Returns:
         Dict of allowed credential keys → values.  Returns ``{}`` if the
         file is missing or any parse error occurs.
     """
-    # This file lives at cobuilder/engine/dispatch_worker.py.
-    # The .env is at <project_root>/.claude/attractor/.env.
     env_path = _find_attractor_env()
 
     if not env_path.exists():
         logger.debug("load_engine_env: %s not found, skipping", env_path)
         return {}
+
+    allowed_keys = _CORE_ENV_KEYS | _load_providers_env_keys()
 
     result: dict[str, str] = {}
     try:
@@ -118,12 +145,17 @@ def load_engine_env() -> dict[str, str]:
                 continue
             key, _, value = line.partition("=")
             key = key.strip()
-            if key not in _ENGINE_ENV_KEYS:
+            if key not in allowed_keys and not key.startswith("PIPELINE_"):
                 continue
             # Strip surrounding quotes (" or ')
             value = value.strip()
             if len(value) >= 2 and value[0] in ('"', "'") and value[-1] == value[0]:
                 value = value[1:-1]
+            # Expand $VARIABLE references against already-parsed values
+            # and inherited environment (mirrors pipeline_runner behaviour)
+            if value.startswith("$"):
+                ref_key = value[1:]
+                value = result.get(ref_key, os.environ.get(ref_key, value))
             result[key] = value
     except Exception as exc:  # noqa: BLE001
         logger.warning("load_engine_env: failed to parse %s: %s", env_path, exc)

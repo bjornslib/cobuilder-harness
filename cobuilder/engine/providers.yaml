@@ -53,10 +53,31 @@ profiles:
     api_key: $DASHSCOPE_API_KEY
     base_url: https://coding-intl.dashscope.aliyuncs.com/apps/anthropic
 
-  # OpenRouter example — any provider speaking Anthropic API protocol works
-  # Uncomment and configure your OPENROUTER_API_KEY to use
-  #
-  # openrouter-smart:
-  #   model: anthropic/claude-sonnet-4-5
-  #   api_key: $OPENROUTER_API_KEY
-  #   base_url: https://openrouter.ai/api/v1
+  # OpenRouter — any model available on openrouter.ai
+  # Set OPENROUTER_API_KEY in cobuilder/engine/.env to use
+  openrouter-haiku:
+    model: anthropic/claude-haiku-4-5-20251001
+    api_key: $OPENROUTER_API_KEY
+    base_url: https://openrouter.ai/api/v1
+
+  openrouter-sonnet:
+    model: anthropic/claude-sonnet-4-5-20250514
+    api_key: $OPENROUTER_API_KEY
+    base_url: https://openrouter.ai/api/v1
+
+  openrouter-minimax:
+    model: minimax/minimax-m1-80k
+    api_key: $OPENROUTER_API_KEY
+    base_url: https://openrouter.ai/api/v1
+
+  # MiniMax direct API — set MINIMAX_API_KEY in cobuilder/engine/.env
+  minimax-direct:
+    model: MiniMax-M1-80k
+    api_key: $MINIMAX_API_KEY
+    base_url: https://api.minimax.chat/v1
+
+  # Anthropic Haiku via direct API (same as anthropic-fast, explicit alias)
+  haiku-45:
+    model: claude-haiku-4-5-20251001
+    api_key: $ANTHROPIC_API_KEY
+    base_url: https://api.anthropic.com

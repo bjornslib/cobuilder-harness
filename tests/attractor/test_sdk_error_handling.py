@@ -522,7 +522,62 @@ class TestLoadAttractorEnvPath:
 
         assert result.get("ANTHROPIC_API_KEY") == "test-key-from-dotenv"
         assert result.get("ANTHROPIC_MODEL") == "qwen-test-model"
-        assert "UNRELATED_KEY" not in result, "Non-allowlisted keys must not be returned"
+        assert "UNRELATED_KEY" not in result, (
+            "Keys not in core set, providers.yaml, or PIPELINE_* prefix must not be returned"
+        )
+
+    def test_load_engine_env_loads_provider_referenced_keys(self, tmp_path):
+        """load_engine_env() loads keys referenced by $VAR in providers.yaml."""
+        from cobuilder.engine import dispatch_worker as dw_mod
+
+        # Create a providers.yaml that references $OPENROUTER_API_KEY
+        providers_yaml = tmp_path / "providers.yaml"
+        providers_yaml.write_text(
+            "profiles:\n"
+            "  openrouter:\n"
+            "    model: test-model\n"
+            "    api_key: $OPENROUTER_API_KEY\n"
+            "    base_url: https://openrouter.ai/api/v1\n",
+            encoding="utf-8",
+        )
+
+        # Create a .env that defines OPENROUTER_API_KEY
+        dot_env = tmp_path / ".env"
+        dot_env.write_text(
+            "OPENROUTER_API_KEY=sk-or-test-key\n"
+            "ANTHROPIC_API_KEY=sk-ant-test\n",
+            encoding="utf-8",
+        )
+
+        original_this_dir = dw_mod._this_dir
+        try:
+            dw_mod._this_dir = tmp_path
+            result = dw_mod.load_engine_env()
+        finally:
+            dw_mod._this_dir = original_this_dir
+
+        assert result.get("OPENROUTER_API_KEY") == "sk-or-test-key"
+        assert result.get("ANTHROPIC_API_KEY") == "sk-ant-test"
+
+    def test_load_engine_env_expands_dollar_refs(self, tmp_path):
+        """load_engine_env() expands $VAR references in values."""
+        from cobuilder.engine import dispatch_worker as dw_mod
+
+        dot_env = tmp_path / ".env"
+        dot_env.write_text(
+            "ANTHROPIC_API_KEY=sk-original\n"
+            "ANTHROPIC_MODEL=$ANTHROPIC_API_KEY\n",
+            encoding="utf-8",
+        )
+
+        original_this_dir = dw_mod._this_dir
+        try:
+            dw_mod._this_dir = tmp_path
+            result = dw_mod.load_engine_env()
+        finally:
+            dw_mod._this_dir = original_this_dir
+
+        assert result.get("ANTHROPIC_MODEL") == "sk-original"
 
     def test_load_engine_env_returns_empty_if_missing(self, tmp_path):
         """When .env is absent, load_engine_env() returns {} without error."""
