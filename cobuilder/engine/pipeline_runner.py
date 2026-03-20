@@ -426,14 +426,13 @@ def _create_signal_stop_hook(signal_dir: str, node_id: str) -> dict:
         return {
             "decision": "block",
             "systemMessage": (
-                f"BLOCKED ({_block_count}/{_MAX_BLOCKS}): You have not written your signal file. "
-                f"Write it NOW before exiting.\n\n"
-                f"Use: Write(file_path=\"{signal_path}\", "
-                f"content='{{\"status\": \"success\", \"files_changed\": [\"list/of/files.py\"], "
-                f"\"message\": \"brief description\"}}')\n\n"
-                f"If you encountered an error, write an error signal instead:\n"
+                f"STOP GATE ({_block_count}/{_MAX_BLOCKS}): Signal file not found.\n\n"
+                f"YOUR ONLY REMAINING ACTION: Write the signal file below, then exit.\n"
+                f"Do NOT look for more work. Do NOT check beads or tasks. Do NOT run session protocols.\n"
+                f"Your assigned task ({node_id}) is COMPLETE. Just write the signal and stop.\n\n"
                 f"Write(file_path=\"{signal_path}\", "
-                f"content='{{\"status\": \"error\", \"message\": \"what went wrong\", \"files_changed\": []}}')"
+                f"content='{{\"status\": \"success\", \"files_changed\": [\"list/of/files.py\"], "
+                f"\"message\": \"brief description\"}}')"
             ),
         }
 
