@@ -121,6 +121,73 @@ def _write_finalize_signal(
     return signal_path
 
 
+def _cleanup_stale_signals(dot_content: str, node_id: str, dot_file: str) -> None:
+    """Move stale signal files for a node to processed/ directory.
+
+    When a node transitions back to 'pending' status, any leftover signal files
+    from previous attempts are moved to processed/ to ensure a clean slate.
+
+    This implements AC-5: signal cleanup on pending transitions.
+
+    Args:
+        dot_content: The DOT file content.
+        node_id: The node ID whose signals should be cleaned.
+        dot_file: Path to the DOT file (used to find the signals directory).
+
+    Raises:
+        Various exceptions (FileNotFoundError, etc.) if file operations fail.
+    """
+    from cobuilder.engine.dispatch_parser import parse_dot
+
+    # Extract pipeline_id from DOT graph attributes
+    data = parse_dot(dot_content)
+    graph_attrs = data.get("graph_attrs", {})
+    pipeline_id = graph_attrs.get("pipeline_id")
+    if not pipeline_id:
+        # No pipeline_id, can't find signals directory
+        return
+
+    # Determine signals directory: .pipelines/pipelines/signals/{pipeline_id}/
+    # or signals/{pipeline_id}/ if running from a different location
+    dot_dir = os.path.dirname(os.path.abspath(dot_file))
+
+    # Try to find signals directory:
+    # 1. First try: signals/ in the same directory as the dot file
+    signals_dir = os.path.join(dot_dir, "signals", pipeline_id)
+    if not os.path.isdir(signals_dir):
+        # 2. Second try: ../signals/ (if dot is in .pipelines/pipelines/)
+        signals_dir = os.path.join(os.path.dirname(dot_dir), "signals", pipeline_id)
+    if not os.path.isdir(signals_dir):
+        # 3. Third try: ../../signals/ (if dot is in a subdirectory)
+        signals_dir = os.path.join(os.path.dirname(os.path.dirname(dot_dir)), "signals", pipeline_id)
+
+    if not os.path.isdir(signals_dir):
+        # Signals directory doesn't exist, nothing to clean up
+        return
+
+    # Find all signal files for this node and move them to processed/
+    processed_dir = os.path.join(signals_dir, "processed")
+    os.makedirs(processed_dir, exist_ok=True)
+
+    # Look for signal files that match the node_id
+    # Signal files typically follow the pattern: {timestamp}-{node_id}.json
+    # or just {node_id}.json or similar variations
+    try:
+        for fname in os.listdir(signals_dir):
+            # Skip directories
+            if os.path.isdir(os.path.join(signals_dir, fname)):
+                continue
+            # Check if the filename contains the node_id
+            if node_id in fname and fname.endswith(".json"):
+                src_path = os.path.join(signals_dir, fname)
+                dst_path = os.path.join(processed_dir, fname)
+                os.rename(src_path, dst_path)
+    except OSError:
+        # If we can't list the directory, just silently return
+        # (might be permission issue)
+        pass
+
+
 def check_transition(current: str, target: str) -> tuple[bool, str]:
     """Check if a status transition is valid.
 
@@ -141,7 +208,7 @@ def check_transition(current: str, target: str) -> tuple[bool, str]:
 
 
 def apply_transition(
-    dot_content: str, node_id: str, new_status: str
+    dot_content: str, node_id: str, new_status: str, dot_file: str | None = None
 ) -> tuple[str, str]:
     """Apply a status transition to a DOT file string.
 
@@ -151,6 +218,17 @@ def apply_transition(
     For finalize nodes (shape=Msquare or handler=exit), enforces the finalize
     gate: all hexagon (wait.human) nodes must be 'validated' before the
     finalize node can be activated.
+
+    When new_status='pending' and dot_file is provided, moves any stale signal
+    files matching node_id from the active signals directory to processed/,
+    ensuring a clean slate for the new attempt.
+
+    Args:
+        dot_content: The DOT file content as a string.
+        node_id: The node ID to transition.
+        new_status: The target status.
+        dot_file: Optional path to the DOT file. If provided and new_status='pending',
+                  signal files for this node will be cleaned up.
 
     Returns (updated_content, log_message).
     """
@@ -201,6 +279,17 @@ def apply_transition(
 
     timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
     log_msg = f"[{timestamp}] {node_id}: {current_status} -> {new_status}"
+
+    # --- Signal cleanup on pending transition (AC-5) ---
+    # When transitioning to pending status, clean up any stale signal files
+    # for this node so the worker has a clean slate for the new attempt.
+    if new_status == "pending" and dot_file:
+        try:
+            _cleanup_stale_signals(dot_content, node_id, dot_file)
+        except Exception as exc:
+            # Log the error but don't fail the transition
+            import sys
+            print(f"Warning: Signal cleanup failed for node '{node_id}': {exc}", file=sys.stderr)
 
     return updated, log_msg
 
@@ -487,9 +576,9 @@ def _update_node_attr(content: str, node_id: str, attr: str, value: str) -> str:
         new_block = block[: m.start()] + f'{attr}="{value}"' + block[m.end() :]
         return content[:start] + new_block + content[end:]
 
-    # Try unquoted: attr=value
+    # Try unquoted: attr=value (exclude ] from value to avoid eating closing bracket)
     attr_pattern_unquoted = re.compile(
-        r'(' + re.escape(attr) + r')\s*=\s*(\S+)'
+        r'(' + re.escape(attr) + r')\s*=\s*([^\s\]]+)'
     )
     m = attr_pattern_unquoted.search(block)
     if m:
@@ -728,7 +817,7 @@ def _cmd_transition(args: argparse.Namespace, content: str) -> None:
             break
 
     try:
-        updated, log_msg = apply_transition(content, args.node_id, args.new_status)
+        updated, log_msg = apply_transition(content, args.node_id, args.new_status, dot_file=args.file)
     except ValueError as e:
         if output == "json":
             print(json.dumps({"success": False, "error": str(e)}, indent=2))
