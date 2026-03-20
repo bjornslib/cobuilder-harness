@@ -400,11 +400,18 @@ def _create_signal_stop_hook(signal_dir: str, node_id: str) -> dict:
         {"Stop": [HookMatcher(hooks=[callback])]}
     """
     signal_path = os.path.join(signal_dir, f"{node_id}.json")
+    processed_dir = os.path.join(signal_dir, "processed")
 
     async def _check_signal(hook_input: dict, event_name: str | None, context: Any) -> Any:  # HookJSONOutput
         """Stop hook: block exit if signal file missing."""
+        # Check active signal dir
         if os.path.exists(signal_path):
             return {}  # Signal exists, allow exit
+        # Also check processed/ — runner may have already consumed the signal
+        if os.path.isdir(processed_dir):
+            for fname in os.listdir(processed_dir):
+                if node_id in fname and fname.endswith(".json"):
+                    return {}  # Signal was processed, allow exit
         return {
             "decision": "block",
             "systemMessage": (
