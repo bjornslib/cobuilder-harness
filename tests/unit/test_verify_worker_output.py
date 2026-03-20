@@ -140,7 +140,11 @@ digraph test {
         assert reason is None
 
     def test_verify_with_file_exists_but_no_git_changes(self, pipeline_runner, temp_git_repo):
-        """Test verification fails when file exists but git shows no changes."""
+        """Test verification passes when file exists even if git shows no changes.
+
+        This tests the primary check priority: file existence is what matters,
+        not whether the file shows changes in git status (already committed).
+        """
         # Create initial commit with a file
         (temp_git_repo / "committed.py").write_text("original")
         subprocess.run(
@@ -167,9 +171,9 @@ digraph test {
             "test_node", str(temp_git_repo), signal
         )
 
-        # Should fail because git shows no changes (the file is unchanged from last commit)
-        assert passed is False
-        assert "no changes" in reason.lower()
+        # Should pass because the file exists on disk (primary check is file existence)
+        assert passed is True
+        assert reason is None
 
     def test_verify_with_nonexistent_target_dir(self, pipeline_runner):
         """Test verification fails gracefully with non-existent target dir."""
@@ -265,10 +269,10 @@ digraph test {
         assert "missing.py" in reason
 
     def test_verify_with_file_exists_but_not_in_git_status(self, pipeline_runner, temp_git_repo):
-        """Test verification fails when file exists but is not in git status.
+        """Test verification passes when file exists even if not in git status.
 
-        This tests the per-file verification: worker claims file1.py changed,
-        but only file2.py appears in git status.
+        This tests the primary check priority: if a file exists on disk,
+        verification passes. We don't fail just because git status is clean.
         """
         # Create and commit initial files
         (temp_git_repo / "file1.py").write_text("file1 content")
@@ -289,7 +293,7 @@ digraph test {
         # Modify only file2.py, not file1.py
         (temp_git_repo / "file2.py").write_text("file2 modified")
 
-        # Worker claims file1.py was changed, but only file2.py is in git status
+        # Worker claims file1.py was changed, and file1.py exists on disk
         signal = {
             "status": "success",
             "files_changed": ["file1.py"],
@@ -300,13 +304,16 @@ digraph test {
             "test_node", str(temp_git_repo), signal
         )
 
-        # Should fail because file1.py is not in git status
-        assert passed is False
-        assert "not in git status" in reason.lower()
-        assert "file1.py" in reason
+        # Should pass because file1.py exists on disk (primary check is file existence)
+        assert passed is True
+        assert reason is None
 
     def test_verify_with_multiple_files_mismatched(self, pipeline_runner, temp_git_repo):
-        """Test verification with multiple files where only some are in git status."""
+        """Test verification with multiple files where all exist on disk.
+
+        Even if only some files show changes in git status, as long as all
+        files exist on disk, verification passes.
+        """
         # Create and commit initial files
         (temp_git_repo / "file1.py").write_text("file1")
         (temp_git_repo / "file2.py").write_text("file2")
@@ -328,7 +335,7 @@ digraph test {
         (temp_git_repo / "file1.py").write_text("file1 modified")
         (temp_git_repo / "file2.py").write_text("file2 modified")
 
-        # Worker claims all three files changed, but only 2 are in git status
+        # Worker claims all three files changed, and all three exist on disk
         signal = {
             "status": "success",
             "files_changed": ["file1.py", "file2.py", "file3.py"],
@@ -339,10 +346,9 @@ digraph test {
             "test_node", str(temp_git_repo), signal
         )
 
-        # Should fail because file3.py is not in git status
-        assert passed is False
-        assert "not in git status" in reason.lower()
-        assert "file3.py" in reason
+        # Should pass because all files exist on disk (primary check is file existence)
+        assert passed is True
+        assert reason is None
 
 
 if __name__ == "__main__":

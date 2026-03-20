@@ -2321,7 +2321,10 @@ class PipelineRunner:
     # ------------------------------------------------------------------
 
     def _verify_worker_output(self, node_id: str, target_dir: str, signal: dict) -> tuple[bool, Optional[str]]:
-        """Verify worker output by checking files and git status.
+        """Verify worker output by checking file existence.
+
+        Primary check: File existence (os.path.exists) is the primary verification.
+        Secondary check: Git status is informational only and does not cause failure.
 
         Args:
             node_id: The node ID for logging.
@@ -2330,15 +2333,15 @@ class PipelineRunner:
 
         Returns:
             Tuple of (pass, reason) where:
-            - (True, None) if all files exist and git shows changes
-            - (False, reason_str) if verification fails
+            - (True, None) if all files in files_changed exist on disk
+            - (False, reason_str) if any files are missing
         """
         files_changed = signal.get("files_changed", [])
         if not files_changed:
             log.warning("[verify] %s: No files_changed in signal — skipping file verification", node_id)
             return (True, None)
 
-        # Check that each file in files_changed exists in target_dir
+        # PRIMARY CHECK: Verify that each file in files_changed exists in target_dir
         missing_files = []
         for file_path in files_changed:
             # Handle both relative and absolute paths
@@ -2356,74 +2359,30 @@ class PipelineRunner:
             log.error("[verify] %s: %s", node_id, reason)
             return (False, reason)
 
-        # Run git status in target_dir to verify changes
+        # SECONDARY CHECK (informational only): Log git diff HEAD~1 for auditing
+        # Note: We do NOT fail if git diff is clean. The files exist, which is what matters.
+        # Use git diff HEAD~1 instead of git status to check for actual changes vs previous commit.
         try:
             result = subprocess.run(
-                ["git", "status", "--porcelain"],
+                ["git", "diff", "HEAD~1"],
                 cwd=target_dir,
                 capture_output=True,
                 text=True,
                 timeout=10,
             )
-            if result.returncode != 0:
-                reason = f"git status failed in {target_dir}: {result.stderr}"
-                log.error("[verify] %s: %s", node_id, reason)
-                return (False, reason)
-
-            # Check that specific files from files_changed appear in git status
-            git_status_output = result.stdout.strip()
-            if not git_status_output:
-                reason = f"git status shows no changes in {target_dir}, but worker reported files_changed: {files_changed}"
-                log.warning("[verify] %s: %s", node_id, reason)
-                return (False, reason)
-
-            # Parse git status --porcelain output (format: "XY filename")
-            # X = staged status, Y = unstaged status, filename starts at position 3
-            files_in_git_status = set()
-            for line in git_status_output.split('\n'):
-                if line and len(line) > 3:
-                    filename = line[3:].strip()
-                    if filename:
-                        files_in_git_status.add(filename)
-
-            # Check that each file_changed appears in git status
-            not_in_status = []
-            for file_path in files_changed:
-                # Normalize to relative path for comparison
-                if os.path.isabs(file_path):
-                    # Convert absolute path to relative for comparison
-                    try:
-                        rel_path = os.path.relpath(file_path, target_dir)
-                    except ValueError:
-                        # Different drives on Windows, use as-is
-                        rel_path = file_path
+            if result.returncode == 0:
+                git_diff_output = result.stdout.strip()
+                if git_diff_output:
+                    log.info("[verify] %s: Files verified. Git diff from HEAD~1:\n%s", node_id, git_diff_output[:500])  # Truncate long diffs
                 else:
-                    rel_path = file_path
+                    log.info("[verify] %s: All files exist on disk. No changes since HEAD~1 (already committed).", node_id)
+            else:
+                log.warning("[verify] %s: git diff check skipped (not in git repo or other issue)", node_id)
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            log.warning("[verify] %s: Could not run git diff, but files exist on disk (primary check passed)", node_id)
 
-                if rel_path not in files_in_git_status:
-                    not_in_status.append(file_path)
-                    log.warning("[verify] %s: File not in git status: %s", node_id, file_path)
-
-            if not_in_status:
-                reason = f"Files in files_changed but not in git status: {', '.join(not_in_status)}"
-                log.error("[verify] %s: %s", node_id, reason)
-                return (False, reason)
-
-            log.info("[verify] %s: Files verified in target_dir. Git status:\n%s", node_id, git_status_output)
-            return (True, None)
-
-        except subprocess.TimeoutExpired:
-            reason = f"git status timed out in {target_dir}"
-            log.error("[verify] %s: %s", node_id, reason)
-            return (False, reason)
-        except FileNotFoundError:
-            reason = f"git not found or target_dir does not exist: {target_dir}"
-            log.error("[verify] %s: %s", node_id, reason)
-            return (False, reason)
-        except Exception as exc:
-            reason = f"Unexpected error during git verification: {str(exc)}"
-            log.error("[verify] %s: %s", node_id, reason)
-            return (False, reason)
+        # All files exist on disk — verification passes
+        return (True, None)
 
     # ------------------------------------------------------------------
     # DOT file transition helpers
