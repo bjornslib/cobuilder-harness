@@ -530,6 +530,7 @@ If the judge finds you could have continued but chose to stop, it will **block**
 | "Look for future opportunities" vague task | Step 4 blocks — same reason |
 | Stopping with no tasks and no AskUserQuestion | Step 5 blocks — you didn't present options |
 | Stopping when P0-P2 beads are ready | Step 5 blocks — actionable work available |
+| **Background pipeline monitor** (`run_in_background=True`) | System 3 loses control — monitor runs detached, S3 can't act on results. Pipeline monitors MUST be **blocking** (`run_in_background=False`). This is NON-NEGOTIABLE. |
 
 ### Valid Exit Patterns
 
@@ -657,8 +658,9 @@ cobuilder pipeline status .cobuilder/pipelines/${INITIATIVE}.dot --json --summar
 
 **If no pipeline exists** for the active initiative and the initiative has 2+ tasks:
 1. **STOP** — do not proceed to orchestrator dispatch
-2. Run `Skill("cobuilder-guardian")` Phase 0.2 to create the pipeline via `cobuilder pipeline create`
-3. Return to PREFLIGHT after pipeline creation
+2. **MANDATORY**: Load `Read(".claude/skills/cobuilder-guardian/references/dot-pipeline-creation.md")` BEFORE writing ANY `.dot` file — the DOT format has strict schema requirements that WILL cause validation errors if written from memory
+3. Run `Skill("cobuilder-guardian")` Phase 0.2 to create the pipeline via `cobuilder pipeline create`
+4. Return to PREFLIGHT after pipeline creation
 
 **Topology validation**: When pipelines are created or validated, ensure they follow the required topology rules:
 - Every `codergen` cluster should follow: `acceptance-test-writer -> research -> refine -> codergen -> wait.cobuilder[e2e] -> wait.human[e2e-review]`

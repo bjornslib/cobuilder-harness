@@ -40,11 +40,15 @@ digraph "PRD-AUTH-001" {
 |-----------|----------|-------------|
 | `pipeline_id` | Recommended | Unique pipeline identifier |
 | `prd_ref` | Recommended | PRD identifier (e.g., `"PRD-AUTH-001"`) |
+| `cobuilder_root` | **Required** | Absolute path to the harness repo root (where `cobuilder/`, `docs/sds/`, skills live). Used for resolving SD paths and harness-local resources. Must be absolute. |
+| `target_dir` | **Required** | Absolute path to the target working directory (worktree where workers write code). Must be absolute and point to an existing directory. |
 | `label` | Optional | Human-readable pipeline name |
 | `retry_target` | Optional | Fallback retry node ID for nodes without explicit retry_target |
 | `fallback_retry_target` | Optional | Second-level fallback retry target |
 | `default_max_retry` | Optional | Max total executions before loop detection (default: 50) |
 | `model_stylesheet` | Optional | CSS-like stylesheet for LLM model routing |
+
+**Important**: `target_repo` is **deprecated** and will be rejected by the validator. Use `target_dir` instead.
 
 ---
 
@@ -448,6 +452,7 @@ Nodes reference named profiles via `llm_profile="..."` instead of raw model name
 |---------|-------|------|
 | `anthropic-fast` | `claude-haiku-4-5-20251001` | Low |
 | `anthropic-smart` | `claude-sonnet-4-5-20250514` | Medium |
+| `anthropic-sonnet46` | `claude-sonnet-4-6` | Medium |
 | `anthropic-opus` | `claude-opus-4-6` | High |
 | `alibaba-glm5` | `glm-5` | Near-$0 (default) |
 | `alibaba-qwen3` | `qwen3-coder-plus` | Near-$0 |
@@ -464,6 +469,8 @@ digraph "PRD-AUTH-001" {
         pipeline_id="auth-pipeline-001"
         prd_ref="PRD-AUTH-001"
         label="Authentication Service Pipeline"
+        cobuilder_root="/absolute/path/to/cobuilder-harness"
+        target_dir="/absolute/path/to/target-repo-or-worktree"
     ]
 
     node [style=filled]

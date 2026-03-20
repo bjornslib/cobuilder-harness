@@ -328,7 +328,17 @@ This creates a continuous monitoring cycle with predictable wake-up intervals an
 
 ### Creating a New Pipeline
 
-See **[references/dot-pipeline-creation.md](references/dot-pipeline-creation.md)** for:
+**MANDATORY PRE-FLIGHT: Before writing or editing ANY `.dot` pipeline file, you MUST load the reference first:**
+
+```python
+Read(".claude/skills/cobuilder-guardian/references/dot-pipeline-creation.md")
+```
+
+**This is a hard gate, not a suggestion.** The DOT format has strict schema requirements (hexagon shapes for gates, mandatory `gate_type` attributes, required 2-outbound edges on gates, required `sd_path` on codergen, required downstream `wait.human` nodes). Writing from memory WILL produce validation errors. The reference contains the exact schema, required attributes per handler, and a minimal working example.
+
+**Do NOT skip this even if you have seen DOT files earlier in the session.** The "I remember this" rationalization is the #1 cause of DOT validation failures.
+
+The reference covers:
 - Minimal DOT example with full node types and attributes
 - Handler type mapping (start, codergen, research, refine, wait.cobuilder, wait.human, exit)
 - Required vs optional node attributes per handler

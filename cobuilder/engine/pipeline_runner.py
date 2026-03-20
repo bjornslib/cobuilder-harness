@@ -1477,7 +1477,7 @@ class PipelineRunner:
                 max_turns=_max_turns,
                 cwd=effective_dir,
                 env=clean_env,
-                can_use_tool=path_guard,
+                # can_use_tool=path_guard,  # DISABLED: requires AsyncIterable prompt — see Issue #6
             )
             messages = []
             result_text = ""
@@ -1962,7 +1962,7 @@ class PipelineRunner:
                 cwd=effective_dir,
                 max_turns=100,
                 env=clean_env,
-                can_use_tool=validation_path_guard,
+                # can_use_tool=validation_path_guard,  # DISABLED: requires AsyncIterable prompt — see Issue #6
             )
             messages = []
             _first_msg_logged = False
