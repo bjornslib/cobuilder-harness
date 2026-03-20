@@ -79,6 +79,43 @@ def _get_rate_limit_backoff() -> int:
     """Get backoff seconds. Set PIPELINE_RATE_LIMIT_BACKOFF=0 to skip sleep."""
     return int(os.environ.get("PIPELINE_RATE_LIMIT_BACKOFF", str(_RATE_LIMIT_BACKOFF_SECONDS_DEFAULT)))
 
+
+# ---------------------------------------------------------------------------
+# Path guard factory — creates isolated SDK dispatch environment
+# ---------------------------------------------------------------------------
+
+def _create_path_guard(target_dir: str, signal_dir: str) -> dict:
+    """Create a path guard configuration for SDK worker dispatch.
+
+    The path guard encapsulates:
+    - Permission mode (bypassPermissions for agent execution)
+    - Working directory isolation
+    - Environment variable isolation (removes CLAUDECODE)
+    - Signal file directory registration
+
+    Args:
+        target_dir: The isolated working directory for the worker
+        signal_dir: The directory for worker signal files
+
+    Returns:
+        A dict with:
+        - cwd: The working directory for the worker
+        - permission_mode: SDK permission level ("bypassPermissions")
+        - env: Cleaned environment with PATH_GUARD-related variables
+    """
+    # Build clean env without CLAUDECODE to prevent nested session detection
+    clean_env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
+
+    # Register signal and project directories for worker
+    clean_env["PIPELINE_SIGNAL_DIR"] = str(signal_dir)
+    clean_env["PROJECT_TARGET_DIR"] = target_dir
+
+    return {
+        "cwd": target_dir,
+        "permission_mode": "bypassPermissions",
+        "env": clean_env,
+    }
+
 # ---------------------------------------------------------------------------
 # Watchdog import (optional — falls back to polling if not installed)
 # ---------------------------------------------------------------------------
