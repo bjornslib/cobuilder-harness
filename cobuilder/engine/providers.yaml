@@ -23,23 +23,30 @@
 # handler_defaults or manifest defaults override it. Layer 5 fallback.
 default_profile: alibaba-glm5
 
+# Judge profile — used by the System 3 continuation judge (stop hook).
+# Defaults to alibaba-glm5 for near-zero cost evaluation.
+judge_profile: alibaba-glm5
+
 profiles:
   # Anthropic Haiku — fast, cheap, good for research and summarization
+  # No api_key: SDK workers use Claude CLI's built-in OAuth session auth
   anthropic-fast:
     model: claude-haiku-4-5-20251001
-    api_key: $ANTHROPIC_API_KEY
     base_url: https://api.anthropic.com
 
-  # Anthropic Sonnet — balanced, good for implementation
+  # Anthropic Sonnet 4.5 — balanced, good for implementation
   anthropic-smart:
     model: claude-sonnet-4-5-20250514
-    api_key: $ANTHROPIC_API_KEY
+    base_url: https://api.anthropic.com
+
+  # Anthropic Sonnet 4.6 — latest Sonnet, good for validation
+  anthropic-sonnet46:
+    model: claude-sonnet-4-6
     base_url: https://api.anthropic.com
 
   # Anthropic Opus — most capable, good for complex reasoning
   anthropic-opus:
     model: claude-opus-4-6
-    api_key: $ANTHROPIC_API_KEY
     base_url: https://api.anthropic.com
 
   # Alibaba Cloud DashScope — GLM-5 and Qwen3 models via Anthropic-compatible API
