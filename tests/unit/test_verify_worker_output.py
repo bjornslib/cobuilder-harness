@@ -51,14 +51,18 @@ class TestVerifyWorkerOutput:
     @pytest.fixture
     def pipeline_runner(self, temp_git_repo):
         """Create a PipelineRunner instance for testing."""
-        # Create a minimal DOT file
+        # Create a minimal DOT file with required attributes
         dot_file = temp_git_repo / "test.dot"
         dot_file.write_text("""
 digraph test {
-    graph [target_dir="%s"];
+    graph [
+        pipeline_id="test"
+        cobuilder_root="%s"
+        target_dir="%s"
+    ];
     start [shape=Mdiamond status=pending];
 }
-""" % str(temp_git_repo))
+""" % (str(temp_git_repo), str(temp_git_repo)))
 
         runner = PipelineRunner(str(dot_file))
         return runner
@@ -259,6 +263,86 @@ digraph test {
 
         assert passed is False
         assert "missing.py" in reason
+
+    def test_verify_with_file_exists_but_not_in_git_status(self, pipeline_runner, temp_git_repo):
+        """Test verification fails when file exists but is not in git status.
+
+        This tests the per-file verification: worker claims file1.py changed,
+        but only file2.py appears in git status.
+        """
+        # Create and commit initial files
+        (temp_git_repo / "file1.py").write_text("file1 content")
+        (temp_git_repo / "file2.py").write_text("file2 content")
+        subprocess.run(
+            ["git", "add", "."],
+            cwd=temp_git_repo,
+            capture_output=True,
+            check=True
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "initial"],
+            cwd=temp_git_repo,
+            capture_output=True,
+            check=True
+        )
+
+        # Modify only file2.py, not file1.py
+        (temp_git_repo / "file2.py").write_text("file2 modified")
+
+        # Worker claims file1.py was changed, but only file2.py is in git status
+        signal = {
+            "status": "success",
+            "files_changed": ["file1.py"],
+            "message": "test"
+        }
+
+        passed, reason = pipeline_runner._verify_worker_output(
+            "test_node", str(temp_git_repo), signal
+        )
+
+        # Should fail because file1.py is not in git status
+        assert passed is False
+        assert "not in git status" in reason.lower()
+        assert "file1.py" in reason
+
+    def test_verify_with_multiple_files_mismatched(self, pipeline_runner, temp_git_repo):
+        """Test verification with multiple files where only some are in git status."""
+        # Create and commit initial files
+        (temp_git_repo / "file1.py").write_text("file1")
+        (temp_git_repo / "file2.py").write_text("file2")
+        (temp_git_repo / "file3.py").write_text("file3")
+        subprocess.run(
+            ["git", "add", "."],
+            cwd=temp_git_repo,
+            capture_output=True,
+            check=True
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "initial"],
+            cwd=temp_git_repo,
+            capture_output=True,
+            check=True
+        )
+
+        # Modify only file1.py and file2.py
+        (temp_git_repo / "file1.py").write_text("file1 modified")
+        (temp_git_repo / "file2.py").write_text("file2 modified")
+
+        # Worker claims all three files changed, but only 2 are in git status
+        signal = {
+            "status": "success",
+            "files_changed": ["file1.py", "file2.py", "file3.py"],
+            "message": "test"
+        }
+
+        passed, reason = pipeline_runner._verify_worker_output(
+            "test_node", str(temp_git_repo), signal
+        )
+
+        # Should fail because file3.py is not in git status
+        assert passed is False
+        assert "not in git status" in reason.lower()
+        assert "file3.py" in reason
 
 
 if __name__ == "__main__":
