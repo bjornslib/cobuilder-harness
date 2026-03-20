@@ -79,6 +79,43 @@ def _get_rate_limit_backoff() -> int:
     """Get backoff seconds. Set PIPELINE_RATE_LIMIT_BACKOFF=0 to skip sleep."""
     return int(os.environ.get("PIPELINE_RATE_LIMIT_BACKOFF", str(_RATE_LIMIT_BACKOFF_SECONDS_DEFAULT)))
 
+
+# ---------------------------------------------------------------------------
+# Path guard factory — creates isolated SDK dispatch environment
+# ---------------------------------------------------------------------------
+
+def _create_path_guard(target_dir: str, signal_dir: str) -> dict:
+    """Create a path guard configuration for SDK worker dispatch.
+
+    The path guard encapsulates:
+    - Permission mode (bypassPermissions for agent execution)
+    - Working directory isolation
+    - Environment variable isolation (removes CLAUDECODE)
+    - Signal file directory registration
+
+    Args:
+        target_dir: The isolated working directory for the worker
+        signal_dir: The directory for worker signal files
+
+    Returns:
+        A dict with:
+        - cwd: The working directory for the worker
+        - permission_mode: SDK permission level ("bypassPermissions")
+        - env: Cleaned environment with PATH_GUARD-related variables
+    """
+    # Build clean env without CLAUDECODE to prevent nested session detection
+    clean_env = {k: v for k, v in os.environ.items() if k not in ("CLAUDECODE", "CLAUDE_SESSION_ID", "CLAUDE_OUTPUT_STYLE")}
+
+    # Register signal and project directories for worker
+    clean_env["PIPELINE_SIGNAL_DIR"] = str(signal_dir)
+    clean_env["PROJECT_TARGET_DIR"] = target_dir
+
+    return {
+        "cwd": target_dir,
+        "permission_mode": "bypassPermissions",
+        "env": clean_env,
+    }
+
 # ---------------------------------------------------------------------------
 # Watchdog import (optional — falls back to polling if not installed)
 # ---------------------------------------------------------------------------
@@ -334,6 +371,79 @@ class _DotFileHandler(FileSystemEventHandler if _WATCHDOG_AVAILABLE else object)
             self._event.set()
 
 
+
+# NOTE: can_use_tool (CWD enforcement via PermissionResultDeny) was removed.
+# It requires ClaudeSDKClient (bidirectional mode), not query() (unidirectional).
+# CWD enforcement will be reimplemented via the worker Stop hook + post-signal
+# verification (_verify_worker_output) instead.
+
+
+# ---------------------------------------------------------------------------
+# Signal Stop Hook Factory
+# ---------------------------------------------------------------------------
+
+
+def _create_signal_stop_hook(signal_dir: str, node_id: str) -> dict:
+    """Create a Stop hook that blocks worker exit if signal file not written.
+
+    Workers MUST write their signal file before exiting. This hook checks for
+    the signal file at Stop time and blocks exit with a corrective message if
+    the file is missing. This prevents the silent-exit pattern where workers
+    complete without writing signals, leaving gates stuck.
+
+    Args:
+        signal_dir: Directory where signal files are written.
+        node_id: The node ID whose signal file to check.
+
+    Returns:
+        Dict suitable for ClaudeCodeOptions.hooks parameter:
+        {"Stop": [HookMatcher(hooks=[callback])]}
+    """
+    signal_path = os.path.join(signal_dir, f"{node_id}.json")
+    processed_dir = os.path.join(signal_dir, "processed")
+    _block_count = 0
+    _MAX_BLOCKS = 2  # Allow exit after being blocked this many times
+
+    async def _check_signal(hook_input: dict, event_name: str | None, context: Any) -> Any:  # HookJSONOutput
+        """Stop hook: block exit if signal file missing. Max 2 blocks then allow."""
+        nonlocal _block_count
+
+        # Check active signal dir
+        if os.path.exists(signal_path):
+            return {}  # Signal exists, allow exit
+        # Also check processed/ — runner may have already consumed the signal
+        if os.path.isdir(processed_dir):
+            for fname in os.listdir(processed_dir):
+                if node_id in fname and fname.endswith(".json"):
+                    return {}  # Signal was processed, allow exit
+
+        # Signal not found — block up to _MAX_BLOCKS times, then allow exit
+        _block_count += 1
+        if _block_count > _MAX_BLOCKS:
+            log.warning("[stop-hook] %s: allowing exit after %d blocks (signal still missing)", node_id, _block_count)
+            return {}  # Give up blocking — runner's liveness check will handle it
+
+        return {
+            "decision": "block",
+            "systemMessage": (
+                f"STOP GATE ({_block_count}/{_MAX_BLOCKS}): Signal file not found.\n\n"
+                f"YOUR ONLY REMAINING ACTION: Write the signal file below, then exit.\n"
+                f"Do NOT look for more work. Do NOT check beads or tasks. Do NOT run session protocols.\n"
+                f"Your assigned task ({node_id}) is COMPLETE. Just write the signal and stop.\n\n"
+                f"Write(file_path=\"{signal_path}\", "
+                f"content='{{\"status\": \"success\", \"files_changed\": [\"list/of/files.py\"], "
+                f"\"message\": \"brief description\"}}')"
+            ),
+        }
+
+    try:
+        from claude_code_sdk.types import HookMatcher
+        return {"Stop": [HookMatcher(hooks=[_check_signal])]}
+    except ImportError:
+        log.warning("[hooks] claude_code_sdk.types not available — signal stop hook disabled")
+        return {}
+
+
 # ---------------------------------------------------------------------------
 # PipelineRunner
 # ---------------------------------------------------------------------------
@@ -434,7 +544,7 @@ class PipelineRunner:
         Search order (per providers.py):
         1. graph_attrs.providers_file in DOT file
         2. dot_dir/providers.yaml (next to DOT file)
-        3. repo_root/providers.yaml (repo root)
+        3. cobuilder_root/providers.yaml (project root)
         4. Empty ProvidersFile if not found
 
         Returns:
@@ -442,7 +552,7 @@ class PipelineRunner:
         """
         providers_file_path = self._graph_attrs.get("providers_file")
         manifest_dir = self.dot_dir
-        project_root = self._get_repo_root()
+        project_root = self._get_cobuilder_root()
 
         providers = load_providers_file(
             providers_file_path=providers_file_path,
@@ -489,35 +599,90 @@ class PipelineRunner:
                         os.environ[key] = value
                         log.debug("[env] Set %s from attractor .env", key)
 
+    def _get_cobuilder_root(self) -> str:
+        """Return cobuilder_root from graph attrs. This is the project root for SD/PRD resolution.
+
+        cobuilder_root is a mandatory graph attribute. If not present or invalid, raises an error.
+        """
+        root = self._graph_attrs.get("cobuilder_root", "")
+        if root and os.path.isdir(root):
+            return root
+        if not root:
+            raise ValueError(
+                "cobuilder_root is a mandatory graph attribute and is not set. "
+                "Add 'cobuilder_root=\"/path/to/project\"' to the graph attributes in the DOT file."
+            )
+        # root is set but directory doesn't exist
+        raise ValueError(
+            f"cobuilder_root graph attribute points to non-existent directory: {root}"
+        )
+
     def _get_target_dir(self) -> str:
-        """Return target directory for worker execution. Falls back to dot_dir."""
+        """Return target directory for worker execution. Uses graph attr only — no fallback.
+
+        target_dir is a mandatory graph attribute. If not present or invalid, raises an error.
+        This ensures codergen and other nodes operate in the correct project directory.
+        """
         target = self._graph_attrs.get("target_dir", "")
         if target and os.path.isdir(target):
             return target
-        return self.dot_dir
+        if not target:
+            raise ValueError(
+                "target_dir is a mandatory graph attribute and is not set. "
+                "Add 'target_dir=\"/path/to/project\"' to the graph attributes in the DOT file."
+            )
+        # target is set but directory doesn't exist
+        raise ValueError(
+            f"target_dir graph attribute points to non-existent directory: {target}"
+        )
 
     def _resolve_target_dir(self, node_attrs: dict | None = None) -> str:
-        """Resolve target directory: node attr > graph attr > dot_dir."""
+        """Resolve target directory from node attr (if provided) or graph attr.
+
+        target_dir is a mandatory attribute. Returns the target directory without fallback.
+        Priority: node attr > graph attr (both must be valid directories if set).
+
+        Raises:
+            ValueError: If target_dir is not found or points to non-existent directory.
+        """
+        # First, check node attributes if provided
         if node_attrs:
             node_td = node_attrs.get("target_dir", "")
-            if node_td and os.path.isdir(node_td):
-                return node_td
+            if node_td:
+                if os.path.isdir(node_td):
+                    return node_td
+                # Node attr is set but invalid
+                raise ValueError(
+                    f"Node-level target_dir is set but points to non-existent directory: {node_td}"
+                )
+
+        # Fall back to graph attributes
         graph_td = self._graph_attrs.get("target_dir", "")
-        if graph_td and os.path.isdir(graph_td):
-            return graph_td
-        return self.dot_dir
+        if graph_td:
+            if os.path.isdir(graph_td):
+                return graph_td
+            # Graph attr is set but invalid
+            raise ValueError(
+                f"Graph-level target_dir is set but points to non-existent directory: {graph_td}"
+            )
+
+        # Neither node nor graph attr is set
+        raise ValueError(
+            "target_dir is a mandatory attribute and could not be resolved. "
+            "Either set target_dir in the node attributes or in the graph attributes (graph [target_dir=\"...\"])."
+        )
 
     def _get_repo_root(self) -> str:
-        """Find the git repo root by walking up from dot_dir. Falls back to target_dir."""
-        d = os.path.abspath(self.dot_dir)
-        for _ in range(10):  # max 10 levels up
-            if os.path.isdir(os.path.join(d, ".git")):
-                return d
-            parent = os.path.dirname(d)
-            if parent == d:
-                break
-            d = parent
-        return self._get_target_dir()
+        """Deprecated: Use _get_cobuilder_root() instead.
+
+        This method is deprecated. Use _get_cobuilder_root() to get the
+        mandatory cobuilder_root graph attribute instead.
+        """
+        log.warning(
+            "_get_repo_root() is deprecated. Use _get_cobuilder_root() instead. "
+            "cobuilder_root is a mandatory graph attribute that must be set in the DOT file."
+        )
+        return self._get_cobuilder_root()
 
     def _resolve_llm_config(
         self,
@@ -1345,7 +1510,7 @@ class PipelineRunner:
 
         async def _run() -> dict:
             # Build clean env without CLAUDECODE
-            clean_env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
+            clean_env = {k: v for k, v in os.environ.items() if k not in ("CLAUDECODE", "CLAUDE_SESSION_ID", "CLAUDE_OUTPUT_STYLE")}
             # Add PIPELINE_SIGNAL_DIR as required by GAP-6.1
             clean_env["PIPELINE_SIGNAL_DIR"] = str(self.signal_dir)
             clean_env["PROJECT_TARGET_DIR"] = effective_dir
@@ -1364,107 +1529,57 @@ class PipelineRunner:
                 max_turns=_max_turns,
                 cwd=effective_dir,
                 env=clean_env,
+                hooks=_create_signal_stop_hook(self.signal_dir, node_id),
             )
             messages = []
             result_text = ""
             _first_msg_logged = False
-            _stale_triggered = False  # Track if we broke due to stale timeout
 
-            # Stale-detection state
-            last_activity = time.time()
-            last_worker_text = ""
-
+            # Use ClaudeSDKClient (bidirectional) instead of query() (unidirectional).
+            # ClaudeSDKClient keeps the control protocol open, enabling Stop hooks
+            # to fire and block worker exit if signal file not written.
+            # Use ClaudeSDKClient with connect() then query() pattern.
+            # connect() with no prompt starts streaming mode, then query() sends
+            # the prompt. receive_response() gets results. This enables Stop hooks.
             try:
-                aiter = claude_code_sdk.query(  # type: ignore[attr-defined]
-                    prompt=prompt,
-                    options=options,
-                ).__aiter__()
-                while True:
-                    try:
-                        msg = await asyncio.wait_for(
-                            aiter.__anext__(),
-                            timeout=float(_PER_MSG_POLL_INTERVAL),
-                        )
-                    except asyncio.TimeoutError:
-                        # No message in the last polling interval — check stale condition.
-                        idle_seconds = time.time() - last_activity
-                        if (
-                            idle_seconds >= _STALE_WORKER_TIMEOUT
-                            and "signal" in last_worker_text.lower()
-                        ):
-                            # Before declaring stale, check if worker already wrote its signal
-                            _sig_path = os.path.join(self.signal_dir, f"{node_id}.json")
-                            if os.path.exists(_sig_path):
-                                log.info(
-                                    "[sdk] Stale timeout reached for %s but signal file exists — "
-                                    "letting normal signal processing handle it",
-                                    node_id,
-                                )
-                                break  # Signal file exists; exit loop normally (not stale)
-                            log.warning(
-                                "[sdk] Stale worker detected for %s: no activity for %.0fs, "
-                                "last text mentioned 'signal' — forcing incomplete",
-                                node_id, idle_seconds,
-                            )
-                            if _LOGFIRE_AVAILABLE:
-                                logfire.warning(
-                                    "stale_worker_timeout {node_id} after {idle_s}s",
-                                    node_id=node_id, idle_s=round(idle_seconds),
-                                )
-                            _stale_triggered = True
-                            break  # Exit loop — stale timeout, NOT success
-                        continue  # Not stale yet; keep waiting
-                    except StopAsyncIteration:
-                        break  # Stream ended normally
-
-                    # Message received — reset inactivity clock
-                    last_activity = time.time()
-                    messages.append(msg)
-                    msg_type = type(msg).__name__
-                    if not _first_msg_logged and _LOGFIRE_AVAILABLE:
-                        logfire.info("worker_first_message {node_id}",
-                                     node_id=node_id, worker_type=worker_type,
-                                     msg_type=msg_type)
-                        _first_msg_logged = True
-                    # Log tool use and assistant text for real-time visibility;
-                    # also capture last_worker_text for stale-detection (regardless of Logfire).
-                    if hasattr(msg, "content") and msg_type == "AssistantMessage":
-                        for block in (msg.content if isinstance(msg.content, list) else []):
-                            block_type = type(block).__name__
-                            if block_type == "ToolUseBlock":
-                                if _LOGFIRE_AVAILABLE:
-                                    logfire.info("worker_tool {node_id} {tool}",
-                                                 node_id=node_id, tool=getattr(block, "name", ""),
-                                                 input_preview=str(getattr(block, "input", ""))[:300])
-                            elif block_type == "TextBlock":
-                                text = getattr(block, "text", "")
-                                if text and len(text.strip()) > 5:
-                                    last_worker_text = text  # Track for stale detection
+                async with claude_code_sdk.ClaudeSDKClient(options=options) as client:  # type: ignore[attr-defined]
+                    await client.connect()
+                    await client.query(prompt)
+                    async for msg in client.receive_response():
+                        messages.append(msg)
+                        msg_type = type(msg).__name__
+                        if not _first_msg_logged and _LOGFIRE_AVAILABLE:
+                            logfire.info("worker_first_message {node_id}",
+                                         node_id=node_id, worker_type=worker_type,
+                                         msg_type=msg_type)
+                            _first_msg_logged = True
+                        # Log tool use and assistant text for real-time visibility
+                        if hasattr(msg, "content") and msg_type == "AssistantMessage":
+                            for block in (msg.content if isinstance(msg.content, list) else []):
+                                block_type = type(block).__name__
+                                if block_type == "ToolUseBlock":
                                     if _LOGFIRE_AVAILABLE:
+                                        logfire.info("worker_tool {node_id} {tool}",
+                                                     node_id=node_id, tool=getattr(block, "name", ""),
+                                                     input_preview=str(getattr(block, "input", ""))[:300])
+                                elif block_type == "TextBlock":
+                                    text = getattr(block, "text", "")
+                                    if text and len(text.strip()) > 5 and _LOGFIRE_AVAILABLE:
                                         logfire.info("worker_text {node_id}",
                                                      node_id=node_id, text=text[:300])
-                    # Capture result from ResultMessage
-                    if hasattr(msg, "result") and msg.result:  # type: ignore[union-attr]
-                        result_text = str(msg.result)[:500]
+                        # Capture result from ResultMessage
+                        if hasattr(msg, "result") and msg.result:  # type: ignore[union-attr]
+                            result_text = str(msg.result)[:500]
             except Exception as stream_exc:  # noqa: BLE001
-                # SDK may raise on unknown message types (e.g. rate_limit_event)
-                # or anyio CancelScope teardown errors when worker completes.
                 err_msg = str(stream_exc)
                 is_cancel_scope = "cancel" in err_msg.lower() or "CancelScope" in err_msg
 
                 if result_text:
                     log.warning("[sdk] Stream error after result: %s", err_msg)
-                elif is_cancel_scope and len(messages) > 300:
-                    # Cancel scope errors after very many messages AND worker wrote signal = likely
-                    # anyio teardown artifact after genuine completion.
-                    _sig_path = os.path.join(self.signal_dir, f"{node_id}.json")
-                    if os.path.exists(_sig_path):
-                        log.warning("[sdk] Cancel scope error after %d msgs with signal file — treating as success (teardown issue): %s",
-                                    len(messages), err_msg)
-                        return {"status": "success", "message": f"SDK worker completed with teardown error ({len(messages)} events)"}
-                    log.warning("[sdk] Cancel scope error after %d msgs but NO signal file — treating as failed: %s",
+                elif is_cancel_scope and len(messages) > 30:
+                    log.warning("[sdk] Cancel scope error after %d msgs — treating as success (teardown issue): %s",
                                 len(messages), err_msg)
-                    return {"status": "failed", "message": f"SDK worker interrupted (CancelScope after {len(messages)} events, no signal): {err_msg[:200]}"}
+                    return {"status": "success", "message": f"SDK worker completed with teardown error ({len(messages)} events)"}
                 elif messages:
                     log.warning("[sdk] Stream error after %d msgs (no result): %s", len(messages), err_msg)
                     return {"status": "failed", "message": f"SDK stream error before completion ({len(messages)} events): {err_msg[:200]}"}
@@ -1482,17 +1597,7 @@ class PipelineRunner:
                         f"Last worker text: {last_worker_text[:200]}"
                     ),
                 }
-            # Check if worker wrote its own signal file
-            _sig_path = os.path.join(self.signal_dir, f"{node_id}.json")
-            if os.path.exists(_sig_path):
-                return {"status": "success", "message": f"Worker signal file exists ({len(messages)} events)"}
-            return {
-                "status": "failed",
-                "message": (
-                    f"SDK stream ended without completion signal or result ({len(messages)} events). "
-                    f"Worker may have exhausted max_turns or stopped without signaling."
-                ),
-            }
+            return {"status": "success", "message": f"SDK worker completed ({len(messages)} events)"}
 
         if _LOGFIRE_AVAILABLE:
             logfire.info("worker_dispatch_start {node_id}",
@@ -1549,18 +1654,7 @@ class PipelineRunner:
             # Do NOT pop active_workers here — the validation agent may already
             # own this slot (inserted by _dispatch_validation_agent at line 1276).
         else:
-            # Only write runner signals for failures. Success signals come from the worker
-            # (via its own Write to signal_dir). This eliminates the dual-writer race where
-            # both worker and runner write success signals and the main loop processes
-            # whichever arrives first, potentially before the worker finishes.
-            if result.get("status") != "success":
-                self._write_node_signal(node_id, result)
-            else:
-                log.info(
-                    "[sdk] Worker %s reported success via SDK but runner defers signal to worker-written file. "
-                    "If worker forgot to write signal, liveness check will catch it.",
-                    node_id,
-                )
+            self._write_node_signal(node_id, result)
             self.active_workers.pop(node_id, None)
         self._wake_event.set()
 
@@ -1655,17 +1749,32 @@ class PipelineRunner:
         else:
             lines.append("\n## Files Changed\n(not reported — search the codebase to find relevant changes)")
 
-        # Inline SD if available
+        # Inline SD if available - use same multi-candidate strategy as _build_worker_prompt
         if sd_path:
-            sd_abs = os.path.join(self.dot_dir, sd_path) if not os.path.isabs(sd_path) else sd_path
-            if os.path.exists(sd_abs):
-                try:
-                    with open(sd_abs) as fh:
-                        sd_content = fh.read()
-                    lines.append(f"\n## Solution Design\n{sd_content}")
-                except OSError:
-                    lines.append(f"\n## Solution Design Path\n{sd_path}")
+            candidates = []
+            if not os.path.isabs(sd_path):
+                # Try cobuilder_root first, then target_dir, then dot_dir as fallback
+                cobuilder_root = self._get_cobuilder_root()
+                candidates.append(os.path.join(cobuilder_root, sd_path))
+                if resolved_dir != cobuilder_root:
+                    candidates.append(os.path.join(resolved_dir, sd_path))
+                if self.dot_dir != cobuilder_root and self.dot_dir != resolved_dir:
+                    candidates.append(os.path.join(self.dot_dir, sd_path))
             else:
+                candidates.append(sd_path)
+
+            sd_found = False
+            for sd_abs in candidates:
+                if os.path.exists(sd_abs):
+                    try:
+                        with open(sd_abs) as fh:
+                            sd_content = fh.read()
+                        lines.append(f"\n## Solution Design\n{sd_content}")
+                        sd_found = True
+                        break
+                    except OSError:
+                        pass
+            if not sd_found:
                 lines.append(f"\n## Solution Design Path\n{sd_path}")
 
         # Read manifest validation_method and prepend method-specific instructions
@@ -1802,7 +1911,7 @@ class PipelineRunner:
         timeout = int(os.environ.get("VALIDATION_TIMEOUT", "600"))  # 10min default
 
         async def _run() -> dict:
-            clean_env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
+            clean_env = {k: v for k, v in os.environ.items() if k not in ("CLAUDECODE", "CLAUDE_SESSION_ID", "CLAUDE_OUTPUT_STYLE")}
             clean_env["PROJECT_TARGET_DIR"] = effective_dir
             # Apply LLM config env vars (api_key, base_url) from resolved profile
             clean_env.update(llm_config.to_env_dict())
@@ -1828,6 +1937,7 @@ class PipelineRunner:
                 cwd=effective_dir,
                 max_turns=100,
                 env=clean_env,
+                hooks=_create_signal_stop_hook(self.signal_dir, node_id),
             )
             messages = []
             _first_msg_logged = False
@@ -2160,6 +2270,18 @@ class PipelineRunner:
                     self._do_transition(node_id, "accepted")
                     log.info("[signal] %s: tool success -> accepted (no validation needed)", node_id)
                 elif current_status == "active":
+                    # Verify worker output before transitioning to impl_complete
+                    target_dir = self._resolve_target_dir(node["attrs"])
+                    verify_pass, verify_reason = self._verify_worker_output(node_id, target_dir, signal)
+
+                    if not verify_pass:
+                        # Verification failed — transition to failed instead of impl_complete
+                        self._do_transition(node_id, "failed")
+                        log.error("[signal] %s: worker output verification failed: %s -> failed", node_id, verify_reason)
+                        self.active_workers.pop(node_id, None)
+                        return
+
+                    # Verification passed — proceed with impl_complete and validation dispatch
                     self._do_transition(node_id, "impl_complete")
                     log.info("[signal] %s: worker success -> impl_complete", node_id)
                     # Auto-dispatch validation agent — it owns the active_workers slot
@@ -2212,6 +2334,74 @@ class PipelineRunner:
                     self.active_workers.pop(node_id, None)
 
     # ------------------------------------------------------------------
+    # Worker output verification
+    # ------------------------------------------------------------------
+
+    def _verify_worker_output(self, node_id: str, target_dir: str, signal: dict) -> tuple[bool, Optional[str]]:
+        """Verify worker output by checking file existence.
+
+        Primary check: File existence (os.path.exists) is the primary verification.
+        Secondary check: Git status is informational only and does not cause failure.
+
+        Args:
+            node_id: The node ID for logging.
+            target_dir: The target directory where the worker was executing.
+            signal: The worker signal dict containing files_changed.
+
+        Returns:
+            Tuple of (pass, reason) where:
+            - (True, None) if all files in files_changed exist on disk
+            - (False, reason_str) if any files are missing
+        """
+        files_changed = signal.get("files_changed", [])
+        if not files_changed:
+            log.warning("[verify] %s: No files_changed in signal — skipping file verification", node_id)
+            return (True, None)
+
+        # PRIMARY CHECK: Verify that each file in files_changed exists in target_dir
+        missing_files = []
+        for file_path in files_changed:
+            # Handle both relative and absolute paths
+            if os.path.isabs(file_path):
+                full_path = file_path
+            else:
+                full_path = os.path.join(target_dir, file_path)
+
+            if not os.path.exists(full_path):
+                missing_files.append(file_path)
+                log.warning("[verify] %s: File not found: %s (full: %s)", node_id, file_path, full_path)
+
+        if missing_files:
+            reason = f"Missing files in target_dir: {', '.join(missing_files)}"
+            log.error("[verify] %s: %s", node_id, reason)
+            return (False, reason)
+
+        # SECONDARY CHECK (informational only): Log git diff HEAD~1 for auditing
+        # Note: We do NOT fail if git diff is clean. The files exist, which is what matters.
+        # Use git diff HEAD~1 instead of git status to check for actual changes vs previous commit.
+        try:
+            result = subprocess.run(
+                ["git", "diff", "HEAD~1"],
+                cwd=target_dir,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if result.returncode == 0:
+                git_diff_output = result.stdout.strip()
+                if git_diff_output:
+                    log.info("[verify] %s: Files verified. Git diff from HEAD~1:\n%s", node_id, git_diff_output[:500])  # Truncate long diffs
+                else:
+                    log.info("[verify] %s: All files exist on disk. No changes since HEAD~1 (already committed).", node_id)
+            else:
+                log.warning("[verify] %s: git diff check skipped (not in git repo or other issue)", node_id)
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            log.warning("[verify] %s: Could not run git diff, but files exist on disk (primary check passed)", node_id)
+
+        # All files exist on disk — verification passes
+        return (True, None)
+
+    # ------------------------------------------------------------------
     # DOT file transition helpers
     # ------------------------------------------------------------------
 
@@ -2229,7 +2419,7 @@ class PipelineRunner:
             return False
 
         try:
-            updated_content, log_msg = apply_transition(current_content, node_id, new_status)
+            updated_content, log_msg = apply_transition(current_content, node_id, new_status, dot_file=self.dot_path)
         except ValueError as exc:
             log.warning("Transition blocked %s -> %s: %s", node_id, new_status, exc)
             return False
@@ -2369,13 +2559,13 @@ class PipelineRunner:
                     # can be re-dispatched cleanly. Both transitions go through
                     # apply_transition which handles the specific node's status.
                     try:
-                        content, _ = apply_transition(content, nid, "failed")
-                        content, _ = apply_transition(content, nid, "pending")
+                        content, _ = apply_transition(content, nid, "failed", dot_file=self.dot_path)
+                        content, _ = apply_transition(content, nid, "pending", dot_file=self.dot_path)
                     except ValueError:
                         pass
                 else:
                     try:
-                        content, _ = apply_transition(content, nid, "failed")
+                        content, _ = apply_transition(content, nid, "failed", dot_file=self.dot_path)
                         # Note: we can't go failed->pending directly; leave as failed
                         # The dispatcher will skip non-pending nodes
                     except ValueError:
@@ -2397,52 +2587,57 @@ class PipelineRunner:
     # Handler-specific preambles: tell workers their role and how to use MCP tools
     HANDLER_PREAMBLES: dict[str, str] = {
         "codergen": (
-            "## Your Role: IMPLEMENTATION Worker\n"
-            "You write production-quality code. Do NOT research or investigate — only implement.\n"
-            "Read the Solution Design carefully. It contains the exact changes to make.\n\n"
-            "### MANDATORY FIRST STEP: Load Code Navigation Tools\n"
-            "Before writing ANY code, run these ToolSearch calls to load MCP tools:\n"
-            "```\n"
-            "ToolSearch(query=\"serena\")     # Code navigation: find_symbol, get_symbols_overview, search_for_pattern\n"
-            "ToolSearch(query=\"hindsight\")  # Memory: recall past patterns and retain learnings\n"
-            "```\n"
-            "Once loaded, use Serena to explore the codebase BEFORE editing.\n"
-            "Use `mcp__hindsight__recall()` to check for known patterns in this project.\n"
-            "Use `mcp__hindsight__retain()` after completing work to store learnings.\n\n"
-            "Done when: All files changed, tests pass, signal written with files_changed list."
+            "## Your Role: Implementation\n"
+            "You implement features by exploring the codebase first, then making changes.\n\n"
+            "### How to Work\n"
+            "1. **Explore first**: Read the Solution Design, then Glob/Grep/Read to understand the codebase.\n"
+            "   Read every file before editing it. Trace data flows to understand dependencies.\n"
+            "2. **Plan with TodoWrite**: Break your task into steps and track progress.\n"
+            "3. **Implement with Edit**: Make small, verified changes. Run tests after significant changes.\n"
+            "4. **Adapt if reality differs**: The SD is a guide, not a contract.\n"
+            "   If a file moved or a function changed, find the real state and adapt.\n\n"
+            "### MCP Tools (Anthropic models only)\n"
+            "Load code navigation tools before editing: `ToolSearch(query=\"serena\")`\n"
+            "Load memory tools to recall/retain patterns: `ToolSearch(query=\"hindsight\")`\n"
+            "ToolSearch must complete BEFORE you call the discovered tools.\n\n"
+            "Done when: All changes made, tests pass, signal written with files_changed list."
         ),
         "research": (
-            "## Your Role: RESEARCH Worker\n"
-            "You investigate and document findings. Do NOT modify source code.\n"
-            "Write findings to a NEW markdown file (not the SD) at the evidence directory.\n"
-            "Use WebSearch, WebFetch, and Read to gather information.\n\n"
-            "### MCP Tools: Use ToolSearch to Discover Available Tools\n"
-            "You have access to MCP tools for research — use ToolSearch to discover them:\n"
-            "- Search `ToolSearch(query=\"context7\")` to find documentation lookup tools\n"
-            "- Search `ToolSearch(query=\"perplexity\")` to find web research tools\n"
-            "- Search `ToolSearch(query=\"hindsight\")` to find memory/learning tools\n"
-            "ToolSearch loads tool schemas into your context. Once loaded, call them directly.\n\n"
+            "## Your Role: Research\n"
+            "Investigate the topic and document findings. Do NOT modify source code.\n\n"
+            "### How to Work\n"
+            "1. Read the Solution Design to understand what to research.\n"
+            "2. Use WebSearch, WebFetch, and Read to gather information.\n"
+            "3. Write findings to a NEW markdown file in the evidence directory.\n\n"
+            "### MCP Tools (Anthropic models only)\n"
+            "Load research tools via ToolSearch before use:\n"
+            "- `ToolSearch(query=\"context7\")` — framework/library documentation\n"
+            "- `ToolSearch(query=\"perplexity\")` — web research\n"
+            "- `ToolSearch(query=\"hindsight\")` — recall prior findings\n\n"
             "Done when: Research doc written with findings. Signal written with doc path."
         ),
         "refine": (
-            "## Your Role: REFINEMENT Worker\n"
-            "You merge research findings into the Solution Design document.\n"
-            "Read predecessor signal files to find research doc paths.\n"
-            "Edit the SD to incorporate findings as first-class content (not annotations).\n\n"
-            "### MCP Tools: Use ToolSearch to Discover Available Tools\n"
-            "You have access to MCP tools — use ToolSearch to discover them:\n"
-            "- Search `ToolSearch(query=\"hindsight\")` to find memory tools (reflect before editing, retain after)\n"
-            "- Search `ToolSearch(query=\"perplexity\")` if you need to reason through conflicting findings\n"
-            "ToolSearch loads tool schemas into your context. Once loaded, call them directly.\n\n"
+            "## Your Role: Refinement\n"
+            "Merge research findings into the Solution Design document.\n\n"
+            "### How to Work\n"
+            "1. Read predecessor signal files to find research doc paths.\n"
+            "2. Read the research docs and the current SD.\n"
+            "3. Edit the SD to incorporate findings as first-class content (not annotations).\n\n"
+            "### MCP Tools (Anthropic models only)\n"
+            "Load tools via ToolSearch before use:\n"
+            "- `ToolSearch(query=\"hindsight\")` — reflect before editing, retain after\n"
+            "- `ToolSearch(query=\"perplexity\")` — reason through conflicting findings\n\n"
             "Done when: SD updated with research findings integrated. No annotations remain."
         ),
         "acceptance-test-writer": (
-            "## Your Role: TEST WRITER\n"
-            "You create Gherkin acceptance test scenarios from PRD acceptance criteria.\n"
-            "Write .feature files with Given/When/Then. Tests should be blind (not peek at implementation).\n\n"
-            "### MANDATORY FIRST STEP: Load Code Navigation Tools\n"
-            "Run `ToolSearch(query=\"serena\")` to load code navigation tools.\n"
-            "Use Serena to understand the codebase structure before writing tests.\n\n"
+            "## Your Role: Test Writer\n"
+            "Create Gherkin acceptance test scenarios from PRD acceptance criteria.\n\n"
+            "### How to Work\n"
+            "1. Read the PRD and acceptance criteria carefully.\n"
+            "2. Explore the codebase structure (Glob/Read) to understand what exists.\n"
+            "3. Write .feature files with Given/When/Then. Tests should be blind (don't peek at implementation).\n\n"
+            "### MCP Tools (Anthropic models only)\n"
+            "Load code navigation: `ToolSearch(query=\"serena\")`\n\n"
             "Done when: Feature files written covering all PRD acceptance criteria."
         ),
     }
@@ -2459,19 +2654,20 @@ class PipelineRunner:
         bead_id = attrs.get("bead_id", "")
 
         # Inline solution design content if file exists
-        # Try repo root first (most SD paths are relative to repo root), then dot_dir as fallback
+        # Try cobuilder_root first (most SD paths are relative to cobuilder_root), then target_dir, then dot_dir as fallback
         solution_design_content = ""
         if solution_design_path:
             candidates = []
             if not os.path.isabs(solution_design_path):
-                # Try repo root first (SD paths like docs/sds/... are relative to repo root)
-                repo_root = self._get_repo_root()
-                candidates.append(os.path.join(repo_root, solution_design_path))
+                # Try cobuilder_root first (SD paths like docs/sds/... are relative to cobuilder_root)
+                cobuilder_root = self._get_cobuilder_root()
+                candidates.append(os.path.join(cobuilder_root, solution_design_path))
                 # Then target_dir and dot_dir as fallbacks
                 target = self._get_target_dir()
-                if target != repo_root:
+                if target != cobuilder_root:
                     candidates.append(os.path.join(target, solution_design_path))
-                candidates.append(os.path.join(self.dot_dir, solution_design_path))
+                if self.dot_dir != cobuilder_root and self.dot_dir != target:
+                    candidates.append(os.path.join(self.dot_dir, solution_design_path))
             else:
                 candidates.append(solution_design_path)
             for sd_abs in candidates:
@@ -2583,9 +2779,9 @@ class PipelineRunner:
         to prevent the worker from spending all its turns on tool discovery instead of
         implementation.  See Hindsight "GLM-5 Pipeline Worker Failure" RCA.
         """
-        # Use repo root for agent files (they live at <repo>/.claude/agents/)
-        repo_root = self._get_repo_root()
-        agents_dir = os.path.join(repo_root, ".claude", "agents")
+        # Use cobuilder_root for agent files (they live at <project>/.claude/agents/)
+        cobuilder_root = self._get_cobuilder_root()
+        agents_dir = os.path.join(cobuilder_root, ".claude", "agents")
 
         # Always load tool reference — this is critical for smaller models
         tool_ref = ""

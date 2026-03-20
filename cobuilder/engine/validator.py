@@ -507,6 +507,15 @@ def validate(data: dict[str, Any], strict: bool = False, check_beads: bool = Fal
     # --- Rule 16: Manifest validation_method enforcement ---
     _check_manifest_validation_methods(graph_attrs, dot_file_path, issues)
 
+    # --- Rule 17: Required graph attributes (cobuilder_root, target_dir) ---
+    _check_required_graph_attrs(graph_attrs, issues)
+
+    # --- Rule 18: File references (sd_path, solution_design) must be absolute and existing ---
+    _check_file_references(nodes, issues)
+
+    # --- Rule 19: Deprecated attributes (target_repo) ---
+    _check_deprecated_attrs(nodes, issues)
+
     return issues
 
 
@@ -828,6 +837,109 @@ def _can_reach(start: str, target: str, adj: dict[str, list[str]]) -> bool:
                 queue.append(neighbor)
 
     return False
+
+
+def _check_required_graph_attrs(graph_attrs: dict[str, str], issues: list[Issue]) -> None:
+    """Rule: cobuilder_root and target_dir must be present, absolute, and point to existing directories.
+
+    This is a critical validation rule for all pipelines — these attributes define the
+    project root and working directory for all workers.
+    """
+    # Check cobuilder_root
+    cobuilder_root = graph_attrs.get("cobuilder_root", "")
+    if not cobuilder_root:
+        issues.append(Issue(
+            "error", 17,
+            "Missing required graph attribute 'cobuilder_root' — must be the absolute path to the CoBuilder package root",
+        ))
+    elif not os.path.isabs(cobuilder_root):
+        issues.append(Issue(
+            "error", 17,
+            f"Graph attribute 'cobuilder_root' must be an absolute path, got relative path: {cobuilder_root}",
+        ))
+    elif not os.path.isdir(cobuilder_root):
+        issues.append(Issue(
+            "error", 17,
+            f"Graph attribute 'cobuilder_root' points to a non-existent directory: {cobuilder_root}",
+        ))
+
+    # Check target_dir
+    target_dir = graph_attrs.get("target_dir", "")
+    if not target_dir:
+        issues.append(Issue(
+            "error", 17,
+            "Missing required graph attribute 'target_dir' — must be the absolute path to the target repository",
+        ))
+    elif not os.path.isabs(target_dir):
+        issues.append(Issue(
+            "error", 17,
+            f"Graph attribute 'target_dir' must be an absolute path, got relative path: {target_dir}",
+        ))
+    elif not os.path.isdir(target_dir):
+        issues.append(Issue(
+            "error", 17,
+            f"Graph attribute 'target_dir' points to a non-existent directory: {target_dir}",
+        ))
+
+
+def _check_file_references(nodes: list[dict], issues: list[Issue]) -> None:
+    """Rule: All sd_path and solution_design node attributes must be absolute paths to existing files.
+
+    These attributes define Solution Design files that will be inlined into worker prompts.
+    They must exist and be absolute paths.
+    """
+    for n in nodes:
+        node_id = n["id"]
+
+        # Check sd_path (codergen, research, refine handlers may use this)
+        sd_path = n["attrs"].get("sd_path", "")
+        if sd_path:
+            if not os.path.isabs(sd_path):
+                issues.append(Issue(
+                    "error", 18,
+                    f"Node attribute 'sd_path' must be an absolute path, got relative path: {sd_path}",
+                    node_id,
+                ))
+            elif not os.path.isfile(sd_path):
+                issues.append(Issue(
+                    "error", 18,
+                    f"Node attribute 'sd_path' points to a non-existent file: {sd_path}",
+                    node_id,
+                ))
+
+        # Check solution_design (research, refine handlers may use this)
+        solution_design = n["attrs"].get("solution_design", "")
+        if solution_design:
+            if not os.path.isabs(solution_design):
+                issues.append(Issue(
+                    "error", 18,
+                    f"Node attribute 'solution_design' must be an absolute path, got relative path: {solution_design}",
+                    node_id,
+                ))
+            elif not os.path.isfile(solution_design):
+                issues.append(Issue(
+                    "error", 18,
+                    f"Node attribute 'solution_design' points to a non-existent file: {solution_design}",
+                    node_id,
+                ))
+
+
+def _check_deprecated_attrs(nodes: list[dict], issues: list[Issue]) -> None:
+    """Rule: Reject use of deprecated target_repo attribute with clear error and suggestion.
+
+    The target_repo attribute was replaced by target_dir (graph attribute).
+    Using it is an error and should guide users to the new approach.
+    """
+    for n in nodes:
+        node_id = n["id"]
+        if "target_repo" in n["attrs"]:
+            target_repo = n["attrs"].get("target_repo", "")
+            issues.append(Issue(
+                "error", 19,
+                f"Deprecated attribute 'target_repo' found on node. "
+                f"Please use graph attribute 'target_dir' instead: graph [target_dir=\"/path/to/repo\"]",
+                node_id,
+            ))
 
 
 def validate_file(filepath: str, strict: bool = False, check_beads: bool = False) -> list[Issue]:

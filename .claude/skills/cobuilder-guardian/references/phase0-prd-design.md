@@ -212,6 +212,8 @@ The `cobuilder pipeline create` command performs 7 steps automatically:
 
 **Do NOT build pipelines manually** with `node-add` / `edge-add` commands. Use `cobuilder pipeline create` which produces a properly structured pipeline from your SD + RepoMap context.
 
+**If validation fails**: Load [references/dot-pipeline-creation.md](dot-pipeline-creation.md) for correct node shapes, required attributes per handler, edge rules, and cluster topology constraints. Common errors include wrong shapes (`house`/`octagon` instead of `Mdiamond`/`Msquare`), missing required attributes on codergen nodes (`bead_id`, `worker_type`, `sd_path`), and missing `wait.cobuilder → wait.human` chains after codergen nodes.
+
 ### Checkpoint A: PRD & Pipeline Review
 
 Before proceeding to Task Master parsing, pause and present the user with a summary of what Phase 0 has produced so far. This is the last opportunity to adjust Business Spec (BS) scope or pipeline structure before the task hierarchy is locked in.
@@ -482,3 +484,33 @@ cs-promise --meet <id> --ac-id AC-0 \
     --evidence "PRD written, pipeline created with N nodes, design challenge verdict: PROCEED" \
     --type manual
 ```
+
+---
+
+### Phase 0 → Phase 1 Transition (GATE G1 — MANDATORY)
+
+**Phase 0 is now complete. Before proceeding to Phase 2 (orchestrator dispatch), Phase 1 (acceptance tests) MUST run.**
+
+This is the most commonly skipped gate. Cognitive momentum from "write a PRD and SD" causes jumping directly to implementation. The user values correctness over speed.
+
+**Mandatory actions before ANY SD writing or orchestrator dispatch:**
+
+1. **Verify gate**: `python3 .claude/skills/cobuilder-guardian/scripts/verify-phase-gate.py --prd PRD-{ID} --gate G1`
+2. **If gate fails**: Run `Skill("acceptance-test-writer")` with the PRD
+3. **If gate passes**: Proceed to Phase 2
+
+**Inject phase checklist into TodoWrite** (if not already done):
+
+```
+TodoWrite([
+  {"content": "Phase 0: PRD + pipeline + design challenge", "status": "completed"},
+  {"content": "GATE G1: Acceptance tests exist", "status": "in_progress"},
+  {"content": "Phase 1: Blind Gherkin acceptance tests", "status": "pending"},
+  {"content": "Phase 2: Orchestrator/pipeline dispatch", "status": "pending"},
+  ...
+])
+```
+
+This makes the skip visible. If Phase 1 is deleted from the todo list, it's a conscious override — not a silent omission.
+
+**If the user explicitly asks to skip Phase 1**: Log the override to Hindsight with the rationale, mark the gate as "SKIPPED (user override)" in the todo list, and proceed. But never skip silently.

@@ -1,0 +1,44 @@
+# PRD-CASE-DATAFLOW-001 Acceptance Test Manifest
+# Work History Check Data Type Consistency
+
+prd_id: PRD-CASE-DATAFLOW-001
+title: "Work History Check Data Type Consistency"
+created: 2026-03-19
+version: "2.0.0"
+
+acceptance_threshold: 0.70
+
+features:
+  - name: "E1: Canonical Type Definitions & ISO Standards"
+    weight: 0.30
+    feature_file: "epic1-canonical-types.feature"
+    description: "Consolidated models with ISO 3166/4217, contacts list, TS generation"
+    validation_method: "code-analysis"
+
+  - name: "E2: Frontend Form shadcn Upgrade"
+    weight: 0.25
+    feature_file: "epic2-frontend-form.feature"
+    description: "Form uses proper shadcn components with correct enum values"
+    validation_method: "code-analysis"
+
+  - name: "E3: API Proxy Contract"
+    weight: 0.20
+    feature_file: "epic3-api-proxy.feature"
+    description: "Frontend proxy maps all fields to canonical backend names"
+    validation_method: "code-analysis"
+
+  - name: "E4: PostCheckProcessor Alignment"
+    weight: 0.25
+    feature_file: "epic4-backend-alignment.feature"
+    description: "Both outcome paths produce identical VerificationOutcome via PostCheckProcessor"
+    validation_method: "code-analysis"
+
+scoring_guide:
+  per_scenario:
+    pass: 1.0
+    partial: 0.5
+    fail: 0.0
+  methodology: "weighted_average"
+  notes: |
+    Each epic is scored by its scenario pass rate, then weighted by the
+    feature weight. Epic 1 has highest weight because all others depend on it.

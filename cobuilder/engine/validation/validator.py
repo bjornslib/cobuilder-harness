@@ -61,6 +61,7 @@ from cobuilder.engine.validation.advanced_rules import (
     WaitCobuilderRequirements,
     CodergenWithoutUpstreamAT,
     MissingSkillReference,
+    MandatoryGraphAttrs,
 )
 
 logger = logging.getLogger(__name__)
@@ -72,6 +73,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_RULES: list[type] = [
     # Error-level (1-9): block execution
+    MandatoryGraphAttrs,  # Rule 17: Check cobuilder_root and target_dir first (graph-level)
     SingleStartNode,
     AtLeastOneExit,
     AllNodesReachable,

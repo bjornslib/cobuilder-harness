@@ -2,225 +2,112 @@
 title: "Worker Tool Reference"
 status: active
 type: reference
-last_verified: 2026-03-11
+last_verified: 2026-03-17
 grade: authoritative
 ---
 
 # Worker Tool Reference
 
-Your primary tools are: Bash, Read, Write, Edit, Glob, Grep, MultiEdit, TodoWrite, WebFetch, WebSearch.
+## How You Work
 
-You also have access to **LSP** (built-in type/definition tool) and **Serena MCP** (semantic code navigation). Use them for code investigation before falling back to Grep/Read on source files.
+You are a focused worker. Your job is to understand the codebase, make changes, and verify they work.
 
-## ToolSearch — Discover MCP Tools Before Use
+**Loop: Explore → Plan → Implement → Verify → Signal**
 
-MCP tools (context7, Hindsight, Perplexity, Serena) are **deferred** — their schemas are NOT in your context until you discover them via ToolSearch.
+1. **Explore first**: Read files, Grep for patterns, understand before changing anything.
+2. **Plan with TodoWrite**: Break your task into steps, track progress as you go.
+3. **Implement with Edit**: Small, verified changes. Read every file before editing it.
+4. **Verify with Bash**: Run tests, check your work compiles/passes.
+5. **Signal when done**: Write the signal file with files_changed list.
 
-```
-# Discover tools by keyword — finds and loads matching tool schemas:
-ToolSearch(query="hindsight")     # → memory/learning tools (recall, retain, reflect)
-ToolSearch(query="context7")      # → library/framework documentation tools
-ToolSearch(query="perplexity")    # → web research tools
-ToolSearch(query="serena")        # → code navigation tools
-```
+## Exploring the Codebase
 
-Once ToolSearch returns a tool, it's loaded and callable for the rest of your session.
-
-**CRITICAL — ToolSearch must complete BEFORE you use the discovered tool:**
-```
-# CORRECT: Load first, then use
-ToolSearch(query="perplexity")                      ← wait for this to complete
-mcp__perplexity__perplexity_ask(messages=[...])     ← THEN call it
-
-# WRONG: Running ToolSearch in parallel with the tool it's supposed to load
-ToolSearch(query="perplexity") + WebSearch(...)     ← ToolSearch result ignored
-```
-Do NOT run ToolSearch in parallel with research tasks. Complete ToolSearch first.
-
-**Note**: ToolSearch itself is always pre-loaded — you never need to discover it.
-
-## Hindsight Memory — Recall and Retain Across Sessions
-
-Hindsight is long-term memory shared across all sessions in a project. Use it to avoid re-solving known problems and to leave knowledge for future workers.
-
-**Load first** (Hindsight is deferred):
-```
-ToolSearch(query="hindsight")
-```
-
-**Get the project bank ID** (shared across all workers in this project):
-```
-Bash(command="echo $CLAUDE_PROJECT_BANK", description="Get project memory bank")
-# Returns something like: claude-code-my-project
-```
-
-**Recall prior work BEFORE starting a task** (check if someone already solved this):
-```
-mcp__hindsight__recall(query="[topic you are about to work on]", bank_id="claude-code-my-project")
-```
-
-**Reflect for deeper synthesis** (refine workers: understand prior decisions):
-```
-mcp__hindsight__reflect(query="[SD topic + research context]", budget="mid", bank_id="...")
-```
-
-**Retain findings AFTER completing work** (leave knowledge for future workers):
-```
-mcp__hindsight__retain(
-    content="[key findings, patterns, gotchas, decisions]",
-    context="research-findings",   # or "implementation-notes" or "sd-refinements"
-    bank_id="claude-code-my-project"
-)
-```
-
-**When to use each operation:**
-| Operation | When | Budget |
-|-----------|------|--------|
-| `recall` | Start of task — check for prior work | N/A |
-| `reflect` | Before major decisions — synthesize prior knowledge | `"mid"` |
-| `retain` | After completing work — store findings for future sessions | N/A |
-
-## Context7 — Official Framework/Library Documentation
-
-Context7 fetches official documentation for open-source libraries. It is fast and accurate for API questions.
-
-**When to use Context7:**
-- ✅ React hooks, component API, v18+ changes
-- ✅ FastAPI routing, dependency injection, request handling
-- ✅ TanStack Query v5 `isPending` vs `isLoading`
-- ✅ PydanticAI agent configuration, tools, models
-- ✅ Any popular open-source library/framework
-
-**When NOT to use Context7:**
-- ❌ Proprietary model specs (Groq gpt-oss-20b, OpenAI internals) → use Perplexity
-- ❌ General web facts, blog posts, release news → use Perplexity
-- ❌ Internal codebase patterns → use Read/Grep/Serena
-- ❌ If it returns no results — switch to Perplexity immediately
-
-**How to use:**
-```
-# Step 1: Resolve the library ID (required before querying)
-mcp__context7__resolve-library-id(libraryName="react")
-# Returns something like: /facebook/react
-
-# Step 2: Query the docs
-mcp__context7__query-docs(libraryId="/facebook/react", query="useCallback dependencies optimization")
-```
-
-**Code Navigation Decision Guide** (use the right tool, not the first one):
-
-| Task | Best Tool |
-|------|-----------|
-| Find a symbol by name | `mcp__serena__find_symbol` |
-| Understand file/module structure | `mcp__serena__get_symbols_overview` |
-| Find all callers of a function | `mcp__serena__find_referencing_symbols` |
-| Search by regex/substring in code | `mcp__serena__search_for_pattern` |
-| Edit a method body precisely | `mcp__serena__replace_symbol_body` |
-| Get type info / docstrings | `LSP(operation="hover")` |
-| Jump to exact definition | `LSP(operation="goToDefinition")` |
-| Find all usages with types | `LSP(operation="findReferences")` |
-| Detect type errors in file | `LSP(operation="documentSymbol")` |
-| Grep/Read on source code | **Last resort only** (70-95% less efficient) |
-
-## ABSOLUTE PATHS — MANDATORY
-
-ALL file tool calls MUST use absolute paths. Relative paths will fail silently.
+### Before Editing Any File, Understand It
 
 ```
-WRONG: Read(file_path="app/page.tsx")
-RIGHT: Read(file_path="/Users/project/app/page.tsx")
+1. Glob("**/*.py", path="/project/src")     — find relevant files
+2. Read the file you'll change              — understand the full context
+3. Grep("function_name")                    — find callers and dependencies
+4. Read the test file                       — understand expected behavior
+5. THEN plan your changes with TodoWrite
 ```
 
-Use `Bash(command="pwd")` at the start to get the working directory, then prefix all paths.
+### Tracing Data Flows
 
-## CRITICAL RULE: Write vs Edit
+When the SD says "modify the auth handler":
+1. `Grep("auth")` — find all auth-related files
+2. Read the main auth file — understand the current flow
+3. Grep for the function being called — find upstream callers
+4. Read downstream dependencies — understand what breaks if you change this
+5. Now you understand the flow — implement with confidence
 
-**BEFORE creating or modifying any file, check if it exists first:**
+### When Reality Doesn't Match the SD
+
+The SD is a guide, not a contract. If you discover that:
+- A file doesn't exist where the SD says → Grep for it, find where it moved
+- A function has a different signature → Read the actual code and adapt
+- The SD misses a dependency → Fix it and note in your signal message
+
+## Tools
+
+Your primary tools: Bash, Read, Write, Edit, Glob, Grep, MultiEdit, TodoWrite, WebFetch, WebSearch.
+
+You also have **LSP** (built-in type/definition tool) and **Serena MCP** (semantic code navigation — load via ToolSearch first).
+
+### Absolute Paths
+
+All file tool calls MUST use absolute paths. Use `Bash(command="pwd")` to get the working directory.
+
+### Write vs Edit Decision
+
+Before creating or modifying any file, check if it exists:
 ```
 Read(file_path="/absolute/path/to/target.tsx")
 ```
-- If Read returns content → file exists → use **Edit** to change it
-- If Read returns "file not found" → file is new → use **Write** to create it
+- Read returns content → file exists → use **Edit**
+- Read returns "file not found" → file is new → use **Write**
 
-| Situation | Tool | Why |
-|-----------|------|-----|
-| File does NOT exist yet | **Write** | Creates new files |
-| File ALREADY exists and needs changes | **Edit** | Surgical replacement of specific text |
-| File ALREADY exists and needs complete rewrite | **Write** | But you MUST Read THE SAME file first |
+| Situation | Tool |
+|-----------|------|
+| File does NOT exist yet | **Write** |
+| File exists, needs specific changes | **Edit** |
+| File exists, needs complete rewrite | **Write** (but Read the same file first) |
 
-**THE #1 MISTAKE**: Using Write on an existing file when you should use Edit.
-Write overwrites the entire file. Edit replaces only the specific text you target.
-If you Read a file and it has content, use **Edit** to modify it — NOT Write.
+Key rules:
+- Read THE EXACT FILE you intend to Write (not a different file)
+- If a tool call fails, diagnose why before retrying (wrong path? file exists? old_string mismatch?)
 
-**THE #2 MISTAKE**: Reading a DIFFERENT file to "satisfy" the Read-before-Write rule.
-You must Read THE EXACT FILE you intend to Write. Reading package.json does not unlock Write for page.tsx.
-
-**THE #3 MISTAKE**: Retrying the same failed tool call.
-If a tool call fails, STOP and diagnose why. Do NOT retry the same call. Common causes:
-- Relative path (must be absolute)
-- File exists (use Edit instead of Write)
-- old_string doesn't match (Read the file again to get exact content)
-
-## Tool Decision Flowchart
-
-```
-Need to change code?
-  1. First: Read(file_path="/absolute/path/to/file")
-  2. Did Read succeed (file has content)?
-     → YES: Use Edit to change specific parts
-     → NO (file not found): Use Write to create it
-
-Need to find something?
-  → Know the filename pattern? → Glob
-  → Know text to search for?  → Grep
-  → Need to explore structure? → Bash("ls -la path/")
-
-Need to run a command?
-  → Bash (tests, builds, git, shell commands)
-```
-
-## Read
-
-Read a file before modifying it. Always use absolute paths. Also use Read to CHECK if a file exists before deciding Write vs Edit.
+### Read
 
 ```
 Read(file_path="/absolute/path/to/file.py")
+Read(file_path="...", offset=100, limit=50)   # for large files
 ```
 
-- Use `offset` and `limit` for large files: `Read(file_path="...", offset=100, limit=50)`
-- MUST Read THE TARGET FILE before Edit (Edit will fail if you haven't read it)
-- MUST Read THE TARGET FILE before Write on existing files (not a different file — the same one)
+Must Read the target file before Edit or Write on existing files.
 
-## Edit (modify existing files)
+### Edit (modify existing files)
 
-Replace specific text in an existing file. This is your PRIMARY editing tool.
+Your PRIMARY editing tool. Replaces specific text in a file.
 
 ```
 Edit(file_path="/absolute/path/to/file.py", old_string="exact text to find", new_string="replacement text")
 ```
 
-Rules:
-- `old_string` MUST match the file content exactly — same whitespace, same indentation, same line breaks
-- `old_string` must be unique in the file, or the edit will fail
-- If you need to replace ALL occurrences: `Edit(file_path="...", old_string="...", new_string="...", replace_all=true)`
-- Boolean values are `true`/`false` (lowercase), NOT `True`/`False`
-- When your `old_string` isn't unique, include more surrounding context lines to make it unique
+- `old_string` must match exactly — same whitespace, indentation, line breaks
+- Must be unique in the file; include more context lines if not
+- `replace_all=true` to replace ALL occurrences
+- Boolean values: `true`/`false` (lowercase)
 
-## Write (create NEW files)
-
-Create a new file or completely overwrite an existing one.
+### Write (create new files)
 
 ```
 Write(file_path="/absolute/path/to/new_file.py", content="file content here")
 ```
 
-- Parameter is `file_path`, NOT `path`
-- ONLY use for: (1) creating files that don't exist, (2) writing signal files, (3) complete rewrites after Reading
-- If the file exists and you only need to change part of it → use **Edit** instead
+Only use for: (1) new files, (2) signal files, (3) complete rewrites after Reading.
 
-## MultiEdit (multiple changes to one file)
-
-Apply several edits to the same file in a single call. More efficient than multiple Edit calls.
+### MultiEdit (multiple changes to one file)
 
 ```
 MultiEdit(file_path="/absolute/path/to/file.py", edits=[
@@ -229,50 +116,30 @@ MultiEdit(file_path="/absolute/path/to/file.py", edits=[
 ])
 ```
 
-- Each edit follows the same rules as Edit (exact match, unique strings)
-- Edits are applied in order
-- Use when you need 2+ changes in the same file
-
-## Glob (find files by name)
-
-Find files matching a pattern. Use BEFORE Read when you don't know the exact path.
+### Glob (find files by name)
 
 ```
-Glob(pattern="**/*.py", path="/absolute/path/to/search")
+Glob(pattern="**/*.py", path="/absolute/path")
 ```
 
-- `**/*.tsx` — all TypeScript React files recursively
-- `src/**/index.ts` — all index files under src
-- Returns file paths sorted by modification time
-
-## Grep (search file contents)
-
-Search for text or patterns across files. Use to find where code lives.
+### Grep (search file contents)
 
 ```
-Grep(pattern="function_name", path="/absolute/path/to/search", output_mode="content")
+Grep(pattern="function_name", path="/absolute/path", output_mode="content")
 ```
 
-- `output_mode="content"` — show matching lines (default: just file paths)
-- `glob="*.py"` — restrict to specific file types
-- `-n=true` — show line numbers (default for content mode)
+- `output_mode="content"` shows matching lines; `glob="*.py"` restricts file types
 - Supports regex: `Grep(pattern="def\\s+my_func")`
 
-## Bash (run commands)
-
-Execute shell commands. Use for tests, builds, git, and system operations.
+### Bash (run commands)
 
 ```
 Bash(command="python3 -m pytest tests/", description="Run tests")
 ```
 
-- Always include a `description` for clarity
-- Do NOT use Bash for: reading files (use Read), editing files (use Edit), searching (use Grep/Glob)
-- Use absolute paths in commands
+Do NOT use Bash for: reading files (Read), editing files (Edit), searching (Grep/Glob).
 
-## TodoWrite (track your progress)
-
-Track subtasks within your session. Helps you stay organized on multi-step work.
+### TodoWrite (track your progress)
 
 ```
 TodoWrite(todos=[
@@ -282,123 +149,98 @@ TodoWrite(todos=[
 ])
 ```
 
-- `status`: `"pending"`, `"in_progress"`, or `"completed"`
-- Use at the start of complex tasks to plan your steps
-- Update status as you complete each step
+Use at the start of multi-step tasks. Update status as you complete each step.
 
-## WebFetch (fetch a URL)
-
-Fetch content from a URL. Useful for reading documentation or API responses.
+### WebFetch / WebSearch
 
 ```
 WebFetch(url="https://docs.example.com/api/reference")
-```
-
-- Returns the page content as text
-- Use for documentation lookups, API specs, or verifying live endpoints
-
-## WebSearch (search the web)
-
-Search the web for information. Useful for finding documentation or solutions.
-
-```
 WebSearch(query="React useCallback best practices 2025")
 ```
 
-- Returns search results with snippets
-- Use when you need current information about a framework, library, or pattern
+## ToolSearch — Discover MCP Tools Before Use
+
+MCP tools (context7, Hindsight, Perplexity, Serena) are **deferred** — load them via ToolSearch before use.
+
+```
+ToolSearch(query="hindsight")     # memory/learning tools
+ToolSearch(query="context7")      # library/framework docs
+ToolSearch(query="perplexity")    # web research
+ToolSearch(query="serena")        # code navigation
+```
+
+ToolSearch must complete BEFORE you call the discovered tool. Do NOT run ToolSearch in parallel with the tool it loads.
+
+## Hindsight Memory — Recall and Retain Across Sessions
+
+Long-term memory shared across all sessions. Load first: `ToolSearch(query="hindsight")`
+
+```bash
+# Get project bank ID
+Bash(command="echo $CLAUDE_PROJECT_BANK", description="Get project memory bank")
+```
+
+| Operation | When | Example |
+|-----------|------|---------|
+| `recall` | Start of task — check for prior work | `mcp__hindsight__recall(query="...", bank_id="...")` |
+| `reflect` | Before major decisions | `mcp__hindsight__reflect(query="...", budget="mid", bank_id="...")` |
+| `retain` | After completing work | `mcp__hindsight__retain(content="...", context="...", bank_id="...")` |
+
+## Context7 — Framework/Library Documentation
+
+Load first: `ToolSearch(query="context7")`
+
+Use for: React, FastAPI, PydanticAI, TanStack Query, or any popular open-source library.
+Do NOT use for: proprietary APIs, general web facts, internal codebase patterns.
+
+```
+mcp__context7__resolve-library-id(libraryName="react")
+mcp__context7__query-docs(libraryId="/facebook/react", query="useCallback optimization")
+```
+
+## Code Navigation Decision Guide
+
+| Task | Best Tool |
+|------|-----------|
+| Find a symbol by name | `mcp__serena__find_symbol` |
+| Understand file/module structure | `mcp__serena__get_symbols_overview` |
+| Find all callers of a function | `mcp__serena__find_referencing_symbols` |
+| Search by regex/substring | `mcp__serena__search_for_pattern` |
+| Edit a method body precisely | `mcp__serena__replace_symbol_body` |
+| Get type info / docstrings | `LSP(operation="hover")` |
+| Jump to exact definition | `LSP(operation="goToDefinition")` |
+| Find all usages with types | `LSP(operation="findReferences")` |
+| Detect type errors in file | `LSP(operation="documentSymbol")` |
 
 ## LSP (type info and definitions)
-
-Query type information, definitions, and diagnostics from the language server. Requires `pyright-langserver` (Python) or `typescript-language-server` (TypeScript/JS) to be installed.
 
 ```
 LSP(operation="hover", filePath="/absolute/path/to/file.py", line=33, character=10)
 ```
 
-Operations:
-- `"hover"` — type info and docstrings at a position
-- `"goToDefinition"` — find where a symbol is defined
-- `"findReferences"` — all usages of a symbol (with types)
-- `"documentSymbol"` — list all symbols + diagnostics in a file
-- `"incomingCalls"` / `"outgoingCalls"` — call hierarchy
-- `"goToImplementation"` — find concrete implementations of an interface
-
-Use LSP when you need type information or exact definitions. Use Serena for structural navigation.
+Operations: `hover`, `goToDefinition`, `findReferences`, `documentSymbol`, `incomingCalls`, `outgoingCalls`, `goToImplementation`.
 
 ## Serena MCP (semantic code navigation)
 
-Navigate code semantically — no regex, no line numbers, just symbol names.
+Load first: `ToolSearch(query="serena")`
 
-**Activate first** (once per session):
 ```
 mcp__serena__check_onboarding_performed()
 mcp__serena__activate_project(project="<project-name>")
-```
-
-**Find a symbol**:
-```
 mcp__serena__find_symbol(name_path_pattern="ClassName/method_name", include_body=True)
-```
-
-**Search for a pattern across source files**:
-```
-mcp__serena__search_for_pattern(substring_pattern="pattern_here", restrict_search_to_code_files=True)
-```
-
-**Get file/module structure**:
-```
+mcp__serena__search_for_pattern(substring_pattern="pattern", restrict_search_to_code_files=True)
 mcp__serena__get_symbols_overview(relative_path="src/module.py")
-```
-
-**Find all callers of a symbol**:
-```
-mcp__serena__find_referencing_symbols(name_path="ClassName/method_name", relative_path="src/module.py")
-```
-
-**Replace a method body** (implementation workers only):
-```
-mcp__serena__replace_symbol_body(name_path="ClassName/method_name", relative_path="src/module.py", body="    def method_name(self):\n        ...")
-```
-
-## Common Workflows
-
-### Modify an existing file
-```
-1. Read(file_path="/path/to/file.py")           ← see current content
-2. Edit(file_path="/path/to/file.py",            ← change specific part
-       old_string="old code",
-       new_string="new code")
-```
-
-### Create a new file
-```
-1. Write(file_path="/path/to/new_file.py",       ← create it
-        content="file content")
-```
-
-### Find and modify code
-```
-1. Grep(pattern="ClassName", path="/project")     ← find where it lives
-2. Read(file_path="/project/src/module.py")       ← read the file
-3. Edit(file_path="/project/src/module.py",       ← modify it
-       old_string="...", new_string="...")
 ```
 
 ## Signal File Protocol
 
-**Important**: Implementation workers should NOT git commit their changes.
-The validation-test-agent commits on your behalf after successful validation.
-This ensures commits are only made for validated, scoped work.
+Implementation workers should NOT git commit. The validation-test-agent commits after successful validation.
 
-On task completion, write a signal file to `$PIPELINE_SIGNAL_DIR/{node_id}.json`:
+On completion, write a signal file to `$PIPELINE_SIGNAL_DIR/{node_id}.json`:
 
 ```bash
-# First, check the signal directory path
 Bash(command="echo $PIPELINE_SIGNAL_DIR", description="Get signal directory path")
 ```
-
-Then write the signal (this is a NEW file, so Write is correct):
 
 Success:
 ```json
@@ -411,6 +253,7 @@ Failure:
 ```
 
 ## Model Selection Guide
+
 | Handler | Default Model | When to Override |
 |---------|--------------|-----------------|
 | codergen | claude-haiku-4-5-20251001 | claude-sonnet-4-5-20251001 for complex multi-file changes |

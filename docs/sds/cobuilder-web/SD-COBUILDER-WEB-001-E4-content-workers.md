@@ -273,10 +273,10 @@ def _verify_output_path(self, node_id: str, node_attrs: dict, signal: dict) -> t
         # No output_path attribute — skip verification (normal codergen node)
         return True, ""
 
-    # Resolve relative paths against repo root (output_path in DOT is relative)
+    # Resolve relative paths against cobuilder root (output_path in DOT is relative)
     if not os.path.isabs(output_path):
-        repo_root = self._get_repo_root()
-        abs_output = os.path.join(repo_root, output_path)
+        cobuilder_root = self._get_cobuilder_root()
+        abs_output = os.path.join(cobuilder_root, output_path)
     else:
         abs_output = output_path
 

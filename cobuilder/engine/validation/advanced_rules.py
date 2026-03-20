@@ -5,10 +5,12 @@ Implements the following requirements from PRD-HARNESS-UPGRADE-001:
 - AC-5.2: Full cluster topology check implemented
 - AC-5.3: worker_type registry check rejects unknown agent types
 - AC-5.4: wait.human after wait.cobuilder topology enforced
+- AC-5.5: cobuilder_root and target_dir mandatory graph attributes
 """
 
 from __future__ import annotations
 
+import os
 from typing import TYPE_CHECKING, Any
 from cobuilder.engine.schema import VALID_WORKER_TYPES
 from cobuilder.engine.validation import RuleViolation, Severity
@@ -373,5 +375,79 @@ class MissingSkillReference:
                                             break
                         except Exception:
                             pass  # Don't fail validation on agent file parse errors
+
+        return violations
+
+
+# ---------------------------------------------------------------------------
+# Rule: MandatoryGraphAttrs (Enforces AC-5.5)
+# ---------------------------------------------------------------------------
+
+class MandatoryGraphAttrs:
+    """cobuilder_root and target_dir must be present, absolute, and point to existing directories.
+
+    These attributes define the CoBuilder package root and working directory for all workers.
+    Rule 17 / AC-5.5: Both attributes are mandatory.
+    """
+
+    rule_id = "MandatoryGraphAttrs"
+    severity = Severity.ERROR
+
+    def check(self, graph: Graph) -> list[RuleViolation]:
+        violations = []
+
+        # Check cobuilder_root
+        cobuilder_root = graph.attrs.get("cobuilder_root", "").strip()
+        if not cobuilder_root:
+            violations.append(
+                _error(
+                    self.rule_id,
+                    "Missing required graph attribute 'cobuilder_root' — must be the absolute path to the CoBuilder package root",
+                    "Add 'cobuilder_root=\"/absolute/path\"' to the graph attributes in the DOT file",
+                )
+            )
+        elif not os.path.isabs(cobuilder_root):
+            violations.append(
+                _error(
+                    self.rule_id,
+                    f"Graph attribute 'cobuilder_root' must be an absolute path, got relative path: {cobuilder_root}",
+                    "Change cobuilder_root to an absolute path (e.g., '/home/user/cobuilder', not './cobuilder')",
+                )
+            )
+        elif not os.path.isdir(cobuilder_root):
+            violations.append(
+                _error(
+                    self.rule_id,
+                    f"Graph attribute 'cobuilder_root' points to a non-existent directory: {cobuilder_root}",
+                    f"Ensure the directory {cobuilder_root} exists and the path is correct",
+                )
+            )
+
+        # Check target_dir
+        target_dir = graph.attrs.get("target_dir", "").strip()
+        if not target_dir:
+            violations.append(
+                _error(
+                    self.rule_id,
+                    "Missing required graph attribute 'target_dir' — must be the absolute path to the target repository",
+                    "Add 'target_dir=\"/absolute/path\"' to the graph attributes in the DOT file",
+                )
+            )
+        elif not os.path.isabs(target_dir):
+            violations.append(
+                _error(
+                    self.rule_id,
+                    f"Graph attribute 'target_dir' must be an absolute path, got relative path: {target_dir}",
+                    "Change target_dir to an absolute path (e.g., '/home/user/project', not '../project')",
+                )
+            )
+        elif not os.path.isdir(target_dir):
+            violations.append(
+                _error(
+                    self.rule_id,
+                    f"Graph attribute 'target_dir' points to a non-existent directory: {target_dir}",
+                    f"Ensure the directory {target_dir} exists and the path is correct",
+                )
+            )
 
         return violations

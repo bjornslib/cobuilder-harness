@@ -1,7 +1,7 @@
 ---
 name: cobuilder-guardian
 description: This skill should be used when the CoBuilder Guardian needs to act as an independent guardian angel — designing PRDs with CoBuilder RepoMap context injection, challenging designs via parallel solutioning, dispatching workers via AgentSDK pipelines, creating blind Gherkin acceptance tests and executable browser test scripts from PRDs, monitoring orchestrator progress, independently validating claims against acceptance criteria using gradient confidence scoring (0.0-1.0), autonomously accepting or rejecting implementations based on gradient confidence scoring thresholds (0.70+ for ACCEPT), autonomously closing validation gaps via Phase 4.5 gap closure protocol (creating fix-it codergen nodes), and setting session promises. Use when asked to "spawn and monitor an orchestrator", "create acceptance tests for a PRD", "validate orchestrator claims", "act as guardian angel", "independently verify implementation work", "autonomously close validation gaps", "create fix-it nodes", "design and challenge a PRD", "validation thresholds", "gradient scoring decision", or "bead creation for gaps".
-version: 0.8.0
+version: 1.1.0
 title: "CoBuilder Guardian"
 status: active
 last_verified: 2026-03-09
@@ -133,6 +133,60 @@ See **[references/session-promise-template.md](references/session-promise-templa
 ---
 
 ## Guardian Workflow Phases
+
+### Phase Gates (MANDATORY — No Skipping)
+
+Phases are not suggestions — they are gates. Each gate has a **verification check** that must pass before entering the next phase. Cognitive momentum ("the user asked for PRD and SD in one breath") does NOT override gates.
+
+| Gate | From → To | Verification | What Blocks |
+|------|-----------|-------------|-------------|
+| **G0→1** | Phase 0 → Phase 1 | PRD exists AND pipeline created AND Checkpoint B passed | Writing acceptance tests without a finalized PRD |
+| **G1→2** | Phase 1 → Phase 2 | `acceptance-tests/PRD-{ID}/*.feature` files exist AND `manifest.yaml` exists | Dispatching implementation without blind acceptance tests |
+| **G2→4** | Phase 2/3 → Phase 4 | Orchestrator signals completion OR pipeline nodes reach `impl_complete` | Validating work that isn't done |
+
+**The critical gate is G1→2.** This is where cognitive momentum most commonly causes skipping. Before writing ANY SD or dispatching ANY orchestrator, run:
+
+```bash
+# Hard check: Do acceptance tests exist for this PRD?
+ls acceptance-tests/PRD-{ID}/*.feature 2>/dev/null | wc -l
+# If 0: STOP. Run Phase 1 first. No exceptions.
+```
+
+Or use the verification script:
+```bash
+python3 .claude/skills/cobuilder-guardian/scripts/verify-phase-gate.py --prd PRD-{ID} --gate G1
+```
+
+### Mode Transition: Investigation → Guardian
+
+Sessions often start as pure investigation ("explore this codebase", "what does X do?") and morph into PRD/SD authoring. The skill doesn't activate until invoked, but the **moment you start writing deliverables** (PRD, SD, acceptance tests, pipeline DOT), you've entered guardian mode.
+
+**Trigger signals that you've transitioned to guardian mode:**
+- Writing or editing a file matching `docs/prds/PRD-*.md` or `docs/specs/business/*.md`
+- Writing or editing a file matching `docs/sds/SD-*.md` or `docs/specs/technical/*.md`
+- Creating a pipeline DOT file
+- Creating acceptance test files
+
+**When you detect the transition, inject the phase checklist into TodoWrite:**
+
+```
+TodoWrite([
+  {"content": "Phase 0: PRD/BS written", "status": "completed"},
+  {"content": "Phase 0: Pipeline created + Checkpoint A", "status": "pending"},
+  {"content": "Phase 0: Design challenge + Checkpoint B", "status": "pending"},
+  {"content": "GATE G1: Verify acceptance tests exist", "status": "pending"},
+  {"content": "Phase 1: Blind Gherkin acceptance tests", "status": "pending"},
+  {"content": "GATE G2: Verify acceptance tests before dispatch", "status": "pending"},
+  {"content": "Phase 2: Orchestrator/pipeline dispatch", "status": "pending"},
+  {"content": "Phase 3: Monitor progress", "status": "pending"},
+  {"content": "Phase 4: Independent validation", "status": "pending"},
+  {"content": "Phase 5: Session closing", "status": "pending"}
+])
+```
+
+This makes the skip visible. If you delete "Phase 1" from the todo list, you're consciously choosing to skip — not silently forgetting.
+
+### Phase Table
 
 | Phase | Purpose | Reference |
 |-------|---------|-----------|
@@ -274,7 +328,17 @@ This creates a continuous monitoring cycle with predictable wake-up intervals an
 
 ### Creating a New Pipeline
 
-See **[references/dot-pipeline-creation.md](references/dot-pipeline-creation.md)** for:
+**MANDATORY PRE-FLIGHT: Before writing or editing ANY `.dot` pipeline file, you MUST load the reference first:**
+
+```python
+Read(".claude/skills/cobuilder-guardian/references/dot-pipeline-creation.md")
+```
+
+**This is a hard gate, not a suggestion.** The DOT format has strict schema requirements (hexagon shapes for gates, mandatory `gate_type` attributes, required 2-outbound edges on gates, required `sd_path` on codergen, required downstream `wait.human` nodes). Writing from memory WILL produce validation errors. The reference contains the exact schema, required attributes per handler, and a minimal working example.
+
+**Do NOT skip this even if you have seen DOT files earlier in the session.** The "I remember this" rationalization is the #1 cause of DOT validation failures.
+
+The reference covers:
 - Minimal DOT example with full node types and attributes
 - Handler type mapping (start, codergen, research, refine, wait.cobuilder, wait.human, exit)
 - Required vs optional node attributes per handler
@@ -306,7 +370,21 @@ See **[references/guardian-workflow.md](references/guardian-workflow.md)** § "S
 
 ### Anti-Patterns
 
-See **[references/guardian-workflow.md](references/guardian-workflow.md)** § "Anti-Patterns" for common patterns that fail and their corrections. Key categories: testing/validation, spawning, promise tracking, DOT pipeline design, and dispatch modes.
+See **[references/guardian-workflow.md](references/guardian-workflow.md)** § "Anti-Patterns" for full list. Key categories: testing/validation, spawning, promise tracking, DOT pipeline design, and dispatch modes.
+
+**The #1 Anti-Pattern: Urgency Bypass (Phase 1 Skip)**
+
+```
+❌ User: "Please immediately write a PRD and SD"
+   Guardian: writes PRD → writes SD → dispatches orchestrator
+   Result: No acceptance tests. Validation in Phase 4 has no rubric.
+
+✅ User: "Please immediately write a PRD and SD"
+   Guardian: writes PRD → GATE G1 fires → writes acceptance tests → writes SD → dispatches
+   Result: Blind tests exist before implementation begins.
+```
+
+The user values correctness over speed. "Immediately" means "don't overthink it," not "skip the process." If the user truly wants to skip Phase 1, they must explicitly say so — and the guardian logs the skip to Hindsight as a deliberate override.
 
 ---
 
@@ -323,7 +401,7 @@ Load these reference files when entering each phase or when you need detailed gu
 | [references/gherkin-test-patterns.md](references/gherkin-test-patterns.md) | Phase 1: Writing Gherkin acceptance tests and executable browser tests |
 | [references/guardian-workflow.md](references/guardian-workflow.md) | Phase 2-3: Orchestrator spawning, monitoring patterns, intervention triggers |
 | [references/validation-scoring.md](references/validation-scoring.md) | Phase 4: Independent validation, evidence gathering, gap closure protocol |
-| [references/dot-pipeline-creation.md](references/dot-pipeline-creation.md) | DOT pipeline syntax, handler types, node attributes, validation |
+| [references/dot-pipeline-creation.md](references/dot-pipeline-creation.md) | Writing or editing DOT pipeline files manually, fixing validation errors from `cobuilder pipeline validate`, or understanding node shapes and required attributes |
 | [references/gap-closure-protocol.md](references/gap-closure-protocol.md) | Phase 4.5: Autonomous closure of validation gaps via fix-it codergen nodes |
 | [references/guardian-workflow.md](references/guardian-workflow.md) | Phase 2-3: Orchestrator spawning, monitoring patterns, intervention triggers, anti-patterns |
 
@@ -337,6 +415,7 @@ Load these reference files when entering each phase or when you need detailed gu
 **Theory**: Independent verification eliminates self-reporting bias in agentic systems
 
 **Changelog**:
+- v1.1.0: Added Phase Gates (G0→1, G1→2, G2→4) as mandatory structural checkpoints between phases. G1→2 (acceptance tests must exist before dispatch) is the most commonly skipped gate due to cognitive momentum. Added Mode Transition protocol (investigation → guardian) with TodoWrite checklist injection at transition point. Added `scripts/verify-phase-gate.py` for programmatic gate verification. Added "Urgency Bypass" anti-pattern documentation. Added Phase 0 → Phase 1 transition section to `phase0-prd-design.md`. Root cause: System 3 skipped Phase 1 (blind acceptance tests) when user asked for "PRD and SD" in one breath — cognitive momentum overrode the process.
 - v1.0.0: Terminology migration — prose-level renaming only. "PRD" → "Business Spec (BS)" and "Solution Design/SD" → "Technical Spec (TS)" throughout descriptive prose in SKILL.md and all reference files. Code identifiers (`prd_ref`, `sd_path`), file-identifier strings like `PRD-XXX-001`, historical changelog entries, and content inside code blocks are unchanged. New spec file paths: `docs/specs/business/` (BS) and `docs/specs/technical/` (TS) for future specs; historical specs remain in `docs/prds/` and `docs/sds/`.
 - v0.9.0: Added Phase 5 (Session Closing Protocol) as mandatory final phase. PRD/SD implementation status updates and bead closure are now an atomic operation — never one without the other. This ensures source documents remain the single source of truth for progress tracking.
 - v0.8.0: Added validation acceptance thresholds (ACCEPT ≥ 0.70, INVESTIGATE 0.50-0.69, REJECT < 0.50) and bead closure process references throughout. Updated `description` field with autonomous threshold-based accept/reject capability and new trigger keywords ("validation thresholds", "gradient scoring decision", "bead creation for gaps"). Expanded Phase 4 row in Guardian Workflow Phases table with threshold summary and references to guardian-workflow.md §§ 5.X and 6.5. Added Phase 4.6 Bead Closure row to Quick Reference table. Bumped `last_verified` to 2026-03-09.

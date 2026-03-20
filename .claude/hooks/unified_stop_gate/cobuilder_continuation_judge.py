@@ -9,7 +9,6 @@ teammates under tmux, AskUserQuestion blocks permanently (permission dialog).
 Strictness: Full evaluation with promises, reflection, validation, cleanup checks.
 """
 
-from dataclasses import dataclass
 import json
 import os
 import sys
@@ -111,6 +110,18 @@ Before stopping, System 3 MUST have:
 - Unfinished tasks slipped through (pending/in_progress in work state)
 - High-priority (P0-P2) beads are ready and System 3 has not addressed them
 - Work was started but left visibly incomplete mid-task
+- **Background pipeline monitor launched**: If the transcript shows a pipeline monitor
+  launched with `run_in_background=True` (or `run_in_background: true`), this is a
+  protocol violation. Pipeline monitors MUST be blocking (`run_in_background=False`).
+  Background monitors detach from System 3, leaving the pipeline unmonitored. BLOCK
+  and suggest relaunching as a blocking monitor.
+- **Guardian Phase 4 skipped**: A pipeline DOT file exists with all codergen nodes at
+  accepted/validated, BUT the conversation does NOT contain evidence of running independent
+  Gherkin acceptance tests (acceptance-tests/PRD-*/). Phase 4 validation is MANDATORY after
+  pipeline completion — the guardian must score implementations against blind tests that
+  workers never saw. Look for: validation-test-agent invocation, Gherkin scenario scoring,
+  or explicit "Phase 4" references in the transcript. If absent, BLOCK with suggestion to
+  run Phase 4 before closing.
 
 ## Response Format
 Your response MUST be a JSON object and nothing else. Start with { and end with }.
@@ -203,13 +214,13 @@ class System3ContinuationJudgeChecker:
         # Update session with found transcript path
         self.session.transcript_path = transcript_path
 
-        # Guard: Check for API key (ANTHROPIC_API_KEY or DASHSCOPE_API_KEY fallback)
-        api_key = os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('DASHSCOPE_API_KEY')
-        if not api_key:
+        # Resolve judge LLM config from providers.yaml (judge_profile key)
+        judge_config = self._resolve_judge_config()
+        if not judge_config.get('api_key'):
             return CheckResult(
                 priority=Priority.P3_5_SYSTEM3_JUDGE,
                 passed=True,
-                message="No API key, skipping judge",
+                message="No API key for judge profile, skipping judge",
                 blocking=True,
             )
 
@@ -229,8 +240,8 @@ class System3ContinuationJudgeChecker:
             # Build evaluation prompt
             user_prompt = self._build_evaluation_prompt(turns)
 
-            # Call Haiku API
-            judgment = self._call_haiku_judge(api_key, user_prompt)
+            # Call judge API using resolved config
+            judgment = self._call_haiku_judge(judge_config, user_prompt)
 
             # Parse response
             should_continue = judgment.get('should_continue', False)
@@ -527,11 +538,73 @@ class System3ContinuationJudgeChecker:
         print(f"[System3Judge] GChat markers: asked={asked_count}, resolved={resolved_count}, pending={pending_count}", file=sys.stderr)
         return result
 
-    def _call_haiku_judge(self, api_key: str, user_prompt: str) -> Dict[str, Any]:
-        """Call Haiku API to evaluate session continuation.
+    def _resolve_judge_config(self) -> Dict[str, Any]:
+        """Resolve the judge LLM config from providers.yaml.
+
+        Reads the ``judge_profile`` key from ``cobuilder/engine/providers.yaml``
+        and resolves env-var references ($VAR) in ``api_key``.
+
+        Returns:
+            Dict with 'model', 'api_key', and 'base_url' keys.
+            Falls back to env vars / hardcoded defaults if providers.yaml
+            is unavailable.
+        """
+        import re
+
+        _env_pattern = re.compile(r"^\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?$")
+
+        def _resolve(value: Optional[str]) -> Optional[str]:
+            if value is None:
+                return None
+            m = _env_pattern.match(value)
+            if m:
+                return os.environ.get(m.group(1))
+            return value
+
+        # Try to load providers.yaml from cobuilder/engine/ (next to providers.py)
+        try:
+            import yaml
+
+            project_dir = os.environ.get('CLAUDE_PROJECT_DIR', os.getcwd())
+            providers_path = os.path.join(project_dir, 'cobuilder', 'engine', 'providers.yaml')
+
+            if os.path.exists(providers_path):
+                with open(providers_path) as f:
+                    raw = yaml.safe_load(f)
+
+                judge_profile_name = raw.get('judge_profile') or raw.get('default_profile')
+                profiles = raw.get('profiles', {})
+
+                if judge_profile_name and judge_profile_name in profiles:
+                    profile = profiles[judge_profile_name]
+                    config = {
+                        'model': profile.get('model', 'glm-5'),
+                        'api_key': _resolve(profile.get('api_key')),
+                        'base_url': profile.get('base_url', 'https://api.anthropic.com'),
+                    }
+                    print(
+                        f"[System3Judge] Using judge_profile '{judge_profile_name}' "
+                        f"(model={config['model']}, base_url={config['base_url']})",
+                        file=sys.stderr,
+                    )
+                    return config
+        except Exception as e:
+            print(f"[System3Judge] Failed to load providers.yaml: {e}", file=sys.stderr)
+
+        # Fallback: env vars (legacy behavior)
+        print("[System3Judge] Falling back to environment variables for judge config", file=sys.stderr)
+        return {
+            'model': os.environ.get('ANTHROPIC_MODEL', 'claude-haiku-4-5-20251001'),
+            'api_key': os.environ.get('ANTHROPIC_API_KEY') or os.environ.get('DASHSCOPE_API_KEY'),
+            'base_url': os.environ.get('ANTHROPIC_BASE_URL'),
+        }
+
+    def _call_haiku_judge(self, judge_config: Dict[str, Any], user_prompt: str) -> Dict[str, Any]:
+        """Call the judge LLM to evaluate session continuation.
 
         Args:
-            api_key: Anthropic API key.
+            judge_config: Dict with 'model', 'api_key', and 'base_url' from
+                _resolve_judge_config().
             user_prompt: The evaluation prompt with conversation context.
 
         Returns:
@@ -547,9 +620,9 @@ class System3ContinuationJudgeChecker:
             raise Exception(f"Anthropic SDK not available: {e}")
 
         try:
-            # Build client kwargs - include base_url if set (for DASHSCOPE/etc. compatibility)
-            client_kwargs: Dict[str, Any] = {"api_key": api_key}
-            base_url = os.environ.get("ANTHROPIC_BASE_URL")
+            # Build client kwargs from resolved judge config
+            client_kwargs: Dict[str, Any] = {"api_key": judge_config['api_key']}
+            base_url = judge_config.get('base_url')
             if base_url:
                 client_kwargs["base_url"] = base_url
 
@@ -557,8 +630,7 @@ class System3ContinuationJudgeChecker:
 
             system_prompt = SYSTEM3_JUDGE_SYSTEM_PROMPT
 
-            # Get model from environment (ANTHROPIC_MODEL from cobuilder/engine/.env), fall back to Haiku 4.5 if not specified
-            model = os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
+            model = judge_config['model']
 
             response = client.messages.create(
                 model=model,

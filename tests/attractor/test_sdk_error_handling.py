@@ -107,7 +107,7 @@ class TestStreamErrorHandlerNoResult:
         runner._get_target_dir = lambda: "/tmp"
         runner._build_system_prompt = lambda wt: "sys"
         runner._get_allowed_tools = lambda h: ["Read"]
-        runner._get_repo_root = lambda: "/tmp"
+        runner._get_cobuilder_root = lambda: "/tmp"
 
         original_sdk = pr_mod.claude_code_sdk
         original_available = pr_mod._SDK_AVAILABLE
@@ -153,7 +153,7 @@ class TestStreamErrorHandlerNoResult:
         runner._get_target_dir = lambda: "/tmp"
         runner._build_system_prompt = lambda wt: "sys"
         runner._get_allowed_tools = lambda h: ["Read"]
-        runner._get_repo_root = lambda: "/tmp"
+        runner._get_cobuilder_root = lambda: "/tmp"
 
         original_sdk = pr_mod.claude_code_sdk
         original_available = pr_mod._SDK_AVAILABLE
@@ -214,7 +214,7 @@ class TestStreamErrorHandlerWithResult:
         runner._get_target_dir = lambda: "/tmp"
         runner._build_system_prompt = lambda wt: "sys"
         runner._get_allowed_tools = lambda h: ["Read"]
-        runner._get_repo_root = lambda: "/tmp"
+        runner._get_cobuilder_root = lambda: "/tmp"
 
         original_sdk = pr_mod.claude_code_sdk
         original_available = pr_mod._SDK_AVAILABLE
@@ -266,7 +266,7 @@ class TestStreamErrorNoMessages:
         runner._get_target_dir = lambda: "/tmp"
         runner._build_system_prompt = lambda wt: "sys"
         runner._get_allowed_tools = lambda h: ["Read"]
-        runner._get_repo_root = lambda: "/tmp"
+        runner._get_cobuilder_root = lambda: "/tmp"
 
         original_sdk = pr_mod.claude_code_sdk
         original_available = pr_mod._SDK_AVAILABLE
@@ -320,7 +320,7 @@ class TestValidationStreamError:
         runner._build_system_prompt = lambda wt: "sys"
         runner._build_validation_prompt = lambda nid: "validate this"
         runner._get_allowed_tools = lambda h: ["Read"]
-        runner._get_repo_root = lambda: "/tmp"
+        runner._get_cobuilder_root = lambda: "/tmp"
         runner._validation_method_hint = None
 
         original_sdk = pr_mod.claude_code_sdk
@@ -371,7 +371,7 @@ class TestValidationStreamError:
         runner._build_system_prompt = lambda wt: "sys"
         runner._build_validation_prompt = lambda nid: "validate this"
         runner._get_allowed_tools = lambda h: ["Read"]
-        runner._get_repo_root = lambda: "/tmp"
+        runner._get_cobuilder_root = lambda: "/tmp"
         runner._validation_method_hint = None
 
         original_sdk = pr_mod.claude_code_sdk
@@ -429,7 +429,7 @@ class TestSignalFileExistsPreservesSuccess:
         runner._get_target_dir = lambda: "/tmp"
         runner._build_system_prompt = lambda wt: "sys"
         runner._get_allowed_tools = lambda h: ["Read"]
-        runner._get_repo_root = lambda: "/tmp"
+        runner._get_cobuilder_root = lambda: "/tmp"
 
         original_sdk = pr_mod.claude_code_sdk
         original_available = pr_mod._SDK_AVAILABLE
@@ -473,7 +473,7 @@ class TestSignalFileExistsPreservesSuccess:
         runner._get_target_dir = lambda: "/tmp"
         runner._build_system_prompt = lambda wt: "sys"
         runner._get_allowed_tools = lambda h: ["Read"]
-        runner._get_repo_root = lambda: "/tmp"
+        runner._get_cobuilder_root = lambda: "/tmp"
 
         original_sdk = pr_mod.claude_code_sdk
         original_available = pr_mod._SDK_AVAILABLE
