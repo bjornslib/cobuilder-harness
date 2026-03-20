@@ -170,8 +170,68 @@ All scripts are in {scripts_dir}:
 - python3 {scripts_dir}/respond_to_runner.py GUIDANCE --node <id> --message <text>            # Guide
 - python3 {scripts_dir}/respond_to_runner.py KILL_ORCHESTRATOR --node <id> --reason <text>    # Abort
 - python3 {scripts_dir}/escalate_to_terminal.py --pipeline {pipeline_id} --issue <text>   # Escalate
-- python3 {scripts_dir}/runner.py --spawn --node <id> --prd <prd_ref> [--acceptance <text>] [--bead-id <id>] --mode sdk{target_dir_flag} --dot-file {dot_path}  # Launch runner (SDK mode)
-- python3 {scripts_dir}/runner.py --spawn --node <id> --prd <prd_ref> [--acceptance <text>] [--bead-id <id>] --mode tmux{target_dir_flag} --dot-file {dot_path}  # Launch runner (tmux interactive mode)
+
+### Pipeline Runner Launch
+- python3 {scripts_dir}/pipeline_runner.py --dot-file {dot_path} &   # Launch runner in BACKGROUND
+- python3 {scripts_dir}/cli.py status {dot_path} --json              # Check runner progress
+
+CRITICAL: Always run pipeline_runner.py with & (background). If you run it in the foreground,
+you will DEADLOCK when the runner hits a gate node — it will wait for your GATE_RESPONSE signal,
+but you'll be blocked waiting for it to exit.
+
+### Gate Handling
+When a node with handler=wait.cobuilder or wait.human becomes active, the runner is blocked
+waiting for you to validate or approve.
+
+For wait.cobuilder gates:
+1. Read the codergen node's acceptance criteria from the DOT
+2. Verify the work was done (check files exist, run tests via Bash)
+3. If PASS: transition the gate to validated
+   python3 {scripts_dir}/cli.py transition {dot_path} <gate_node> validated
+4. If FAIL: transition the codergen node back to pending for retry
+   python3 {scripts_dir}/cli.py transition {dot_path} <codergen_node> pending
+
+For wait.human gates:
+1. Check if you can validate autonomously (technical criteria)
+2. If autonomous: transition to validated
+3. If human needed: escalate to Terminal
+
+### Pipeline Graph Modification (Node/Edge CRUD)
+When you need to modify the pipeline structure (e.g., inject a refinement node after failure,
+add a parallel research branch, or restructure after validation failure):
+
+Node operations:
+- python3 {scripts_dir}/cli.py node {dot_path} add <node_id> --handler codergen --label "Fix: <description>" --set sd_path=<path> --set worker_type=backend-solutions-engineer --set llm_profile=alibaba-glm5 --set prompt="<task>" --set acceptance="<criteria>" --set prd_ref=<prd> --set bead_id=<id>
+- python3 {scripts_dir}/cli.py node {dot_path} add <node_id> --handler research --label "Research: <topic>" --set llm_profile=anthropic-fast
+- python3 {scripts_dir}/cli.py node {dot_path} add <node_id> --handler refine --label "Refine: <topic>" --set sd_path=<path>
+- python3 {scripts_dir}/cli.py node {dot_path} modify <node_id> --set prompt="<updated_prompt>" --set acceptance="<updated_criteria>"
+- python3 {scripts_dir}/cli.py node {dot_path} remove <node_id>
+- python3 {scripts_dir}/cli.py node {dot_path} list
+
+Edge operations:
+- python3 {scripts_dir}/cli.py edge {dot_path} add <from_node> <to_node> --label "<description>"
+- python3 {scripts_dir}/cli.py edge {dot_path} remove <from_node> <to_node>
+- python3 {scripts_dir}/cli.py edge {dot_path} list
+
+Common patterns:
+1. Inject fix-it node after validation failure:
+   python3 {scripts_dir}/cli.py node {dot_path} add fix_<id> --handler codergen --label "Fix: <gap>" --set sd_path=<path> --set worker_type=backend-solutions-engineer
+   python3 {scripts_dir}/cli.py edge {dot_path} add <failed_node> fix_<id> --label "fix required"
+   python3 {scripts_dir}/cli.py edge {dot_path} add fix_<id> <next_gate> --label "re-validate"
+
+2. Add research branch for unknown domain:
+   python3 {scripts_dir}/cli.py node {dot_path} add research_<topic> --handler research --label "Research: <topic>"
+   python3 {scripts_dir}/cli.py edge {dot_path} add <predecessor> research_<topic> --label "investigate"
+   python3 {scripts_dir}/cli.py edge {dot_path} add research_<topic> <successor> --label "findings ready"
+
+3. Restructure after repeated failure (replace node):
+   python3 {scripts_dir}/cli.py node {dot_path} remove <old_node>
+   python3 {scripts_dir}/cli.py node {dot_path} add <new_node> --handler codergen --label "<new approach>" --set sd_path=<path>
+   (re-wire edges from predecessor/successor)
+
+IMPORTANT: After ANY graph modification, always:
+   python3 {scripts_dir}/cli.py validate {dot_path}
+   python3 {scripts_dir}/cli.py checkpoint save {dot_path}
 
 ### Signal Handler Types
 When reading signals via wait_for_signal.py, you may encounter these signal types from runners:
@@ -271,88 +331,62 @@ annotations into production-quality SD content. The downstream codergen node's d
 on the refine node is enforced by DOT edges — it won't appear in --deps-met until refine
 is validated.
 
-### Phase 2b: Dispatch Ready Codergen Nodes
-4. Find ready nodes (pending + dependencies met):
-   python3 {scripts_dir}/cli.py status {dot_path} --filter=pending --deps-met --json
-5. For each ready codergen node:
-   a. Transition to active:
-      python3 {scripts_dir}/cli.py transition {dot_path} transition <node_id> active
-   b. Save checkpoint:
-      python3 {scripts_dir}/cli.py checkpoint save {dot_path}
-   c. Spawn Runner:
-      python3 {scripts_dir}/runner.py --spawn --node <node_id> --prd <prd_ref> --acceptance "<ac>" --bead-id <bead_id> --solution-design <solution_design_attr> --mode sdk{target_dir_flag} --dot-file {dot_path}
-      Note: Extract solution_design_attr from the node's "solution_design" attribute in the parsed DOT JSON.
-      If the node has no solution_design attribute, omit --solution-design entirely.
-6. For each ready wait.human node:
-   a. Determine if you can validate autonomously (technical gate) or need human (business/manual gate)
-   b. If autonomous: transition directly to validated after reviewing acceptance criteria
-   c. If human needed: escalate to Terminal
+### Phase 2: Launch Pipeline Runner (Background)
+4. Launch the pipeline runner in the BACKGROUND:
+   python3 {scripts_dir}/pipeline_runner.py --dot-file {dot_path} &
+   RUNNER_PID=$!
+   echo "Pipeline runner launched with PID: $RUNNER_PID"
 
-### Phase 3: Wait for Runner Completion (PID polling)
-7. After spawning a runner, parse runner_pid from the JSON output of the spawn command.
-8. Poll until the runner process exits (check every 30 seconds):
+   CRITICAL: Always use & (background). Foreground execution will DEADLOCK at gate nodes.
+
+5. Poll the runner process and handle gates:
    ```bash
-   while ps -p <runner_pid> > /dev/null 2>&1; do
+   while ps -p $RUNNER_PID > /dev/null 2>&1; do
+       # Check for gate signals (runner is blocked waiting for you)
+       ls {scripts_dir}/../signals/*GATE*.signal 2>/dev/null
+
+       # Check node statuses for progress
+       python3 {scripts_dir}/cli.py status {dot_path} --json
+
        sleep 30
    done
    ```
-   You may also check status mid-poll for progress logging:
+
+6. When the runner hits a gate node (wait.cobuilder or wait.human):
+   a. Read the gate signal file to identify which node is blocked
+   b. For wait.cobuilder gates:
+      - Read the upstream codergen node's acceptance criteria
+      - Verify the work (check files, run tests)
+      - If PASS: python3 {scripts_dir}/cli.py transition {dot_path} <gate_node> validated
+      - If FAIL: python3 {scripts_dir}/cli.py transition {dot_path} <codergen_node> pending
+   c. For wait.human gates:
+      - If you can validate autonomously: transition to validated
+      - If human input needed: escalate to Terminal
+
+### Phase 3: Handle Runner Completion
+7. When the runner PID exits, check the final status:
    python3 {scripts_dir}/cli.py status {dot_path} --json
 
-9. Once the PID exits, check the node status:
-   python3 {scripts_dir}/cli.py status {dot_path} --json
+8. Handle based on final state:
 
-10. Handle based on node status:
+   ALL NODES validated:
+   - Pipeline completed successfully
+   - Save final checkpoint: python3 {scripts_dir}/cli.py checkpoint save {dot_path}
+   - Signal completion: python3 {scripts_dir}/escalate_to_terminal.py --pipeline {pipeline_id} --issue "PIPELINE_COMPLETE"
 
-    NODE IS impl_complete (runner finished successfully):
-    - The runner completed and transitioned the node.
-    - Validate against acceptance criteria from the DOT node attributes.
-    - If PASSING:
-      * Transition node to validated:
-        python3 {scripts_dir}/cli.py transition {dot_path} transition <node_id> validated
-      * Save checkpoint:
-        python3 {scripts_dir}/cli.py checkpoint save {dot_path}
-    - If FAILING (acceptance criteria not met):
-      * Check retry count (max {max_retries} retries per node).
-      * If retries remain:
-        - Transition back to active: python3 {scripts_dir}/cli.py transition {dot_path} transition <node_id> active
-        - Re-spawn runner: python3 {scripts_dir}/runner.py --spawn --node <node_id> --prd <prd_ref> --acceptance "<ac>" --bead-id <bead_id> --solution-design <solution_design_attr> --mode sdk{target_dir_flag} --dot-file {dot_path}
-        - Return to step 7 (poll new PID)
-      * If max retries exceeded: escalate
-        python3 {scripts_dir}/escalate_to_terminal.py --pipeline {pipeline_id} --issue "Node <node_id> failed validation after {max_retries} retries"
+   ANY NODE failed:
+   - Check retry count for the failed node
+   - If retries remain: transition back to pending and re-launch runner
+     python3 {scripts_dir}/cli.py transition {dot_path} <node_id> pending
+     python3 {scripts_dir}/pipeline_runner.py --dot-file {dot_path} &
+   - If max retries exceeded: escalate
+     python3 {scripts_dir}/escalate_to_terminal.py --pipeline {pipeline_id} --issue "Node <node_id> failed after {max_retries} retries"
 
-    NODE IS failed (runner crashed or reported failure):
-    - Check runner stderr log for diagnostics:
-      cat {target_dir_flag.strip() or "."}/. claude/attractor/runner-state/*-stderr.log 2>/dev/null | tail -50
-    - Check retry count (max {max_retries} retries per node).
-    - If retries remain:
-      * Transition node to active (failed -> active is a valid transition):
-        python3 {scripts_dir}/cli.py transition {dot_path} transition <node_id> active
-      * Re-spawn runner: python3 {scripts_dir}/runner.py --spawn --node <node_id> --prd <prd_ref> --acceptance "<ac>" --bead-id <bead_id> --solution-design <solution_design_attr> --mode sdk{target_dir_flag} --dot-file {dot_path}
-      * Return to step 7 (poll new PID)
-    - If max retries exceeded: escalate
-      python3 {scripts_dir}/escalate_to_terminal.py --pipeline {pipeline_id} --issue "Runner failed for <node_id> after {max_retries} retries"
+   RUNNER CRASHED (no status update):
+   - Check stderr logs for diagnostics
+   - Retry or escalate as appropriate
 
-    NODE IS still active (PID died without updating node state):
-    - The runner crashed before it could transition the node.
-    - Check runner stderr log:
-      cat {target_dir_flag.strip() or "."}/. claude/attractor/runner-state/*-stderr.log 2>/dev/null | tail -50
-    - Treat as "NODE IS failed" above (retry or escalate).
-
-11. After validating a node, check for newly unblocked nodes:
-    python3 {scripts_dir}/cli.py status {dot_path} --filter=pending --deps-met --json
-    Dispatch any newly ready nodes (return to Phase 2b).
-
-12. Pipeline complete when all non-start/exit nodes are validated:
-    python3 {scripts_dir}/cli.py status {dot_path} --json
-    If summary shows all nodes "validated" → save final checkpoint and exit successfully.
-
-### Phase 4: Check Pipeline Progress
-10. After handling the signal, check for new ready nodes (go to Phase 2)
-11. If all nodes are validated:
-    - Signal completion to Layer 0: python3 {scripts_dir}/escalate_to_terminal.py --pipeline {pipeline_id} --issue "PIPELINE_COMPLETE: all nodes validated"
-12. If pipeline is stuck (no ready nodes, no active nodes):
-    - Escalate to Terminal: python3 {scripts_dir}/escalate_to_terminal.py --pipeline {pipeline_id} --issue "PIPELINE_STUCK: no progress possible"
+9. Pipeline complete when all non-start/exit nodes are validated.
 
 ## Retry Tracking
 Track retries per node in memory (dict). When a node exceeds {max_retries} retries, do not
