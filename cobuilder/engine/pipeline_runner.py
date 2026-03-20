@@ -401,9 +401,13 @@ def _create_signal_stop_hook(signal_dir: str, node_id: str) -> dict:
     """
     signal_path = os.path.join(signal_dir, f"{node_id}.json")
     processed_dir = os.path.join(signal_dir, "processed")
+    _block_count = 0
+    _MAX_BLOCKS = 2  # Allow exit after being blocked this many times
 
     async def _check_signal(hook_input: dict, event_name: str | None, context: Any) -> Any:  # HookJSONOutput
-        """Stop hook: block exit if signal file missing."""
+        """Stop hook: block exit if signal file missing. Max 2 blocks then allow."""
+        nonlocal _block_count
+
         # Check active signal dir
         if os.path.exists(signal_path):
             return {}  # Signal exists, allow exit
@@ -412,10 +416,17 @@ def _create_signal_stop_hook(signal_dir: str, node_id: str) -> dict:
             for fname in os.listdir(processed_dir):
                 if node_id in fname and fname.endswith(".json"):
                     return {}  # Signal was processed, allow exit
+
+        # Signal not found — block up to _MAX_BLOCKS times, then allow exit
+        _block_count += 1
+        if _block_count > _MAX_BLOCKS:
+            log.warning("[stop-hook] %s: allowing exit after %d blocks (signal still missing)", node_id, _block_count)
+            return {}  # Give up blocking — runner's liveness check will handle it
+
         return {
             "decision": "block",
             "systemMessage": (
-                f"BLOCKED: You have not written your signal file. "
+                f"BLOCKED ({_block_count}/{_MAX_BLOCKS}): You have not written your signal file. "
                 f"Write it NOW before exiting.\n\n"
                 f"Use: Write(file_path=\"{signal_path}\", "
                 f"content='{{\"status\": \"success\", \"files_changed\": [\"list/of/files.py\"], "
