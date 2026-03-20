@@ -29,6 +29,8 @@ digraph "test_pipeline" {
         prd_ref="PRD-AUTH-001"
         label="Test Pipeline"
         promise_id=""
+        cobuilder_root="/tmp"
+        target_dir="/tmp"
     ];
     start [
         handler="start"
@@ -47,7 +49,7 @@ digraph "test_pipeline" {
         worker_type="backend-solutions-engineer"
         prd_ref="PRD-AUTH-001"
         prd_section="Epic 2: JWT Authentication"
-        solution_design=".claude/documentation/SOLUTION-DESIGN-AUTH.md"
+        solution_design="/Users/theb/Documents/Windsurf/cobuilder-harness/.claude/documentation/SOLUTION-DESIGN-acceptance-testing.md"
         target_dir="zenagent/agencheck/agencheck-support-agent"
         acceptance="JWT auth with refresh tokens"
         style=filled
@@ -90,6 +92,8 @@ digraph "legacy_pipeline" {
     graph [
         label="Legacy Pipeline"
         promise_id=""
+        cobuilder_root="/tmp"
+        target_dir="/tmp"
     ];
     start [
         handler="start"
@@ -106,7 +110,7 @@ digraph "legacy_pipeline" {
         status="pending"
         bead_id="FEAT-001"
         worker_type="backend-solutions-engineer"
-        sd_path="docs/sds/SD-FEAT.md"
+        sd_path="/Users/theb/Documents/Windsurf/cobuilder-harness/.claude/documentation/SOLUTION-DESIGN-acceptance-testing.md"
         style=filled
         fillcolor=lightyellow
     ]
@@ -177,7 +181,7 @@ def test_parser_extracts_solution_design():
     result = parse_dot(DOT_WITH_NEW_ATTRS)
     impl_node = next(n for n in result["nodes"] if n["id"] == "impl_auth")
     assert "solution_design" in impl_node["attrs"]
-    assert impl_node["attrs"]["solution_design"] == ".claude/documentation/SOLUTION-DESIGN-AUTH.md"
+    assert impl_node["attrs"]["solution_design"] == "/Users/theb/Documents/Windsurf/cobuilder-harness/.claude/documentation/SOLUTION-DESIGN-acceptance-testing.md"
 
 
 def test_parser_extracts_target_dir():
@@ -328,6 +332,8 @@ digraph "test_research_refine" {
         label="Research-Refine Pipeline"
         prd_ref="PRD-TEST-002"
         promise_id=""
+        cobuilder_root="/tmp"
+        target_dir="/tmp"
     ];
     start [
         handler="start"
@@ -339,7 +345,7 @@ digraph "test_research_refine" {
         shape=tab
         handler="research"
         label="Research\\nG1 Patterns"
-        solution_design="docs/sds/SD-TEST.md"
+        solution_design="/Users/theb/Documents/Windsurf/cobuilder-harness/.claude/documentation/SOLUTION-DESIGN-acceptance-testing.md"
         research_queries="nextjs,supabase"
         prd_ref="PRD-TEST-002"
         status="pending"
@@ -348,7 +354,7 @@ digraph "test_research_refine" {
         shape=note
         handler="refine"
         label="Refine\\nG1 Patterns"
-        solution_design="docs/sds/SD-TEST.md"
+        solution_design="/Users/theb/Documents/Windsurf/cobuilder-harness/.claude/documentation/SOLUTION-DESIGN-acceptance-testing.md"
         evidence_path=".claude/evidence/research_g1/research-findings.json"
         prd_ref="PRD-TEST-002"
         status="pending"
@@ -361,7 +367,7 @@ digraph "test_research_refine" {
         bead_id="G1-001"
         worker_type="backend-solutions-engineer"
         prd_ref="PRD-TEST-002"
-        sd_path="docs/sds/SD-TEST.md"
+        sd_path="/Users/theb/Documents/Windsurf/cobuilder-harness/.claude/documentation/SOLUTION-DESIGN-acceptance-testing.md"
         acceptance="G1 works correctly"
     ]
     validate_unit_g1 [
@@ -404,13 +410,13 @@ digraph "test_research_refine" {
 
 DOT_WITH_REFINE_MISSING_EVIDENCE_PATH = '''
 digraph "test_refine_missing" {
-    graph [label="Missing evidence_path" promise_id=""];
+    graph [label="Missing evidence_path" promise_id="" cobuilder_root="/tmp" target_dir="/tmp"];
     start [handler="start" shape=Mdiamond label="Start" status="validated"]
     refine_bad [
         shape=note
         handler="refine"
         label="Refine\\nBad"
-        solution_design="docs/sds/SD-TEST.md"
+        solution_design="/Users/theb/Documents/Windsurf/cobuilder-harness/.claude/documentation/SOLUTION-DESIGN-acceptance-testing.md"
         status="pending"
     ]
     finish [handler="exit" shape=Msquare label="Finish" status="pending"]
@@ -421,13 +427,13 @@ digraph "test_refine_missing" {
 
 DOT_WITH_REFINE_WRONG_SHAPE = '''
 digraph "test_refine_shape" {
-    graph [label="Wrong shape" promise_id=""];
+    graph [label="Wrong shape" promise_id="" cobuilder_root="/tmp" target_dir="/tmp"];
     start [handler="start" shape=Mdiamond label="Start" status="validated"]
     refine_bad [
         shape=box
         handler="refine"
         label="Refine\\nBad"
-        solution_design="docs/sds/SD-TEST.md"
+        solution_design="/Users/theb/Documents/Windsurf/cobuilder-harness/.claude/documentation/SOLUTION-DESIGN-acceptance-testing.md"
         evidence_path=".claude/evidence/research/findings.json"
         status="pending"
     ]
@@ -519,3 +525,267 @@ def test_validator_errors_on_refine_wrong_shape():
     assert len(shape_errors) >= 1, (
         f"Expected shape mismatch error for refine node, got: {[str(i) for i in issues]}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Tests for path validation rules (Rules 17, 18, 19)
+# ---------------------------------------------------------------------------
+
+def test_validator_errors_on_missing_cobuilder_root():
+    """Graph without cobuilder_root attribute produces an error."""
+    dot_str = '''
+    digraph "test" {
+        graph [label="Test" target_dir="/tmp"];
+        start [handler="start" shape=Mdiamond status=pending label="Start"];
+        exit [handler="exit" shape=Msquare status=pending label="Exit"];
+        start -> exit;
+    }
+    '''
+    data = parse_dot(dot_str)
+    issues = validate(data)
+    errors = [i for i in issues if i.level == "error" and "cobuilder_root" in i.message]
+    assert len(errors) >= 1, (
+        f"Expected error about missing cobuilder_root, got: {[str(i) for i in issues]}"
+    )
+
+
+def test_validator_errors_on_relative_cobuilder_root():
+    """Graph with relative cobuilder_root path produces an error."""
+    dot_str = '''
+    digraph "test" {
+        graph [label="Test" cobuilder_root="./relative/path" target_dir="/tmp"];
+        start [handler="start" shape=Mdiamond status=pending label="Start"];
+        exit [handler="exit" shape=Msquare status=pending label="Exit"];
+        start -> exit;
+    }
+    '''
+    data = parse_dot(dot_str)
+    issues = validate(data)
+    errors = [i for i in issues if i.level == "error" and "cobuilder_root" in i.message and "absolute" in i.message.lower()]
+    assert len(errors) >= 1, (
+        f"Expected error about relative cobuilder_root, got: {[str(i) for i in issues]}"
+    )
+
+
+def test_validator_errors_on_nonexistent_cobuilder_root():
+    """Graph with non-existent cobuilder_root directory produces an error."""
+    dot_str = '''
+    digraph "test" {
+        graph [label="Test" cobuilder_root="/nonexistent/path/12345" target_dir="/tmp"];
+        start [handler="start" shape=Mdiamond status=pending label="Start"];
+        exit [handler="exit" shape=Msquare status=pending label="Exit"];
+        start -> exit;
+    }
+    '''
+    data = parse_dot(dot_str)
+    issues = validate(data)
+    errors = [i for i in issues if i.level == "error" and "cobuilder_root" in i.message and "non-existent" in i.message.lower()]
+    assert len(errors) >= 1, (
+        f"Expected error about non-existent cobuilder_root, got: {[str(i) for i in issues]}"
+    )
+
+
+def test_validator_errors_on_missing_target_dir():
+    """Graph without target_dir attribute produces an error."""
+    dot_str = '''
+    digraph "test" {
+        graph [label="Test" cobuilder_root="/tmp"];
+        start [handler="start" shape=Mdiamond status=pending label="Start"];
+        exit [handler="exit" shape=Msquare status=pending label="Exit"];
+        start -> exit;
+    }
+    '''
+    data = parse_dot(dot_str)
+    issues = validate(data)
+    errors = [i for i in issues if i.level == "error" and "target_dir" in i.message]
+    assert len(errors) >= 1, (
+        f"Expected error about missing target_dir, got: {[str(i) for i in issues]}"
+    )
+
+
+def test_validator_errors_on_relative_target_dir():
+    """Graph with relative target_dir path produces an error."""
+    dot_str = '''
+    digraph "test" {
+        graph [label="Test" cobuilder_root="/tmp" target_dir="./relative"];
+        start [handler="start" shape=Mdiamond status=pending label="Start"];
+        exit [handler="exit" shape=Msquare status=pending label="Exit"];
+        start -> exit;
+    }
+    '''
+    data = parse_dot(dot_str)
+    issues = validate(data)
+    errors = [i for i in issues if i.level == "error" and "target_dir" in i.message and "absolute" in i.message.lower()]
+    assert len(errors) >= 1, (
+        f"Expected error about relative target_dir, got: {[str(i) for i in issues]}"
+    )
+
+
+def test_validator_errors_on_nonexistent_target_dir():
+    """Graph with non-existent target_dir directory produces an error."""
+    dot_str = '''
+    digraph "test" {
+        graph [label="Test" cobuilder_root="/tmp" target_dir="/nonexistent/path/99999"];
+        start [handler="start" shape=Mdiamond status=pending label="Start"];
+        exit [handler="exit" shape=Msquare status=pending label="Exit"];
+        start -> exit;
+    }
+    '''
+    data = parse_dot(dot_str)
+    issues = validate(data)
+    errors = [i for i in issues if i.level == "error" and "target_dir" in i.message and "non-existent" in i.message.lower()]
+    assert len(errors) >= 1, (
+        f"Expected error about non-existent target_dir, got: {[str(i) for i in issues]}"
+    )
+
+
+def test_validator_errors_on_relative_sd_path():
+    """Node with relative sd_path produces an error."""
+    dot_str = '''
+    digraph "test" {
+        graph [label="Test" cobuilder_root="/tmp" target_dir="/tmp"];
+        start [handler="start" shape=Mdiamond status=pending label="Start"];
+        impl [
+            handler="codergen" shape=box status=pending label="Impl"
+            bead_id="test"
+            worker_type="backend-solutions-engineer"
+            sd_path="./relative/path.md"
+        ];
+        exit [handler="exit" shape=Msquare status=pending label="Exit"];
+        start -> impl -> exit;
+    }
+    '''
+    data = parse_dot(dot_str)
+    issues = validate(data)
+    errors = [i for i in issues if i.level == "error" and "sd_path" in i.message and "absolute" in i.message.lower()]
+    assert len(errors) >= 1, (
+        f"Expected error about relative sd_path, got: {[str(i) for i in issues]}"
+    )
+
+
+def test_validator_errors_on_nonexistent_sd_path():
+    """Node with non-existent sd_path produces an error."""
+    dot_str = '''
+    digraph "test" {
+        graph [label="Test" cobuilder_root="/tmp" target_dir="/tmp"];
+        start [handler="start" shape=Mdiamond status=pending label="Start"];
+        impl [
+            handler="codergen" shape=box status=pending label="Impl"
+            bead_id="test"
+            worker_type="backend-solutions-engineer"
+            sd_path="/nonexistent/file/99999.md"
+        ];
+        exit [handler="exit" shape=Msquare status=pending label="Exit"];
+        start -> impl -> exit;
+    }
+    '''
+    data = parse_dot(dot_str)
+    issues = validate(data)
+    errors = [i for i in issues if i.level == "error" and "sd_path" in i.message and "non-existent" in i.message.lower()]
+    assert len(errors) >= 1, (
+        f"Expected error about non-existent sd_path, got: {[str(i) for i in issues]}"
+    )
+
+
+def test_validator_errors_on_relative_solution_design():
+    """Node with relative solution_design produces an error."""
+    dot_str = '''
+    digraph "test" {
+        graph [label="Test" cobuilder_root="/tmp" target_dir="/tmp"];
+        start [handler="start" shape=Mdiamond status=pending label="Start"];
+        research [
+            handler="research" shape=tab status=pending label="Research"
+            solution_design="./relative.md"
+        ];
+        exit [handler="exit" shape=Msquare status=pending label="Exit"];
+        start -> research -> exit;
+    }
+    '''
+    data = parse_dot(dot_str)
+    issues = validate(data)
+    errors = [i for i in issues if i.level == "error" and "solution_design" in i.message and "absolute" in i.message.lower()]
+    assert len(errors) >= 1, (
+        f"Expected error about relative solution_design, got: {[str(i) for i in issues]}"
+    )
+
+
+def test_validator_errors_on_nonexistent_solution_design():
+    """Node with non-existent solution_design produces an error."""
+    dot_str = '''
+    digraph "test" {
+        graph [label="Test" cobuilder_root="/tmp" target_dir="/tmp"];
+        start [handler="start" shape=Mdiamond status=pending label="Start"];
+        research [
+            handler="research" shape=tab status=pending label="Research"
+            solution_design="/nonexistent/design/file.md"
+        ];
+        exit [handler="exit" shape=Msquare status=pending label="Exit"];
+        start -> research -> exit;
+    }
+    '''
+    data = parse_dot(dot_str)
+    issues = validate(data)
+    errors = [i for i in issues if i.level == "error" and "solution_design" in i.message and "non-existent" in i.message.lower()]
+    assert len(errors) >= 1, (
+        f"Expected error about non-existent solution_design, got: {[str(i) for i in issues]}"
+    )
+
+
+def test_validator_errors_on_deprecated_target_repo():
+    """Node with deprecated target_repo attribute produces an error."""
+    dot_str = '''
+    digraph "test" {
+        graph [label="Test" cobuilder_root="/tmp" target_dir="/tmp"];
+        start [handler="start" shape=Mdiamond status=pending label="Start"];
+        impl [
+            handler="codergen" shape=box status=pending label="Impl"
+            bead_id="test"
+            worker_type="backend-solutions-engineer"
+            sd_path="/tmp/test.md"
+            target_repo="zenagent/support"
+        ];
+        exit [handler="exit" shape=Msquare status=pending label="Exit"];
+        start -> impl -> exit;
+    }
+    '''
+    data = parse_dot(dot_str)
+    issues = validate(data)
+    errors = [i for i in issues if i.level == "error" and "target_repo" in i.message and "deprecated" in i.message.lower()]
+    assert len(errors) >= 1, (
+        f"Expected error about deprecated target_repo, got: {[str(i) for i in issues]}"
+    )
+
+
+def test_validator_accepts_valid_paths():
+    """Graph with valid absolute paths is accepted."""
+    import tempfile
+    with tempfile.NamedTemporaryFile(mode='w', suffix='.md', delete=False) as f:
+        f.write("# Test SD\n")
+        sd_file = f.name
+    try:
+        dot_str = f'''
+        digraph "test" {{
+            graph [label="Test" cobuilder_root="/tmp" target_dir="/tmp"];
+            start [handler="start" shape=Mdiamond status=pending label="Start"];
+            impl [
+                handler="codergen" shape=box status=pending label="Impl"
+                bead_id="test"
+                worker_type="backend-solutions-engineer"
+                sd_path="{sd_file}"
+            ];
+            exit [handler="exit" shape=Msquare status=pending label="Exit"];
+            start -> impl -> exit;
+        }}
+        '''
+        data = parse_dot(dot_str)
+        issues = validate(data)
+        # Filter out other potential errors, only check for path-related errors
+        path_errors = [
+            i for i in issues
+            if i.level == "error" and any(kw in i.message.lower() for kw in ["absolute", "non-existent", "deprecated"])
+        ]
+        assert len(path_errors) == 0, (
+            f"Expected no path validation errors with valid paths, got: {[str(i) for i in path_errors]}"
+        )
+    finally:
+        os.unlink(sd_file)
