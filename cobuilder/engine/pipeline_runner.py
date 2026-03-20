@@ -489,15 +489,34 @@ class PipelineRunner:
                         os.environ[key] = value
                         log.debug("[env] Set %s from attractor .env", key)
 
+    def _get_cobuilder_root(self) -> str:
+        """Return cobuilder_root from graph attrs. This is the project root for SD/PRD resolution."""
+        root = self._graph_attrs.get("cobuilder_root", "")
+        if root and os.path.isdir(root):
+            return root
+        # Fallback: try to find git root walking up from dot_dir
+        d = os.path.abspath(self.dot_dir)
+        for _ in range(10):  # max 10 levels up
+            if os.path.isdir(os.path.join(d, ".git")):
+                return d
+            parent = os.path.dirname(d)
+            if parent == d:
+                break
+            d = parent
+        # Last resort: return dot_dir
+        return self.dot_dir
+
     def _get_target_dir(self) -> str:
-        """Return target directory for worker execution. Falls back to dot_dir."""
+        """Return target directory for worker execution. Uses graph attr only — no fallback."""
         target = self._graph_attrs.get("target_dir", "")
         if target and os.path.isdir(target):
             return target
+        # No fallback — target_dir is mandatory for proper worker execution
+        log.warning("target_dir not found in graph attrs; using dot_dir as emergency fallback")
         return self.dot_dir
 
     def _resolve_target_dir(self, node_attrs: dict | None = None) -> str:
-        """Resolve target directory: node attr > graph attr > dot_dir."""
+        """Resolve target directory: node attr > graph attr. Never falls back silently."""
         if node_attrs:
             node_td = node_attrs.get("target_dir", "")
             if node_td and os.path.isdir(node_td):
@@ -505,6 +524,8 @@ class PipelineRunner:
         graph_td = self._graph_attrs.get("target_dir", "")
         if graph_td and os.path.isdir(graph_td):
             return graph_td
+        # Warn if falling back — this should be avoided
+        log.warning("target_dir not fully resolved; falling back to dot_dir (should not happen in production)")
         return self.dot_dir
 
     def _get_repo_root(self) -> str:
@@ -1343,6 +1364,64 @@ class PipelineRunner:
         _STALE_WORKER_TIMEOUT = int(os.environ.get("PIPELINE_STALE_WORKER_TIMEOUT", "300"))
         _PER_MSG_POLL_INTERVAL = int(os.environ.get("PIPELINE_STALE_POLL_INTERVAL", "60"))
 
+
+        # Create path_guard closure to enforce CWD constraints on file operations.
+        # Denies Edit/Write/MultiEdit when file_path does not start with effective_dir.
+        def _create_path_guard(target_dir: str):  # type: ignore[no-untyped-def]
+            """Create a can_use_tool closure that enforces CWD constraints.
+
+            Args:
+                target_dir: The target working directory. File operations must be within this directory.
+
+            Returns:
+                A callable that checks tool permissions.
+            """
+            # Normalize the target directory path to ensure consistent comparison
+            normalized_target = os.path.abspath(target_dir)
+
+            async def path_guard(tool_name: str, tool_input: dict) -> Any:  # type: ignore[name-defined]
+                """Check if a tool invocation is permitted based on file paths.
+
+                Args:
+                    tool_name: The name of the tool being invoked.
+                    tool_input: The input dictionary for the tool (may contain file_path).
+
+                Returns:
+                    PermissionResultAllow or PermissionResultDeny from claude_code_sdk.
+                """
+                # Restrict Edit, Write, MultiEdit to the target directory
+                if tool_name in ("Edit", "Write", "MultiEdit"):
+                    file_path = tool_input.get("file_path", "")
+                    if not file_path:
+                        # No file_path provided - deny to be safe
+                        return claude_code_sdk.PermissionResultDeny(  # type: ignore[attr-defined]
+                            behavior="deny",
+                            message=f"BLOCKED: {tool_name} requires a file_path parameter",
+                            interrupt=False
+                        )
+
+                    # Normalize the file path for comparison
+                    normalized_file = os.path.abspath(file_path)
+
+                    # Check if the file is within the target directory
+                    if not normalized_file.startswith(normalized_target + os.sep) and normalized_file != normalized_target:
+                        return claude_code_sdk.PermissionResultDeny(  # type: ignore[attr-defined]
+                            behavior="deny",
+                            message=f"BLOCKED: {tool_name} on {file_path} is outside target directory {normalized_target}",
+                            interrupt=False
+                        )
+
+                # All other tools are allowed
+                return claude_code_sdk.PermissionResultAllow(  # type: ignore[attr-defined]
+                    behavior="allow",
+                    updated_input=None,
+                    updated_permissions=None
+                )
+
+            return path_guard
+
+        path_guard = _create_path_guard(effective_dir)
+
         async def _run() -> dict:
             # Build clean env without CLAUDECODE
             clean_env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
@@ -1364,6 +1443,7 @@ class PipelineRunner:
                 max_turns=_max_turns,
                 cwd=effective_dir,
                 env=clean_env,
+                can_use_tool=path_guard,
             )
             messages = []
             result_text = ""
@@ -1629,17 +1709,32 @@ class PipelineRunner:
         else:
             lines.append("\n## Files Changed\n(not reported — search the codebase to find relevant changes)")
 
-        # Inline SD if available
+        # Inline SD if available - use same multi-candidate strategy as _build_worker_prompt
         if sd_path:
-            sd_abs = os.path.join(self.dot_dir, sd_path) if not os.path.isabs(sd_path) else sd_path
-            if os.path.exists(sd_abs):
-                try:
-                    with open(sd_abs) as fh:
-                        sd_content = fh.read()
-                    lines.append(f"\n## Solution Design\n{sd_content}")
-                except OSError:
-                    lines.append(f"\n## Solution Design Path\n{sd_path}")
+            candidates = []
+            if not os.path.isabs(sd_path):
+                # Try cobuilder_root first, then target_dir, then dot_dir as fallback
+                cobuilder_root = self._get_cobuilder_root()
+                candidates.append(os.path.join(cobuilder_root, sd_path))
+                if resolved_dir != cobuilder_root:
+                    candidates.append(os.path.join(resolved_dir, sd_path))
+                if self.dot_dir != cobuilder_root and self.dot_dir != resolved_dir:
+                    candidates.append(os.path.join(self.dot_dir, sd_path))
             else:
+                candidates.append(sd_path)
+
+            sd_found = False
+            for sd_abs in candidates:
+                if os.path.exists(sd_abs):
+                    try:
+                        with open(sd_abs) as fh:
+                            sd_content = fh.read()
+                        lines.append(f"\n## Solution Design\n{sd_content}")
+                        sd_found = True
+                        break
+                    except OSError:
+                        pass
+            if not sd_found:
                 lines.append(f"\n## Solution Design Path\n{sd_path}")
 
         # Read manifest validation_method and prepend method-specific instructions
@@ -1772,6 +1867,37 @@ class PipelineRunner:
                          node_id=node_id, model=worker_model,
                          cwd=effective_dir)
 
+        # Create path_guard closure for validation agent as well
+        def _create_validation_path_guard(target_dir: str):  # type: ignore[no-untyped-def]
+            """Create a can_use_tool closure for validation agent CWD constraints."""
+            normalized_target = os.path.abspath(target_dir)
+
+            async def validation_path_guard(tool_name: str, tool_input: dict) -> Any:  # type: ignore[name-defined]
+                """Check if a tool invocation is permitted based on file paths."""
+                if tool_name in ("Edit", "Write", "MultiEdit"):
+                    file_path = tool_input.get("file_path", "")
+                    if not file_path:
+                        return claude_code_sdk.PermissionResultDeny(  # type: ignore[attr-defined]
+                            behavior="deny",
+                            message=f"BLOCKED: {tool_name} requires a file_path parameter",
+                            interrupt=False
+                        )
+                    normalized_file = os.path.abspath(file_path)
+                    if not normalized_file.startswith(normalized_target + os.sep) and normalized_file != normalized_target:
+                        return claude_code_sdk.PermissionResultDeny(  # type: ignore[attr-defined]
+                            behavior="deny",
+                            message=f"BLOCKED: {tool_name} on {file_path} is outside target directory {normalized_target}",
+                            interrupt=False
+                        )
+                return claude_code_sdk.PermissionResultAllow(  # type: ignore[attr-defined]
+                    behavior="allow",
+                    updated_input=None,
+                    updated_permissions=None
+                )
+            return validation_path_guard
+
+        validation_path_guard = _create_validation_path_guard(effective_dir)
+
         # Dispatch with timeout handling - Epic C
         timeout = int(os.environ.get("VALIDATION_TIMEOUT", "600"))  # 10min default
 
@@ -1802,6 +1928,7 @@ class PipelineRunner:
                 cwd=effective_dir,
                 max_turns=100,
                 env=clean_env,
+                can_use_tool=validation_path_guard,
             )
             messages = []
             _first_msg_logged = False
@@ -2134,6 +2261,18 @@ class PipelineRunner:
                     self._do_transition(node_id, "accepted")
                     log.info("[signal] %s: tool success -> accepted (no validation needed)", node_id)
                 elif current_status == "active":
+                    # Verify worker output before transitioning to impl_complete
+                    target_dir = self._resolve_target_dir(node["attrs"])
+                    verify_pass, verify_reason = self._verify_worker_output(node_id, target_dir, signal)
+
+                    if not verify_pass:
+                        # Verification failed — transition to failed instead of impl_complete
+                        self._do_transition(node_id, "failed")
+                        log.error("[signal] %s: worker output verification failed: %s -> failed", node_id, verify_reason)
+                        self.active_workers.pop(node_id, None)
+                        return
+
+                    # Verification passed — proceed with impl_complete and validation dispatch
                     self._do_transition(node_id, "impl_complete")
                     log.info("[signal] %s: worker success -> impl_complete", node_id)
                     # Auto-dispatch validation agent — it owns the active_workers slot
@@ -2186,6 +2325,83 @@ class PipelineRunner:
                     self.active_workers.pop(node_id, None)
 
     # ------------------------------------------------------------------
+    # Worker output verification
+    # ------------------------------------------------------------------
+
+    def _verify_worker_output(self, node_id: str, target_dir: str, signal: dict) -> tuple[bool, Optional[str]]:
+        """Verify worker output by checking files and git status.
+
+        Args:
+            node_id: The node ID for logging.
+            target_dir: The target directory where the worker was executing.
+            signal: The worker signal dict containing files_changed.
+
+        Returns:
+            Tuple of (pass, reason) where:
+            - (True, None) if all files exist and git shows changes
+            - (False, reason_str) if verification fails
+        """
+        files_changed = signal.get("files_changed", [])
+        if not files_changed:
+            log.warning("[verify] %s: No files_changed in signal — skipping file verification", node_id)
+            return (True, None)
+
+        # Check that each file in files_changed exists in target_dir
+        missing_files = []
+        for file_path in files_changed:
+            # Handle both relative and absolute paths
+            if os.path.isabs(file_path):
+                full_path = file_path
+            else:
+                full_path = os.path.join(target_dir, file_path)
+
+            if not os.path.exists(full_path):
+                missing_files.append(file_path)
+                log.warning("[verify] %s: File not found: %s (full: %s)", node_id, file_path, full_path)
+
+        if missing_files:
+            reason = f"Missing files in target_dir: {', '.join(missing_files)}"
+            log.error("[verify] %s: %s", node_id, reason)
+            return (False, reason)
+
+        # Run git status in target_dir to verify changes
+        try:
+            result = subprocess.run(
+                ["git", "status", "--porcelain"],
+                cwd=target_dir,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if result.returncode != 0:
+                reason = f"git status failed in {target_dir}: {result.stderr}"
+                log.error("[verify] %s: %s", node_id, reason)
+                return (False, reason)
+
+            # Check if any files from files_changed appear in git status
+            git_status_output = result.stdout.strip()
+            if not git_status_output:
+                reason = f"git status shows no changes in {target_dir}, but worker reported files_changed: {files_changed}"
+                log.warning("[verify] %s: %s", node_id, reason)
+                return (False, reason)
+
+            log.info("[verify] %s: Files verified in target_dir. Git status:\n%s", node_id, git_status_output)
+            return (True, None)
+
+        except subprocess.TimeoutExpired:
+            reason = f"git status timed out in {target_dir}"
+            log.error("[verify] %s: %s", node_id, reason)
+            return (False, reason)
+        except FileNotFoundError:
+            reason = f"git not found or target_dir does not exist: {target_dir}"
+            log.error("[verify] %s: %s", node_id, reason)
+            return (False, reason)
+        except Exception as exc:
+            reason = f"Unexpected error during git verification: {str(exc)}"
+            log.error("[verify] %s: %s", node_id, reason)
+            return (False, reason)
+
+    # ------------------------------------------------------------------
     # DOT file transition helpers
     # ------------------------------------------------------------------
 
@@ -2203,7 +2419,7 @@ class PipelineRunner:
             return False
 
         try:
-            updated_content, log_msg = apply_transition(current_content, node_id, new_status)
+            updated_content, log_msg = apply_transition(current_content, node_id, new_status, dot_file=self.dot_path)
         except ValueError as exc:
             log.warning("Transition blocked %s -> %s: %s", node_id, new_status, exc)
             return False
@@ -2343,13 +2559,13 @@ class PipelineRunner:
                     # can be re-dispatched cleanly. Both transitions go through
                     # apply_transition which handles the specific node's status.
                     try:
-                        content, _ = apply_transition(content, nid, "failed")
-                        content, _ = apply_transition(content, nid, "pending")
+                        content, _ = apply_transition(content, nid, "failed", dot_file=self.dot_path)
+                        content, _ = apply_transition(content, nid, "pending", dot_file=self.dot_path)
                     except ValueError:
                         pass
                 else:
                     try:
-                        content, _ = apply_transition(content, nid, "failed")
+                        content, _ = apply_transition(content, nid, "failed", dot_file=self.dot_path)
                         # Note: we can't go failed->pending directly; leave as failed
                         # The dispatcher will skip non-pending nodes
                     except ValueError:
@@ -2438,19 +2654,20 @@ class PipelineRunner:
         bead_id = attrs.get("bead_id", "")
 
         # Inline solution design content if file exists
-        # Try repo root first (most SD paths are relative to repo root), then dot_dir as fallback
+        # Try cobuilder_root first (most SD paths are relative to cobuilder_root), then target_dir, then dot_dir as fallback
         solution_design_content = ""
         if solution_design_path:
             candidates = []
             if not os.path.isabs(solution_design_path):
-                # Try repo root first (SD paths like docs/sds/... are relative to repo root)
-                repo_root = self._get_repo_root()
-                candidates.append(os.path.join(repo_root, solution_design_path))
+                # Try cobuilder_root first (SD paths like docs/sds/... are relative to cobuilder_root)
+                cobuilder_root = self._get_cobuilder_root()
+                candidates.append(os.path.join(cobuilder_root, solution_design_path))
                 # Then target_dir and dot_dir as fallbacks
                 target = self._get_target_dir()
-                if target != repo_root:
+                if target != cobuilder_root:
                     candidates.append(os.path.join(target, solution_design_path))
-                candidates.append(os.path.join(self.dot_dir, solution_design_path))
+                if self.dot_dir != cobuilder_root and self.dot_dir != target:
+                    candidates.append(os.path.join(self.dot_dir, solution_design_path))
             else:
                 candidates.append(solution_design_path)
             for sd_abs in candidates:
