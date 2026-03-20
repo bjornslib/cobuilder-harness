@@ -20,11 +20,20 @@ from cobuilder.engine.dispatch_parser import parse_dot
 from cobuilder.engine.validator import validate, WARNING_ATTRS, VALID_HANDLERS, HANDLER_SHAPE_MAP, REQUIRED_ATTRS
 
 # ---------------------------------------------------------------------------
+# Portable path for test fixtures
+# ---------------------------------------------------------------------------
+
+# Build path relative to this test file, pointing to the shared SD file
+_TEST_DIR = os.path.dirname(__file__)
+_PROJECT_ROOT = os.path.abspath(os.path.join(_TEST_DIR, '..', '..'))
+PORTABLE_SD_FILE = os.path.join(_PROJECT_ROOT, '.claude', 'documentation', 'SOLUTION-DESIGN-acceptance-testing.md')
+
+# ---------------------------------------------------------------------------
 # Test fixtures (DOT strings)
 # ---------------------------------------------------------------------------
 
-DOT_WITH_NEW_ATTRS = '''
-digraph "test_pipeline" {
+DOT_WITH_NEW_ATTRS = f'''
+digraph "test_pipeline" {{
     graph [
         prd_ref="PRD-AUTH-001"
         label="Test Pipeline"
@@ -49,7 +58,7 @@ digraph "test_pipeline" {
         worker_type="backend-solutions-engineer"
         prd_ref="PRD-AUTH-001"
         prd_section="Epic 2: JWT Authentication"
-        solution_design="/Users/theb/Documents/Windsurf/cobuilder-harness/.claude/documentation/SOLUTION-DESIGN-acceptance-testing.md"
+        solution_design="{PORTABLE_SD_FILE}"
         target_dir="zenagent/agencheck/agencheck-support-agent"
         acceptance="JWT auth with refresh tokens"
         style=filled
@@ -84,11 +93,11 @@ digraph "test_pipeline" {
     validate_auth -> decision_auth
     decision_auth -> finish [label="pass" condition="pass"]
     decision_auth -> impl_auth [label="fail" condition="fail"]
-}
+}}
 '''
 
-DOT_WITHOUT_PRD_REF = '''
-digraph "legacy_pipeline" {
+DOT_WITHOUT_PRD_REF = f'''
+digraph "legacy_pipeline" {{
     graph [
         label="Legacy Pipeline"
         promise_id=""
@@ -110,7 +119,7 @@ digraph "legacy_pipeline" {
         status="pending"
         bead_id="FEAT-001"
         worker_type="backend-solutions-engineer"
-        sd_path="/Users/theb/Documents/Windsurf/cobuilder-harness/.claude/documentation/SOLUTION-DESIGN-acceptance-testing.md"
+        sd_path="{PORTABLE_SD_FILE}"
         style=filled
         fillcolor=lightyellow
     ]
@@ -153,7 +162,7 @@ digraph "legacy_pipeline" {
     validate_feature -> decision_feature
     decision_feature -> finish [label="pass" condition="pass"]
     decision_feature -> impl_feature [label="fail" condition="fail"]
-}
+}}
 '''
 
 
@@ -181,7 +190,7 @@ def test_parser_extracts_solution_design():
     result = parse_dot(DOT_WITH_NEW_ATTRS)
     impl_node = next(n for n in result["nodes"] if n["id"] == "impl_auth")
     assert "solution_design" in impl_node["attrs"]
-    assert impl_node["attrs"]["solution_design"] == "/Users/theb/Documents/Windsurf/cobuilder-harness/.claude/documentation/SOLUTION-DESIGN-acceptance-testing.md"
+    assert impl_node["attrs"]["solution_design"] == PORTABLE_SD_FILE
 
 
 def test_parser_extracts_target_dir():
@@ -326,8 +335,8 @@ def test_validator_warning_node_id_matches_codergen_node():
 # Research and Refine handler tests
 # ---------------------------------------------------------------------------
 
-DOT_WITH_RESEARCH_AND_REFINE = '''
-digraph "test_research_refine" {
+DOT_WITH_RESEARCH_AND_REFINE = f'''
+digraph "test_research_refine" {{
     graph [
         label="Research-Refine Pipeline"
         prd_ref="PRD-TEST-002"
@@ -345,7 +354,7 @@ digraph "test_research_refine" {
         shape=tab
         handler="research"
         label="Research\\nG1 Patterns"
-        solution_design="/Users/theb/Documents/Windsurf/cobuilder-harness/.claude/documentation/SOLUTION-DESIGN-acceptance-testing.md"
+        solution_design="{PORTABLE_SD_FILE}"
         research_queries="nextjs,supabase"
         prd_ref="PRD-TEST-002"
         status="pending"
@@ -354,7 +363,7 @@ digraph "test_research_refine" {
         shape=note
         handler="refine"
         label="Refine\\nG1 Patterns"
-        solution_design="/Users/theb/Documents/Windsurf/cobuilder-harness/.claude/documentation/SOLUTION-DESIGN-acceptance-testing.md"
+        solution_design="{PORTABLE_SD_FILE}"
         evidence_path=".claude/evidence/research_g1/research-findings.json"
         prd_ref="PRD-TEST-002"
         status="pending"
@@ -367,7 +376,7 @@ digraph "test_research_refine" {
         bead_id="G1-001"
         worker_type="backend-solutions-engineer"
         prd_ref="PRD-TEST-002"
-        sd_path="/Users/theb/Documents/Windsurf/cobuilder-harness/.claude/documentation/SOLUTION-DESIGN-acceptance-testing.md"
+        sd_path="{PORTABLE_SD_FILE}"
         acceptance="G1 works correctly"
     ]
     validate_unit_g1 [
@@ -405,42 +414,42 @@ digraph "test_research_refine" {
     validate_g1 -> decision_g1
     decision_g1 -> finish [label="pass" condition="pass"]
     decision_g1 -> impl_g1 [label="fail" condition="fail"]
-}
+}}
 '''
 
-DOT_WITH_REFINE_MISSING_EVIDENCE_PATH = '''
-digraph "test_refine_missing" {
+DOT_WITH_REFINE_MISSING_EVIDENCE_PATH = f'''
+digraph "test_refine_missing" {{
     graph [label="Missing evidence_path" promise_id="" cobuilder_root="/tmp" target_dir="/tmp"];
     start [handler="start" shape=Mdiamond label="Start" status="validated"]
     refine_bad [
         shape=note
         handler="refine"
         label="Refine\\nBad"
-        solution_design="/Users/theb/Documents/Windsurf/cobuilder-harness/.claude/documentation/SOLUTION-DESIGN-acceptance-testing.md"
+        solution_design="{PORTABLE_SD_FILE}"
         status="pending"
     ]
     finish [handler="exit" shape=Msquare label="Finish" status="pending"]
     start -> refine_bad
     refine_bad -> finish
-}
+}}
 '''
 
-DOT_WITH_REFINE_WRONG_SHAPE = '''
-digraph "test_refine_shape" {
+DOT_WITH_REFINE_WRONG_SHAPE = f'''
+digraph "test_refine_shape" {{
     graph [label="Wrong shape" promise_id="" cobuilder_root="/tmp" target_dir="/tmp"];
     start [handler="start" shape=Mdiamond label="Start" status="validated"]
     refine_bad [
         shape=box
         handler="refine"
         label="Refine\\nBad"
-        solution_design="/Users/theb/Documents/Windsurf/cobuilder-harness/.claude/documentation/SOLUTION-DESIGN-acceptance-testing.md"
+        solution_design="{PORTABLE_SD_FILE}"
         evidence_path=".claude/evidence/research/findings.json"
         status="pending"
     ]
     finish [handler="exit" shape=Msquare label="Finish" status="pending"]
     start -> refine_bad
     refine_bad -> finish
-}
+}}
 '''
 
 

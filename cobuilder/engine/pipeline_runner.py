@@ -334,63 +334,11 @@ class _DotFileHandler(FileSystemEventHandler if _WATCHDOG_AVAILABLE else object)
             self._event.set()
 
 
-# ---------------------------------------------------------------------------
-# Path Guard Factory
-# ---------------------------------------------------------------------------
 
-
-def _create_path_guard(target_dir: str):  # type: ignore[no-untyped-def]
-    """Create a can_use_tool closure that enforces CWD constraints.
-
-    Args:
-        target_dir: The target working directory. File operations must be within this directory.
-
-    Returns:
-        A callable that checks tool permissions.
-    """
-    # Normalize the target directory path to ensure consistent comparison
-    normalized_target = os.path.abspath(target_dir)
-
-    async def path_guard(tool_name: str, tool_input: dict) -> Any:  # type: ignore[name-defined]
-        """Check if a tool invocation is permitted based on file paths.
-
-        Args:
-            tool_name: The name of the tool being invoked.
-            tool_input: The input dictionary for the tool (may contain file_path).
-
-        Returns:
-            PermissionResultAllow or PermissionResultDeny from claude_code_sdk.
-        """
-        # Restrict Edit, Write, MultiEdit to the target directory
-        if tool_name in ("Edit", "Write", "MultiEdit"):
-            file_path = tool_input.get("file_path", "")
-            if not file_path:
-                # No file_path provided - deny to be safe
-                return claude_code_sdk.PermissionResultDeny(  # type: ignore[attr-defined]
-                    behavior="deny",
-                    message=f"BLOCKED: {tool_name} requires a file_path parameter",
-                    interrupt=False
-                )
-
-            # Normalize the file path for comparison
-            normalized_file = os.path.abspath(file_path)
-
-            # Check if the file is within the target directory
-            if not normalized_file.startswith(normalized_target + os.sep) and normalized_file != normalized_target:
-                return claude_code_sdk.PermissionResultDeny(  # type: ignore[attr-defined]
-                    behavior="deny",
-                    message=f"BLOCKED: {tool_name} on {file_path} is outside target directory {normalized_target}",
-                    interrupt=False
-                )
-
-        # All other tools are allowed
-        return claude_code_sdk.PermissionResultAllow(  # type: ignore[attr-defined]
-            behavior="allow",
-            updated_input=None,
-            updated_permissions=None
-        )
-
-    return path_guard
+# NOTE: can_use_tool (CWD enforcement via PermissionResultDeny) was removed.
+# It requires ClaudeSDKClient (bidirectional mode), not query() (unidirectional).
+# CWD enforcement will be reimplemented via the worker Stop hook + post-signal
+# verification (_verify_worker_output) instead.
 
 
 # ---------------------------------------------------------------------------
@@ -1506,11 +1454,6 @@ class PipelineRunner:
         _STALE_WORKER_TIMEOUT = int(os.environ.get("PIPELINE_STALE_WORKER_TIMEOUT", "300"))
         _PER_MSG_POLL_INTERVAL = int(os.environ.get("PIPELINE_STALE_POLL_INTERVAL", "60"))
 
-
-        # Use module-level _create_path_guard to enforce CWD constraints on file operations.
-        # Denies Edit/Write/MultiEdit when file_path does not start with effective_dir.
-        path_guard = _create_path_guard(effective_dir)
-
         async def _run() -> dict:
             # Build clean env without CLAUDECODE
             clean_env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
@@ -1532,7 +1475,6 @@ class PipelineRunner:
                 max_turns=_max_turns,
                 cwd=effective_dir,
                 env=clean_env,
-                # can_use_tool=path_guard,  # DISABLED: requires ClaudeSDKClient (bidirectional), not query()
                 hooks=_create_signal_stop_hook(self.signal_dir, node_id),
             )
             messages = []
@@ -1957,9 +1899,6 @@ class PipelineRunner:
                          node_id=node_id, model=worker_model,
                          cwd=effective_dir)
 
-        # Use module-level _create_path_guard for validation agent as well
-        validation_path_guard = _create_path_guard(effective_dir)
-
         # Dispatch with timeout handling - Epic C
         timeout = int(os.environ.get("VALIDATION_TIMEOUT", "600"))  # 10min default
 
@@ -1990,7 +1929,6 @@ class PipelineRunner:
                 cwd=effective_dir,
                 max_turns=100,
                 env=clean_env,
-                # can_use_tool=validation_path_guard,  # DISABLED: requires ClaudeSDKClient (bidirectional), not query()
                 hooks=_create_signal_stop_hook(self.signal_dir, node_id),
             )
             messages = []
