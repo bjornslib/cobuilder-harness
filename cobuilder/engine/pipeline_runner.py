@@ -104,7 +104,7 @@ def _create_path_guard(target_dir: str, signal_dir: str) -> dict:
         - env: Cleaned environment with PATH_GUARD-related variables
     """
     # Build clean env without CLAUDECODE to prevent nested session detection
-    clean_env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
+    clean_env = {k: v for k, v in os.environ.items() if k not in ("CLAUDECODE", "CLAUDE_SESSION_ID", "CLAUDE_OUTPUT_STYLE")}
 
     # Register signal and project directories for worker
     clean_env["PIPELINE_SIGNAL_DIR"] = str(signal_dir)
@@ -1510,7 +1510,7 @@ class PipelineRunner:
 
         async def _run() -> dict:
             # Build clean env without CLAUDECODE
-            clean_env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
+            clean_env = {k: v for k, v in os.environ.items() if k not in ("CLAUDECODE", "CLAUDE_SESSION_ID", "CLAUDE_OUTPUT_STYLE")}
             # Add PIPELINE_SIGNAL_DIR as required by GAP-6.1
             clean_env["PIPELINE_SIGNAL_DIR"] = str(self.signal_dir)
             clean_env["PROJECT_TARGET_DIR"] = effective_dir
@@ -1911,7 +1911,7 @@ class PipelineRunner:
         timeout = int(os.environ.get("VALIDATION_TIMEOUT", "600"))  # 10min default
 
         async def _run() -> dict:
-            clean_env = {k: v for k, v in os.environ.items() if k != "CLAUDECODE"}
+            clean_env = {k: v for k, v in os.environ.items() if k not in ("CLAUDECODE", "CLAUDE_SESSION_ID", "CLAUDE_OUTPUT_STYLE")}
             clean_env["PROJECT_TARGET_DIR"] = effective_dir
             # Apply LLM config env vars (api_key, base_url) from resolved profile
             clean_env.update(llm_config.to_env_dict())
