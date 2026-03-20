@@ -335,6 +335,65 @@ class _DotFileHandler(FileSystemEventHandler if _WATCHDOG_AVAILABLE else object)
 
 
 # ---------------------------------------------------------------------------
+# Path Guard Factory
+# ---------------------------------------------------------------------------
+
+
+def _create_path_guard(target_dir: str):  # type: ignore[no-untyped-def]
+    """Create a can_use_tool closure that enforces CWD constraints.
+
+    Args:
+        target_dir: The target working directory. File operations must be within this directory.
+
+    Returns:
+        A callable that checks tool permissions.
+    """
+    # Normalize the target directory path to ensure consistent comparison
+    normalized_target = os.path.abspath(target_dir)
+
+    async def path_guard(tool_name: str, tool_input: dict) -> Any:  # type: ignore[name-defined]
+        """Check if a tool invocation is permitted based on file paths.
+
+        Args:
+            tool_name: The name of the tool being invoked.
+            tool_input: The input dictionary for the tool (may contain file_path).
+
+        Returns:
+            PermissionResultAllow or PermissionResultDeny from claude_code_sdk.
+        """
+        # Restrict Edit, Write, MultiEdit to the target directory
+        if tool_name in ("Edit", "Write", "MultiEdit"):
+            file_path = tool_input.get("file_path", "")
+            if not file_path:
+                # No file_path provided - deny to be safe
+                return claude_code_sdk.PermissionResultDeny(  # type: ignore[attr-defined]
+                    behavior="deny",
+                    message=f"BLOCKED: {tool_name} requires a file_path parameter",
+                    interrupt=False
+                )
+
+            # Normalize the file path for comparison
+            normalized_file = os.path.abspath(file_path)
+
+            # Check if the file is within the target directory
+            if not normalized_file.startswith(normalized_target + os.sep) and normalized_file != normalized_target:
+                return claude_code_sdk.PermissionResultDeny(  # type: ignore[attr-defined]
+                    behavior="deny",
+                    message=f"BLOCKED: {tool_name} on {file_path} is outside target directory {normalized_target}",
+                    interrupt=False
+                )
+
+        # All other tools are allowed
+        return claude_code_sdk.PermissionResultAllow(  # type: ignore[attr-defined]
+            behavior="allow",
+            updated_input=None,
+            updated_permissions=None
+        )
+
+    return path_guard
+
+
+# ---------------------------------------------------------------------------
 # PipelineRunner
 # ---------------------------------------------------------------------------
 
@@ -434,7 +493,7 @@ class PipelineRunner:
         Search order (per providers.py):
         1. graph_attrs.providers_file in DOT file
         2. dot_dir/providers.yaml (next to DOT file)
-        3. repo_root/providers.yaml (repo root)
+        3. cobuilder_root/providers.yaml (project root)
         4. Empty ProvidersFile if not found
 
         Returns:
@@ -442,7 +501,7 @@ class PipelineRunner:
         """
         providers_file_path = self._graph_attrs.get("providers_file")
         manifest_dir = self.dot_dir
-        project_root = self._get_repo_root()
+        project_root = self._get_cobuilder_root()
 
         providers = load_providers_file(
             providers_file_path=providers_file_path,
@@ -563,16 +622,16 @@ class PipelineRunner:
         )
 
     def _get_repo_root(self) -> str:
-        """Find the git repo root by walking up from dot_dir. Falls back to target_dir."""
-        d = os.path.abspath(self.dot_dir)
-        for _ in range(10):  # max 10 levels up
-            if os.path.isdir(os.path.join(d, ".git")):
-                return d
-            parent = os.path.dirname(d)
-            if parent == d:
-                break
-            d = parent
-        return self._get_target_dir()
+        """Deprecated: Use _get_cobuilder_root() instead.
+
+        This method is deprecated. Use _get_cobuilder_root() to get the
+        mandatory cobuilder_root graph attribute instead.
+        """
+        log.warning(
+            "_get_repo_root() is deprecated. Use _get_cobuilder_root() instead. "
+            "cobuilder_root is a mandatory graph attribute that must be set in the DOT file."
+        )
+        return self._get_cobuilder_root()
 
     def _resolve_llm_config(
         self,
@@ -1399,61 +1458,8 @@ class PipelineRunner:
         _PER_MSG_POLL_INTERVAL = int(os.environ.get("PIPELINE_STALE_POLL_INTERVAL", "60"))
 
 
-        # Create path_guard closure to enforce CWD constraints on file operations.
+        # Use module-level _create_path_guard to enforce CWD constraints on file operations.
         # Denies Edit/Write/MultiEdit when file_path does not start with effective_dir.
-        def _create_path_guard(target_dir: str):  # type: ignore[no-untyped-def]
-            """Create a can_use_tool closure that enforces CWD constraints.
-
-            Args:
-                target_dir: The target working directory. File operations must be within this directory.
-
-            Returns:
-                A callable that checks tool permissions.
-            """
-            # Normalize the target directory path to ensure consistent comparison
-            normalized_target = os.path.abspath(target_dir)
-
-            async def path_guard(tool_name: str, tool_input: dict) -> Any:  # type: ignore[name-defined]
-                """Check if a tool invocation is permitted based on file paths.
-
-                Args:
-                    tool_name: The name of the tool being invoked.
-                    tool_input: The input dictionary for the tool (may contain file_path).
-
-                Returns:
-                    PermissionResultAllow or PermissionResultDeny from claude_code_sdk.
-                """
-                # Restrict Edit, Write, MultiEdit to the target directory
-                if tool_name in ("Edit", "Write", "MultiEdit"):
-                    file_path = tool_input.get("file_path", "")
-                    if not file_path:
-                        # No file_path provided - deny to be safe
-                        return claude_code_sdk.PermissionResultDeny(  # type: ignore[attr-defined]
-                            behavior="deny",
-                            message=f"BLOCKED: {tool_name} requires a file_path parameter",
-                            interrupt=False
-                        )
-
-                    # Normalize the file path for comparison
-                    normalized_file = os.path.abspath(file_path)
-
-                    # Check if the file is within the target directory
-                    if not normalized_file.startswith(normalized_target + os.sep) and normalized_file != normalized_target:
-                        return claude_code_sdk.PermissionResultDeny(  # type: ignore[attr-defined]
-                            behavior="deny",
-                            message=f"BLOCKED: {tool_name} on {file_path} is outside target directory {normalized_target}",
-                            interrupt=False
-                        )
-
-                # All other tools are allowed
-                return claude_code_sdk.PermissionResultAllow(  # type: ignore[attr-defined]
-                    behavior="allow",
-                    updated_input=None,
-                    updated_permissions=None
-                )
-
-            return path_guard
-
         path_guard = _create_path_guard(effective_dir)
 
         async def _run() -> dict:
@@ -1901,36 +1907,8 @@ class PipelineRunner:
                          node_id=node_id, model=worker_model,
                          cwd=effective_dir)
 
-        # Create path_guard closure for validation agent as well
-        def _create_validation_path_guard(target_dir: str):  # type: ignore[no-untyped-def]
-            """Create a can_use_tool closure for validation agent CWD constraints."""
-            normalized_target = os.path.abspath(target_dir)
-
-            async def validation_path_guard(tool_name: str, tool_input: dict) -> Any:  # type: ignore[name-defined]
-                """Check if a tool invocation is permitted based on file paths."""
-                if tool_name in ("Edit", "Write", "MultiEdit"):
-                    file_path = tool_input.get("file_path", "")
-                    if not file_path:
-                        return claude_code_sdk.PermissionResultDeny(  # type: ignore[attr-defined]
-                            behavior="deny",
-                            message=f"BLOCKED: {tool_name} requires a file_path parameter",
-                            interrupt=False
-                        )
-                    normalized_file = os.path.abspath(file_path)
-                    if not normalized_file.startswith(normalized_target + os.sep) and normalized_file != normalized_target:
-                        return claude_code_sdk.PermissionResultDeny(  # type: ignore[attr-defined]
-                            behavior="deny",
-                            message=f"BLOCKED: {tool_name} on {file_path} is outside target directory {normalized_target}",
-                            interrupt=False
-                        )
-                return claude_code_sdk.PermissionResultAllow(  # type: ignore[attr-defined]
-                    behavior="allow",
-                    updated_input=None,
-                    updated_permissions=None
-                )
-            return validation_path_guard
-
-        validation_path_guard = _create_validation_path_guard(effective_dir)
+        # Use module-level _create_path_guard for validation agent as well
+        validation_path_guard = _create_path_guard(effective_dir)
 
         # Dispatch with timeout handling - Epic C
         timeout = int(os.environ.get("VALIDATION_TIMEOUT", "600"))  # 10min default
@@ -2412,11 +2390,43 @@ class PipelineRunner:
                 log.error("[verify] %s: %s", node_id, reason)
                 return (False, reason)
 
-            # Check if any files from files_changed appear in git status
+            # Check that specific files from files_changed appear in git status
             git_status_output = result.stdout.strip()
             if not git_status_output:
                 reason = f"git status shows no changes in {target_dir}, but worker reported files_changed: {files_changed}"
                 log.warning("[verify] %s: %s", node_id, reason)
+                return (False, reason)
+
+            # Parse git status --porcelain output (format: "XY filename")
+            # X = staged status, Y = unstaged status, filename starts at position 3
+            files_in_git_status = set()
+            for line in git_status_output.split('\n'):
+                if line and len(line) > 3:
+                    filename = line[3:].strip()
+                    if filename:
+                        files_in_git_status.add(filename)
+
+            # Check that each file_changed appears in git status
+            not_in_status = []
+            for file_path in files_changed:
+                # Normalize to relative path for comparison
+                if os.path.isabs(file_path):
+                    # Convert absolute path to relative for comparison
+                    try:
+                        rel_path = os.path.relpath(file_path, target_dir)
+                    except ValueError:
+                        # Different drives on Windows, use as-is
+                        rel_path = file_path
+                else:
+                    rel_path = file_path
+
+                if rel_path not in files_in_git_status:
+                    not_in_status.append(file_path)
+                    log.warning("[verify] %s: File not in git status: %s", node_id, file_path)
+
+            if not_in_status:
+                reason = f"Files in files_changed but not in git status: {', '.join(not_in_status)}"
+                log.error("[verify] %s: %s", node_id, reason)
                 return (False, reason)
 
             log.info("[verify] %s: Files verified in target_dir. Git status:\n%s", node_id, git_status_output)
@@ -2813,9 +2823,9 @@ class PipelineRunner:
         to prevent the worker from spending all its turns on tool discovery instead of
         implementation.  See Hindsight "GLM-5 Pipeline Worker Failure" RCA.
         """
-        # Use repo root for agent files (they live at <repo>/.claude/agents/)
-        repo_root = self._get_repo_root()
-        agents_dir = os.path.join(repo_root, ".claude", "agents")
+        # Use cobuilder_root for agent files (they live at <project>/.claude/agents/)
+        cobuilder_root = self._get_cobuilder_root()
+        agents_dir = os.path.join(cobuilder_root, ".claude", "agents")
 
         # Always load tool reference — this is critical for smaller models
         tool_ref = ""
