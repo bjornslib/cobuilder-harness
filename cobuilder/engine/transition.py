@@ -121,7 +121,9 @@ def _write_finalize_signal(
     return signal_path
 
 
-def _cleanup_stale_signals(dot_content: str, node_id: str, dot_file: str) -> None:
+def _cleanup_stale_signals(
+    dot_content: str, node_id: str, dot_file: str, pipeline_id: str | None = None
+) -> None:
     """Move stale signal files for a node to processed/ directory.
 
     When a node transitions back to 'pending' status, any leftover signal files
@@ -129,37 +131,52 @@ def _cleanup_stale_signals(dot_content: str, node_id: str, dot_file: str) -> Non
 
     This implements AC-5: signal cleanup on pending transitions.
 
+    Checks PIPELINE_SIGNAL_DIR environment variable first. If not set, falls back
+    to the directory-walk heuristic (for backward compatibility).
+
     Args:
         dot_content: The DOT file content.
         node_id: The node ID whose signals should be cleaned.
         dot_file: Path to the DOT file (used to find the signals directory).
+        pipeline_id: Optional pre-parsed pipeline_id. If not provided, will be
+                     extracted from dot_content. Passing this avoids re-parsing the DOT.
 
     Raises:
         Various exceptions (FileNotFoundError, etc.) if file operations fail.
     """
-    from cobuilder.engine.dispatch_parser import parse_dot
+    # Extract pipeline_id from DOT graph attributes if not provided
+    if pipeline_id is None:
+        from cobuilder.engine.dispatch_parser import parse_dot
+        data = parse_dot(dot_content)
+        graph_attrs = data.get("graph_attrs", {})
+        pipeline_id = graph_attrs.get("pipeline_id")
 
-    # Extract pipeline_id from DOT graph attributes
-    data = parse_dot(dot_content)
-    graph_attrs = data.get("graph_attrs", {})
-    pipeline_id = graph_attrs.get("pipeline_id")
     if not pipeline_id:
         # No pipeline_id, can't find signals directory
         return
 
-    # Determine signals directory: .pipelines/pipelines/signals/{pipeline_id}/
-    # or signals/{pipeline_id}/ if running from a different location
-    dot_dir = os.path.dirname(os.path.abspath(dot_file))
+    # --- First priority: Check PIPELINE_SIGNAL_DIR environment variable ---
+    env_signal_dir = os.environ.get("PIPELINE_SIGNAL_DIR")
+    if env_signal_dir:
+        # Use the env-provided signal directory with the pipeline_id
+        signals_dir = os.path.join(env_signal_dir, pipeline_id)
+    else:
+        # --- Fallback: Use directory-walk heuristic ---
+        # Determine signals directory: .pipelines/pipelines/signals/{pipeline_id}/
+        # or signals/{pipeline_id}/ if running from a different location
+        dot_dir = os.path.dirname(os.path.abspath(dot_file))
 
-    # Try to find signals directory:
-    # 1. First try: signals/ in the same directory as the dot file
-    signals_dir = os.path.join(dot_dir, "signals", pipeline_id)
-    if not os.path.isdir(signals_dir):
-        # 2. Second try: ../signals/ (if dot is in .pipelines/pipelines/)
-        signals_dir = os.path.join(os.path.dirname(dot_dir), "signals", pipeline_id)
-    if not os.path.isdir(signals_dir):
-        # 3. Third try: ../../signals/ (if dot is in a subdirectory)
-        signals_dir = os.path.join(os.path.dirname(os.path.dirname(dot_dir)), "signals", pipeline_id)
+        # Try to find signals directory:
+        # 1. First try: signals/ in the same directory as the dot file
+        signals_dir = os.path.join(dot_dir, "signals", pipeline_id)
+        if not os.path.isdir(signals_dir):
+            # 2. Second try: ../signals/ (if dot is in .pipelines/pipelines/)
+            signals_dir = os.path.join(os.path.dirname(dot_dir), "signals", pipeline_id)
+        if not os.path.isdir(signals_dir):
+            # 3. Third try: ../../signals/ (if dot is in a subdirectory)
+            signals_dir = os.path.join(
+                os.path.dirname(os.path.dirname(dot_dir)), "signals", pipeline_id
+            )
 
     if not os.path.isdir(signals_dir):
         # Signals directory doesn't exist, nothing to clean up
@@ -285,7 +302,10 @@ def apply_transition(
     # for this node so the worker has a clean slate for the new attempt.
     if new_status == "pending" and dot_file:
         try:
-            _cleanup_stale_signals(dot_content, node_id, dot_file)
+            # Extract pipeline_id from graph attributes to avoid re-parsing
+            graph_attrs = data.get("graph_attrs", {})
+            pipeline_id = graph_attrs.get("pipeline_id")
+            _cleanup_stale_signals(dot_content, node_id, dot_file, pipeline_id=pipeline_id)
         except Exception as exc:
             # Log the error but don't fail the transition
             import sys

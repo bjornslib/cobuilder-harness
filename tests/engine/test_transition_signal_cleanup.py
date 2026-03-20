@@ -19,6 +19,16 @@ import pytest
 from cobuilder.engine.transition import apply_transition
 
 
+@pytest.fixture(autouse=True)
+def clear_pipeline_signal_dir_env():
+    """Clear PIPELINE_SIGNAL_DIR env var before each test to isolate tests."""
+    old_value = os.environ.pop("PIPELINE_SIGNAL_DIR", None)
+    yield
+    # Restore old value after test
+    if old_value is not None:
+        os.environ["PIPELINE_SIGNAL_DIR"] = old_value
+
+
 def create_sample_dot(pipeline_id: str = "test-pipeline-001") -> str:
     """Create a sample DOT file with a pipeline_id."""
     return f'''digraph pipeline {{
@@ -352,6 +362,131 @@ class TestApplyTransitionIntegration:
         # Verify both status and color are updated
         assert 'status="pending"' in updated
         assert 'fillcolor="lightyellow"' in updated
+
+
+class TestPipelineSignalDirEnv:
+    """Tests for PIPELINE_SIGNAL_DIR environment variable handling."""
+
+    def test_cleanup_uses_pipeline_signal_dir_env(self, tmp_path: Path, monkeypatch) -> None:
+        """Test that cleanup uses PIPELINE_SIGNAL_DIR env variable when set."""
+        import os
+
+        pipeline_id = "env-test-001"
+
+        # Create signal dir at a custom location (env-provided)
+        # PIPELINE_SIGNAL_DIR points to the root signals directory, not pipeline-specific
+        custom_signal_root = tmp_path / "custom_signals"
+        env_signals_dir = custom_signal_root / pipeline_id
+        processed_dir = env_signals_dir / "processed"
+        env_signals_dir.mkdir(parents=True, exist_ok=True)
+        processed_dir.mkdir(parents=True, exist_ok=True)
+
+        # Set PIPELINE_SIGNAL_DIR env var to the ROOT signals directory
+        monkeypatch.setenv("PIPELINE_SIGNAL_DIR", str(custom_signal_root))
+
+        # Create a signal file in the env-provided location
+        signal = env_signals_dir / "node1-result.json"
+        signal.write_text(json.dumps({"status": "failed"}))
+
+        # Create DOT file at a different location (not in default location)
+        dot_file = str(tmp_path / "some_other_dir" / "test.dot")
+        Path(dot_file).parent.mkdir(parents=True, exist_ok=True)
+
+        dot_content = f'''digraph pipeline {{
+    graph [pipeline_id="{pipeline_id}"]
+
+    node1 [
+        shape=box
+        handler="codergen"
+        status="failed"
+        fillcolor="lightcoral"
+        style="filled"
+    ];
+}}
+'''
+        Path(dot_file).write_text(dot_content)
+
+        # Apply transition - should find and move signal using env var
+        updated, _ = apply_transition(dot_content, "node1", "pending", dot_file=dot_file)
+
+        # Verify signal was moved to processed using env-provided path
+        assert not signal.exists(), "Signal should be moved using PIPELINE_SIGNAL_DIR"
+        assert (
+            processed_dir / signal.name
+        ).exists(), "Signal should be in processed under env-provided path"
+
+    def test_cleanup_falls_back_to_heuristic_when_env_not_set(
+        self, tmp_path: Path, monkeypatch
+    ) -> None:
+        """Test that cleanup falls back to heuristic when PIPELINE_SIGNAL_DIR not set."""
+        # Ensure env var is not set
+        monkeypatch.delenv("PIPELINE_SIGNAL_DIR", raising=False)
+
+        pipeline_id = "heuristic-test-001"
+        signals_dir, processed_dir = create_signals_structure(tmp_path, pipeline_id)
+
+        # Create signal file
+        signal = Path(signals_dir) / "node1-result.json"
+        signal.write_text(json.dumps({"status": "failed"}))
+
+        # Create DOT file in standard location
+        dot_file = str(tmp_path / "test.dot")
+        dot_content = f'''digraph pipeline {{
+    graph [pipeline_id="{pipeline_id}"]
+
+    node1 [
+        shape=box
+        handler="codergen"
+        status="failed"
+        fillcolor="lightcoral"
+        style="filled"
+    ];
+}}
+'''
+        Path(dot_file).write_text(dot_content)
+
+        # Apply transition - should use heuristic since env not set
+        updated, _ = apply_transition(dot_content, "node1", "pending", dot_file=dot_file)
+
+        # Verify signal was moved using heuristic
+        assert not signal.exists(), "Signal should be moved using heuristic"
+        assert (
+            Path(processed_dir) / signal.name
+        ).exists(), "Signal should be in processed using heuristic path"
+
+    def test_cleanup_with_preparsed_pipeline_id(self, tmp_path: Path) -> None:
+        """Test that _cleanup_stale_signals accepts preparsed pipeline_id to avoid reparsing."""
+        pipeline_id = "preparsed-test-001"
+        signals_dir, processed_dir = create_signals_structure(tmp_path, pipeline_id)
+
+        # Create signal file
+        signal = Path(signals_dir) / "node1-result.json"
+        signal.write_text(json.dumps({"status": "failed"}))
+
+        # Create DOT file
+        dot_file = str(tmp_path / "test.dot")
+        dot_content = f'''digraph pipeline {{
+    graph [pipeline_id="{pipeline_id}"]
+
+    node1 [
+        shape=box
+        status="failed"
+    ];
+}}
+'''
+        Path(dot_file).write_text(dot_content)
+
+        # Import the internal function to test it directly
+        from cobuilder.engine.transition import _cleanup_stale_signals
+
+        # Call with preparsed pipeline_id (should not parse DOT again)
+        _cleanup_stale_signals(dot_content, "node1", dot_file, pipeline_id=pipeline_id)
+
+        # Verify signal was moved
+        assert not signal.exists(), "Signal should be moved with preparsed pipeline_id"
+        assert (
+            Path(processed_dir) / signal.name
+        ).exists(), "Signal should be in processed/"
 
 
 class TestExistingTransitionTests:
