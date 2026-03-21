@@ -1,0 +1,30 @@
+prd_id: PRD-GUARDIAN-DISPATCH-001
+title: Guardian AgentSDK Dispatch Hardening
+features:
+  - id: E1
+    name: ClaudeSDKClient Migration
+    weight: 0.20
+    file: e1-sdk-client.feature
+  - id: E2
+    name: Custom Guardian Stop Hook
+    weight: 0.25
+    file: e2-stop-hook.feature
+  - id: E3
+    name: Expanded allowed_tools
+    weight: 0.20
+    file: e3-tools-permissions.feature
+  - id: E4
+    name: Clean Environment
+    weight: 0.10
+    file: e4-environment.feature
+  - id: E5
+    name: Fix run_research.py
+    weight: 0.10
+    file: e5-research-fix.feature
+  - id: E6
+    name: Remove Promise Assumptions
+    weight: 0.15
+    file: e6-clean-prompt.feature
+thresholds:
+  accept: 0.70
+  investigate: 0.50
