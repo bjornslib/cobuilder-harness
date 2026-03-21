@@ -1,0 +1,126 @@
+template:
+  name: tdd-validated
+  version: "1.0"
+  description: >
+    TDD-focused worker pipeline: each task follows RED-GREEN-REFACTOR cycle
+    with explicit test-writing, implementation, and refactor phases.
+    Workers receive superpowers (systematic-debugging, verification-before-completion).
+    Supports 1-10 parallel workers with fan-out/fan-in and E2E validation gate.
+  topology: parallel
+  min_nodes: 7
+  max_nodes: 60
+
+parameters:
+  prd_ref:
+    type: string
+    required: true
+    description: "PRD identifier (e.g., PRD-AUTH-001)"
+  sd_path:
+    type: string
+    required: true
+    description: "Path to the Solution Design document"
+  promise_id:
+    type: string
+    required: false
+    default: ""
+  workers:
+    type: list
+    required: true
+    min_length: 1
+    max_length: 10
+    description: >
+      List of worker definitions. Each worker has: label, worker_type, bead_id,
+      acceptance, scope (file list), test_command, and optional worker_powers.
+  include_research:
+    type: boolean
+    default: false
+    description: "Whether to prepend a research node before TDD execution"
+  include_e2e:
+    type: boolean
+    default: true
+    description: "Whether to append E2E integration test node after fan-in"
+  default_worker_powers:
+    type: string
+    default: "tdd,systematic-debugging,verification"
+    description: "Comma-separated power set for all workers (override per-worker with worker.worker_powers)"
+  llm_profile_test:
+    type: string
+    default: "anthropic-fast"
+    description: "LLM profile for test-writing nodes (RED phase)"
+  llm_profile_impl:
+    type: string
+    default: "anthropic-smart"
+    description: "LLM profile for implementation nodes (GREEN phase)"
+  llm_profile_refactor:
+    type: string
+    default: "anthropic-fast"
+    description: "LLM profile for refactor nodes"
+
+defaults:
+  llm_profile: "anthropic-smart"
+  handler_defaults:
+    research:
+      llm_profile: "anthropic-fast"
+    codergen:
+      llm_profile: "anthropic-smart"
+
+constraints:
+  tdd_node_transitions:
+    description: "Allowed status transitions for TDD codergen nodes"
+    type: node_state_machine
+    applies_to:
+      shape: box
+      handler: codergen
+    states: [pending, active, impl_complete, validated, failed]
+    transitions:
+      - {from: pending, to: active}
+      - {from: active, to: impl_complete}
+      - {from: active, to: failed}
+      - {from: impl_complete, to: validated}
+      - {from: impl_complete, to: failed}
+      - {from: failed, to: active}
+    initial: pending
+    terminal: [validated, failed]
+
+  validation_gate_transitions:
+    description: "Allowed status transitions for validation gates"
+    type: node_state_machine
+    applies_to:
+      shape: hexagon
+      handler: wait_human
+    states: [pending, active, passed, failed]
+    transitions:
+      - {from: pending, to: active}
+      - {from: active, to: passed}
+      - {from: active, to: failed}
+      - {from: failed, to: active}
+    initial: pending
+    terminal: [passed, failed]
+
+  require_validation_before_exit:
+    description: "No codergen node may reach exit without passing a validation gate"
+    type: path_constraint
+    rule:
+      from_shape: box
+      must_pass_through:
+        - hexagon
+      before_reaching:
+        - Msquare
+
+  balanced_parallelism:
+    description: "Every parallel fan-out must have a corresponding fan-in"
+    type: topology_constraint
+    rule:
+      every_node:
+        shape: component
+        handler: parallel
+      must_have_downstream:
+        shape: tripleoctagon
+        max_hops: 30
+
+  bounded_retries:
+    description: "Edges targeting already-visited nodes must be bounded"
+    type: loop_constraint
+    rule:
+      max_per_node_visits: 4
+      max_pipeline_visits: 60
