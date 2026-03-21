@@ -78,6 +78,29 @@ import logfire
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Gracefully handle missing Logfire project credentials:
+
+# ---------------------------------------------------------------------------
+# Guardian allowed_tools (Epic 3: Expand Tools)
+# ---------------------------------------------------------------------------
+# Guardian is a coordinator, not implementer — NO Write/Edit/MultiEdit.
+# It needs: Bash (commands), Read/Glob/Grep (investigation), ToolSearch/Skill/LSP
+# (deferred MCP loading), Serena (code nav for validation), Hindsight (learning).
+_GUARDIAN_TOOLS: list[str] = [
+    # Base tools
+    "Bash", "Read", "Glob", "Grep", "ToolSearch", "Skill", "LSP",
+    # Serena: code navigation for validation inspection
+    "mcp__serena__activate_project",
+    "mcp__serena__check_onboarding_performed",
+    "mcp__serena__find_symbol",
+    "mcp__serena__search_for_pattern",
+    "mcp__serena__get_symbols_overview",
+    "mcp__serena__find_referencing_symbols",
+    "mcp__serena__find_file",
+    # Hindsight: learning storage
+    "mcp__hindsight__retain",
+    "mcp__hindsight__recall",
+    "mcp__hindsight__reflect",
+]
 # When running in an impl repo without .logfire/, logfire.configure()
 # triggers an interactive prompt that crashes non-interactive contexts.
 _send_to_logfire_env = os.environ.get("LOGFIRE_SEND_TO_LOGFIRE", "").lower()
@@ -597,9 +620,9 @@ def build_options(
 ) -> Any:
     """Construct a ClaudeCodeOptions instance for the Guardian agent.
 
-    The Guardian is restricted to Bash only — it must not call Edit/Write/etc.
-    CLAUDECODE is overridden to an empty string to suppress nested session
-    warnings (the authoritative fix is in runner.py spawn mode using Popen).
+    The Guardian is a coordinator (not implementer) — it gets read/investigation
+    tools (Bash, Read, Glob, Grep, ToolSearch, Skill, LSP) plus Serena and Hindsight
+    for code navigation and learning storage. It does NOT get Write/Edit/MultiEdit.
 
     Args:
         system_prompt: Pipeline execution instructions for Claude.
@@ -615,7 +638,8 @@ def build_options(
         from claude_code_sdk import ClaudeCodeOptions
 
         options_kwargs = {
-            "allowed_tools": ["Bash"],
+            "allowed_tools": _GUARDIAN_TOOLS,
+            "permission_mode": "bypassPermissions",
             "system_prompt": system_prompt,
             "cwd": cwd,
             "model": model,

@@ -376,9 +376,26 @@ class TestBuildOptions(unittest.TestCase):
         opts = self._build()
         self.assertIsInstance(opts, ClaudeCodeOptions)
 
-    def test_allowed_tools_bash_only(self) -> None:
+    def test_allowed_tools_contains_guardian_tools(self) -> None:
+        """Epic 3: Guardian gets expanded tools (Bash, Read, Glob, Grep, ToolSearch, Skill, LSP, Serena, Hindsight)."""
         opts = self._build()
-        self.assertEqual(opts.allowed_tools, ["Bash"])
+        # Verify base tools are present
+        self.assertIn("Bash", opts.allowed_tools)
+        self.assertIn("Read", opts.allowed_tools)
+        self.assertIn("Glob", opts.allowed_tools)
+        self.assertIn("Grep", opts.allowed_tools)
+        self.assertIn("ToolSearch", opts.allowed_tools)
+        self.assertIn("Skill", opts.allowed_tools)
+        self.assertIn("LSP", opts.allowed_tools)
+        # Verify Serena tools are present
+        self.assertIn("mcp__serena__find_symbol", opts.allowed_tools)
+        # Verify Hindsight tools are present
+        self.assertIn("mcp__hindsight__retain", opts.allowed_tools)
+        self.assertIn("mcp__hindsight__recall", opts.allowed_tools)
+        self.assertIn("mcp__hindsight__reflect", opts.allowed_tools)
+        # Guardian does NOT get Write/Edit (coordinator, not implementer)
+        self.assertNotIn("Write", opts.allowed_tools)
+        self.assertNotIn("Edit", opts.allowed_tools)
 
     def test_system_prompt_set(self) -> None:
         opts = self._build(system_prompt="Guardian instructions here")
@@ -643,7 +660,12 @@ class TestLogfireInstrumentation(unittest.TestCase):
             model=DEFAULT_MODEL,
             max_turns=DEFAULT_MAX_TURNS,
         )
-        self.assertEqual(opts.allowed_tools, ["Bash"])
+        # Epic 3: Guardian has expanded tools
+        self.assertIn("Bash", opts.allowed_tools)
+        self.assertIn("Read", opts.allowed_tools)
+        self.assertIn("ToolSearch", opts.allowed_tools)
+        # Verify permission_mode is set
+        self.assertEqual(opts.permission_mode, "bypassPermissions")
 
 
 # ---------------------------------------------------------------------------
