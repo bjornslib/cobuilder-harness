@@ -37,8 +37,29 @@ No active pipelines. All test pipelines completed:
 - SD: `docs/sds/guardian-lifecycle-launcher/SD-GUARDIAN-LIFECYCLE-LAUNCHER-001.md`
 - Acceptance tests: `acceptance-tests/PRD-GUARDIAN-LIFECYCLE-LAUNCHER-001/` (manifest + 2 feature files, 8 scenarios)
 
+## Additional Work Item: Terminology Rename — "Pilot" for Pipeline Driver
+
+The guardian.py AgentSDK agent should be renamed from "guardian" to **Pilot**. This session established clean terminology:
+
+| Entity | Name | Role |
+|--------|------|------|
+| Opus interactive session | **CoBuilder** | Strategic oversight, PRD design, validation, human interface |
+| guardian.py AgentSDK agent | **Pilot** | Drives DOT graph execution, dispatches runner, handles gates |
+| pipeline_runner.py | **Runner** | Zero-LLM state machine, dispatches workers |
+| AgentSDK codergen/research/refine | **Workers** | Implementation agents |
+
+The metaphor: CoBuilder sets the course (PRD → DOT pipeline), the Pilot flies it (drives node transitions, handles gates), and CoBuilder intervenes at validation gates.
+
+**What needs updating:**
+- `.claude/output-styles/cobuilder-guardian.md` — replace "guardian agent" / "guardian.py agent" references with "Pilot" where referring to the AgentSDK process (NOT the interactive CoBuilder role)
+- `.claude/skills/cobuilder-guardian/SKILL.md` + references — same distinction
+- `cobuilder/engine/guardian.py` — consider renaming to `pilot.py` (or at minimum update docstrings/comments to use "Pilot" terminology)
+- `CLAUDE.md` and `cobuilder/CLAUDE.md` — update module descriptions
+
+**Key distinction to preserve:** "CoBuilder" = you (the interactive Guardian). "Pilot" = the headless AgentSDK agent launched by guardian.py. They are NOT the same entity despite currently sharing the "guardian" name.
+
 ## Open Concerns
-1. **Stop hook still partially fires on guardian agent** (turns 77-99 in Logfire trace). Custom `_create_guardian_stop_hook()` was added but the harness unified-stop-gate.sh may still run alongside it. The custom hook correctly completes the pipeline, but the agent still spends ~5 turns on cs-verify/hindsight at exit. May need investigation into whether `hooks=` parameter fully overrides harness hooks or supplements them.
+1. **Stop hook still partially fires on Pilot agent** (turns 77-99 in Logfire trace). Custom `_create_guardian_stop_hook()` was added but the harness unified-stop-gate.sh may still run alongside it. The Pilot still spends ~5 turns on cs-verify/hindsight at exit. May need investigation into whether `hooks=` parameter fully overrides harness hooks or supplements them.
 
 2. **cobuilder-lifecycle template file-existence validation**: Template references state files (research.json, refined.md) that don't exist at pipeline creation time. The `launch_lifecycle()` function handles this by creating placeholders, but direct template instantiation without the launcher will hit validation errors. Consider adding a `--skip-file-check` flag to `cli.py validate`.
 
