@@ -373,18 +373,26 @@ class TestBuildEnvConfig(unittest.TestCase):
         result = build_env_config()
         self.assertIsInstance(result, dict)
 
-    def test_claudecode_key_present(self) -> None:
+    def test_claudecode_stripped(self) -> None:
+        """Epic 4: CLAUDECODE is stripped from the environment."""
         result = build_env_config()
-        self.assertIn("CLAUDECODE", result)
+        self.assertNotIn("CLAUDECODE", result)
 
-    def test_claudecode_value_is_empty_string(self) -> None:
+    def test_claude_session_id_stripped(self) -> None:
+        """Epic 4: CLAUDE_SESSION_ID is stripped from the environment."""
         result = build_env_config()
-        self.assertEqual(result["CLAUDECODE"], "")
+        self.assertNotIn("CLAUDE_SESSION_ID", result)
 
-    def test_does_not_contain_arbitrary_env(self) -> None:
+    def test_claude_output_style_stripped(self) -> None:
+        """Epic 4: CLAUDE_OUTPUT_STYLE is stripped from the environment."""
         result = build_env_config()
-        self.assertNotIn("PATH", result)
-        self.assertNotIn("HOME", result)
+        self.assertNotIn("CLAUDE_OUTPUT_STYLE", result)
+
+    def test_sets_pipeline_vars_when_provided(self) -> None:
+        """Epic 4: PIPELINE_SIGNAL_DIR and PROJECT_TARGET_DIR are set when provided."""
+        result = build_env_config(signals_dir="/my/signals", target_dir="/my/target")
+        self.assertEqual(result["PIPELINE_SIGNAL_DIR"], "/my/signals")
+        self.assertEqual(result["PROJECT_TARGET_DIR"], "/my/target")
 
 
 # ---------------------------------------------------------------------------

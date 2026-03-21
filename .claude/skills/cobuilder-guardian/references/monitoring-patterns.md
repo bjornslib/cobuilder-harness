@@ -8,11 +8,74 @@ grade: authoritative
 
 # Monitoring Patterns Reference
 
-Commands, signal detection, intervention protocols, and red flags for continuous monitoring of S3 operators. **Headless mode (signal files) is the default.** Legacy tmux monitoring patterns are preserved at the end of this document for debugging use only.
+Commands, signal detection, intervention protocols, and red flags for continuous monitoring of pipeline execution. **Haiku blocking monitor is the default pattern.** Signal file polling and tmux monitoring are available as fallbacks.
 
 ---
 
-## 1. Signal File Monitoring (Default)
+## 0. Haiku Blocking Monitor (DEFAULT — Use This)
+
+The Guardian (Opus interactive session) spawns a **blocking** Haiku sub-agent that polls DOT pipeline status and signal files. The monitor COMPLETES when the Guardian's attention is needed, waking the Guardian at exactly the right time.
+
+**This is the default monitoring pattern.** Do NOT manually sleep-poll. The Haiku monitor is more efficient and responsive.
+
+### Launch Pattern
+
+```python
+# After launching guardian.py or pipeline_runner.py in background:
+Agent(
+    name="pipeline-monitor",
+    description="Monitor pipeline progress",
+    model="haiku",
+    run_in_background=False,  # BLOCKING — Guardian waits for result
+    prompt=f"""Monitor pipeline at {dot_file} for maximum 10 minutes.
+
+    Poll interval: 30 seconds. Stall threshold: 5 minutes.
+    MAX_DURATION: 10 minutes.
+
+    Commands to use:
+    python3 cobuilder/engine/cli.py status {dot_file} --json --summary
+
+    COMPLETE immediately with a status report when ANY of:
+    - A codergen node reaches impl_complete or accepted
+    - A gate node (wait.cobuilder/wait.human) becomes active
+    - No DOT state change for >5 minutes (stall)
+    - All nodes reach terminal state (completion)
+    - Any node reaches failed
+    - 10 minutes elapsed (timeout)
+
+    Output: MONITOR_COMPLETE / MONITOR_GATE / MONITOR_STALL / MONITOR_FAIL
+    + which nodes changed + current summary counts.
+    Do NOT fix issues. Report only.
+    """
+)
+```
+
+### Cyclic Monitor Pattern
+
+After each monitor completes, the Guardian:
+1. Reads the monitor report
+2. Handles gates (validate, advance transitions)
+3. Re-launches a new blocking monitor if work remains
+4. Exits the cycle when all nodes are terminal
+
+```
+Guardian → launch monitor (blocking) → monitor watches DOT
+                                        monitor COMPLETES with report
+Guardian ← handle report ← (re-launch monitor if work remains)
+```
+
+### Why This Pattern
+
+| Approach | Turns Used | Wake-up Precision |
+|----------|-----------|-------------------|
+| Manual sleep-poll | ~20 (sleep 30 + check) | Wastes turns on no-ops |
+| Haiku monitor | ~3 (launch + handle + re-launch) | Wakes exactly when needed |
+
+Validated in session 2026-03-21: lifecycle pipeline monitoring reduced from ~20 manual poll turns to 1 monitor launch.
+
+---
+
+## 1. Signal File Monitoring (Fallback)
 
 In headless mode, orchestrators communicate via signal files in `.pipelines/signals/`. The guardian polls these files instead of capturing terminal output.
 

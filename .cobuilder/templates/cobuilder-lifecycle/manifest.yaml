@@ -1,12 +1,15 @@
 template:
   name: cobuilder-lifecycle
-  version: "1.0"
+  version: "2.0"
   description: >
-    Self-driving CoBuilder Guardian lifecycle: research -> refine -> plan ->
-    wait.human -> execute -> validate -> evaluate -> close (with bounded loop-back)
-  topology: cyclic
-  min_nodes: 9
-  max_nodes: 12
+    Self-driving CoBuilder Guardian lifecycle: research -> refine (with AT/HR gates) ->
+    plan (with AT/HR gates) -> execute (with AT/HR gates) -> close.
+    Each codergen node has downstream wait.cobuilder + wait.human gates.
+    Passes strict validator. v2.0 removes cyclic evaluate loop and manager_loop
+    in favor of linear validated pipeline with guardian-level cycle management.
+  topology: linear
+  min_nodes: 14
+  max_nodes: 18
 
 parameters:
   initiative_id:
@@ -51,6 +54,21 @@ parameters:
     required: false
     default: "opus"
     description: "Model for planning node"
+  model_execute:
+    type: string
+    required: false
+    default: "alibaba-glm5"
+    description: "Model for execution/implementation node"
+  cobuilder_root:
+    type: string
+    required: false
+    default: "/path/to/harness"
+    description: "Absolute path to the CoBuilder harness root"
+  research_queries:
+    type: string
+    required: false
+    default: ""
+    description: "Comma-separated framework/topic queries for research node"
 
 defaults:
   llm_profile: "anthropic-fast"

@@ -376,9 +376,26 @@ class TestBuildOptions(unittest.TestCase):
         opts = self._build()
         self.assertIsInstance(opts, ClaudeCodeOptions)
 
-    def test_allowed_tools_bash_only(self) -> None:
+    def test_allowed_tools_contains_guardian_tools(self) -> None:
+        """Epic 3: Guardian gets expanded tools (Bash, Read, Glob, Grep, ToolSearch, Skill, LSP, Serena, Hindsight)."""
         opts = self._build()
-        self.assertEqual(opts.allowed_tools, ["Bash"])
+        # Verify base tools are present
+        self.assertIn("Bash", opts.allowed_tools)
+        self.assertIn("Read", opts.allowed_tools)
+        self.assertIn("Glob", opts.allowed_tools)
+        self.assertIn("Grep", opts.allowed_tools)
+        self.assertIn("ToolSearch", opts.allowed_tools)
+        self.assertIn("Skill", opts.allowed_tools)
+        self.assertIn("LSP", opts.allowed_tools)
+        # Verify Serena tools are present
+        self.assertIn("mcp__serena__find_symbol", opts.allowed_tools)
+        # Verify Hindsight tools are present
+        self.assertIn("mcp__hindsight__retain", opts.allowed_tools)
+        self.assertIn("mcp__hindsight__recall", opts.allowed_tools)
+        self.assertIn("mcp__hindsight__reflect", opts.allowed_tools)
+        # Guardian does NOT get Write/Edit (coordinator, not implementer)
+        self.assertNotIn("Write", opts.allowed_tools)
+        self.assertNotIn("Edit", opts.allowed_tools)
 
     def test_system_prompt_set(self) -> None:
         opts = self._build(system_prompt="Guardian instructions here")
@@ -396,10 +413,25 @@ class TestBuildOptions(unittest.TestCase):
         opts = self._build(max_turns=200)
         self.assertEqual(opts.max_turns, 200)
 
-    def test_env_contains_claudecode_override(self) -> None:
+    def test_env_strips_claudecode(self) -> None:
+        """Epic 4: Environment strips CLAUDECODE, CLAUDE_SESSION_ID, CLAUDE_OUTPUT_STYLE."""
         opts = self._build()
-        self.assertIn("CLAUDECODE", opts.env)
-        self.assertEqual(opts.env["CLAUDECODE"], "")
+        self.assertNotIn("CLAUDECODE", opts.env)
+        self.assertNotIn("CLAUDE_SESSION_ID", opts.env)
+        self.assertNotIn("CLAUDE_OUTPUT_STYLE", opts.env)
+
+    def test_env_sets_pipeline_vars_when_provided(self) -> None:
+        """Epic 4: Environment sets PIPELINE_SIGNAL_DIR and PROJECT_TARGET_DIR."""
+        opts = build_options(
+            system_prompt="test",
+            cwd="/tmp",
+            model=DEFAULT_MODEL,
+            max_turns=DEFAULT_MAX_TURNS,
+            signals_dir="/my/signals",
+            target_dir="/my/target",
+        )
+        self.assertEqual(opts.env["PIPELINE_SIGNAL_DIR"], "/my/signals")
+        self.assertEqual(opts.env["PROJECT_TARGET_DIR"], "/my/target")
 
     def test_default_model(self) -> None:
         opts = self._build(model=DEFAULT_MODEL)
@@ -580,40 +612,49 @@ class TestEnvConfig(unittest.TestCase):
         result = build_env_config()
         self.assertIsInstance(result, dict)
 
-    def test_claudecode_key_present(self) -> None:
+    def test_claudecode_stripped(self) -> None:
+        """Epic 4: CLAUDECODE is stripped from the environment."""
         result = build_env_config()
-        self.assertIn("CLAUDECODE", result)
+        self.assertNotIn("CLAUDECODE", result)
 
-    def test_claudecode_value_is_empty_string(self) -> None:
-        """We suppress CLAUDECODE by overriding to empty string."""
+    def test_claude_session_id_stripped(self) -> None:
+        """Epic 4: CLAUDE_SESSION_ID is stripped from the environment."""
         result = build_env_config()
-        self.assertEqual(result["CLAUDECODE"], "")
+        self.assertNotIn("CLAUDE_SESSION_ID", result)
 
-    def test_does_not_contain_arbitrary_env(self) -> None:
-        """build_env_config should only return intentional overrides."""
+    def test_claude_output_style_stripped(self) -> None:
+        """Epic 4: CLAUDE_OUTPUT_STYLE is stripped from the environment."""
         result = build_env_config()
-        self.assertNotIn("PATH", result)
-        self.assertNotIn("HOME", result)
+        self.assertNotIn("CLAUDE_OUTPUT_STYLE", result)
+
+    def test_sets_pipeline_vars_when_provided(self) -> None:
+        """Epic 4: PIPELINE_SIGNAL_DIR and PROJECT_TARGET_DIR are set when provided."""
+        result = build_env_config(signals_dir="/my/signals", target_dir="/my/target")
+        self.assertEqual(result["PIPELINE_SIGNAL_DIR"], "/my/signals")
+        self.assertEqual(result["PROJECT_TARGET_DIR"], "/my/target")
 
     def test_build_options_env_matches_env_config(self) -> None:
-        """build_options env should contain the same CLAUDECODE key."""
-        env_config = build_env_config()
+        """build_options env should strip the same vars as build_env_config."""
         opts = build_options(
             system_prompt="test",
             cwd="/tmp",
             model=DEFAULT_MODEL,
             max_turns=DEFAULT_MAX_TURNS,
         )
-        self.assertEqual(opts.env.get("CLAUDECODE"), env_config["CLAUDECODE"])
+        self.assertNotIn("CLAUDECODE", opts.env)
+        self.assertNotIn("CLAUDE_SESSION_ID", opts.env)
+        self.assertNotIn("CLAUDE_OUTPUT_STYLE", opts.env)
 
-    def test_build_options_env_claudecode_is_empty(self) -> None:
+    def test_build_options_env_strips_claude_vars(self) -> None:
         opts = build_options(
             system_prompt="test",
             cwd="/tmp",
             model=DEFAULT_MODEL,
             max_turns=DEFAULT_MAX_TURNS,
         )
-        self.assertEqual(opts.env["CLAUDECODE"], "")
+        self.assertNotIn("CLAUDECODE", opts.env)
+        self.assertNotIn("CLAUDE_SESSION_ID", opts.env)
+        self.assertNotIn("CLAUDE_OUTPUT_STYLE", opts.env)
 
 
 # ---------------------------------------------------------------------------
@@ -643,7 +684,12 @@ class TestLogfireInstrumentation(unittest.TestCase):
             model=DEFAULT_MODEL,
             max_turns=DEFAULT_MAX_TURNS,
         )
-        self.assertEqual(opts.allowed_tools, ["Bash"])
+        # Epic 3: Guardian has expanded tools
+        self.assertIn("Bash", opts.allowed_tools)
+        self.assertIn("Read", opts.allowed_tools)
+        self.assertIn("ToolSearch", opts.allowed_tools)
+        # Verify permission_mode is set
+        self.assertEqual(opts.permission_mode, "bypassPermissions")
 
 
 # ---------------------------------------------------------------------------

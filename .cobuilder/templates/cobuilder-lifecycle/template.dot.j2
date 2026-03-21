@@ -9,26 +9,28 @@ digraph "cobuilder-{{ initiative_id }}" {
         labelloc="t"
         fontsize=16
         rankdir="TB"
+        pipeline_id="lifecycle-{{ initiative_id }}"
+        prd_ref="PRD-{{ initiative_id }}"
         initiative_id="{{ initiative_id }}"
         _template="cobuilder-lifecycle"
-        _template_version="1.0"
+        _template_version="2.0"
+        cobuilder_root="{{ cobuilder_root | default('/path/to/harness') }}"
         target_dir="{{ target_dir }}"
         default_max_retry="{{ max_cycles * 7 + 10 }}"
     ];
 
-    node [fontname="Helvetica" fontsize=11];
-    edge [fontname="Helvetica" fontsize=9];
+    node [fontname="Helvetica" fontsize=11 style=filled];
+    edge [fontname="Helvetica" fontsize=9 arrowhead=vee];
 
     // ================================================================
     // ENTRY
     // ================================================================
     start [
         shape=Mdiamond
-        label="PARSE\n{{ initiative_id }}"
+        label="START\n{{ initiative_id }}"
         handler="start"
         status="pending"
-        style=filled
-        fillcolor=lightyellow
+        fillcolor=green
     ];
 
     // ================================================================
@@ -38,12 +40,15 @@ digraph "cobuilder-{{ initiative_id }}" {
         shape=tab
         label="RESEARCH\nProblem Domain"
         handler="research"
-        worker_type="researcher"
-        llm="{{ model_research }}"
+        worker_type="backend-solutions-engineer"
+        llm_profile="{{ model_research | default('anthropic-fast') }}"
+        solution_design="{{ target_dir }}/state/{{ initiative_id }}-refined.md"
+        prd_ref="PRD-{{ initiative_id }}"
+        research_queries="{{ research_queries | default('') }}"
+        downstream_node="refine"
         prompt="Research the problem domain for {{ initiative_id }}. Read {{ business_spec_path }}. Identify unknowns, framework constraints, and prior art. Check if state/{{ initiative_id }}-failures.md exists — if so, read it and focus on investigating root causes of prior failures rather than general domain research. Write findings to state/{{ initiative_id }}-research.json."
         initiative_id="{{ initiative_id }}"
         status="pending"
-        style=filled
         fillcolor=lightcyan
     ];
 
@@ -57,15 +62,41 @@ digraph "cobuilder-{{ initiative_id }}" {
         label="REFINE\nBS + Constraints"
         handler="codergen"
         worker_type="solution-architect"
-        llm="{{ model_refine }}"
+        llm_profile="{{ model_refine | default('anthropic-smart') }}"
+        sd_path="{{ target_dir }}/state/{{ initiative_id }}-research.json"
+        bead_id="LIFECYCLE-{{ initiative_id }}-REFINE"
+        prd_ref="PRD-{{ initiative_id }}"
         prompt="Read state/{{ initiative_id }}-research.json and {{ business_spec_path }}. Produce a refined Business Spec with updated acceptance criteria, constraints discovered during research, and technical spec notes. Write to state/{{ initiative_id }}-refined.md."
+        acceptance="state/{{ initiative_id }}-refined.md exists with updated acceptance criteria and constraints."
         initiative_id="{{ initiative_id }}"
         status="pending"
-        style=filled
         fillcolor=lightyellow
     ];
 
+    // Refine validation gate
+    at_refine [
+        shape=hexagon
+        label="Validate Refine"
+        handler="wait.cobuilder"
+        gate_type="unit"
+        status="pending"
+        fillcolor=lightblue
+    ];
+
+    // Refine human review
+    hr_refine [
+        shape=hexagon
+        label="Review Refine"
+        handler="wait.human"
+        gate="technical"
+        mode="technical"
+        status="pending"
+        fillcolor=lightcoral
+    ];
+
     research -> refine [label="findings ready"];
+    refine -> at_refine [label="refined"];
+    at_refine -> hr_refine [label="validated"];
 
     // ================================================================
     // PLAN — generate child pipeline DOT from refined BS
@@ -75,109 +106,98 @@ digraph "cobuilder-{{ initiative_id }}" {
         label="PLAN\nGenerate Pipeline"
         handler="codergen"
         worker_type="solution-architect"
-        llm="{{ model_plan }}"
-        prompt="Read state/{{ initiative_id }}-refined.md. Select template '{{ execution_template }}' and map tasks to workers. Generate params.yaml and instantiate the template. Write state/{{ initiative_id }}-plan.json with {dot_path, template, params}. Use: cobuilder template instantiate {{ execution_template }} --param-file params.yaml --output pipelines/{{ initiative_id }}-cycle-$cycle_count.dot"
+        llm_profile="{{ model_plan | default('anthropic-smart') }}"
+        sd_path="{{ target_dir }}/state/{{ initiative_id }}-refined.md"
+        bead_id="LIFECYCLE-{{ initiative_id }}-PLAN"
+        prd_ref="PRD-{{ initiative_id }}"
+        prompt="Read state/{{ initiative_id }}-refined.md. Select template '{{ execution_template }}' and map tasks to workers. Generate params.yaml and instantiate the template. Write state/{{ initiative_id }}-plan.json with {dot_path, template, params}. Use: cobuilder template instantiate {{ execution_template }} --param-file params.yaml --output .pipelines/pipelines/{{ initiative_id }}-cycle-$cycle_count.dot"
+        acceptance="state/{{ initiative_id }}-plan.json exists with dot_path, template, and params fields."
         initiative_id="{{ initiative_id }}"
         status="pending"
-        style=filled
         fillcolor=lightyellow
     ];
 
-    refine -> plan [label="BS refined"];
-
-{% if require_human_before_launch %}
-    // ================================================================
-    // WAIT.HUMAN — gate before launching child pipeline
-    // ================================================================
-    wait_approval [
-        shape=octagon
-        label="WAIT.HUMAN\nApproval Gate"
-        handler="wait.human"
-        gate="launch"
-        prompt="Review the generated pipeline plan in state/{{ initiative_id }}-plan.json. Approve to proceed with execution."
-        initiative_id="{{ initiative_id }}"
+    // Plan validation gate
+    at_plan [
+        shape=hexagon
+        label="Validate Plan"
+        handler="wait.cobuilder"
+        gate_type="unit"
         status="pending"
-        style=filled
+        fillcolor=lightblue
+    ];
+
+    // Plan human review (approval before execution)
+    hr_plan [
+        shape=hexagon
+        label="Approve Plan"
+        handler="wait.human"
+        gate="technical"
+        mode="business"
+        status="pending"
         fillcolor=lightcoral
     ];
 
-    plan -> wait_approval [label="plan ready"];
-    wait_approval -> execute [label="approved"];
-{% else %}
-    plan -> execute [label="plan ready"];
-{% endif %}
+    hr_refine -> plan [label="BS approved"];
+    plan -> at_plan [label="plan ready"];
+    at_plan -> hr_plan [label="validated"];
 
     // ================================================================
-    // EXECUTE — spawn child pipeline runner
+    // EXECUTE — implementation via child codergen node
+    // (Future: manager_loop for recursive sub-pipeline spawning)
     // ================================================================
     execute [
-        shape=house
-        label="EXECUTE\nChild Pipeline"
-        handler="manager_loop"
-        mode="spawn_pipeline"
-        pipeline_params_file="state/{{ initiative_id }}-plan.json"
-        signals_dir="signals/{{ initiative_id }}"
-        summarizer="true"
+        shape=box
+        label="EXECUTE\nImplementation"
+        handler="codergen"
+        worker_type="backend-solutions-engineer"
+        llm_profile="{{ model_execute | default('alibaba-glm5') }}"
+        sd_path="{{ target_dir }}/state/{{ initiative_id }}-refined.md"
+        bead_id="LIFECYCLE-{{ initiative_id }}-EXECUTE"
+        prd_ref="PRD-{{ initiative_id }}"
+        prompt="Read state/{{ initiative_id }}-plan.json for the implementation plan. Execute the plan: create the code files, write tests, run them. Follow the acceptance criteria from state/{{ initiative_id }}-refined.md."
+        acceptance="All code files from the plan exist. All tests pass."
+        initiative_id="{{ initiative_id }}"
         timeout="7200"
-        initiative_id="{{ initiative_id }}"
         status="pending"
-        style=filled
         fillcolor=lightyellow
     ];
 
-    // ================================================================
-    // VALIDATE — run acceptance tests against BS
-    // ================================================================
-    validate [
+    // Execute validation gate
+    at_execute [
         shape=hexagon
-        label="VALIDATE\nAcceptance Tests"
+        label="Validate Impl"
         handler="wait.cobuilder"
-        gate="acceptance"
-        mode="business"
-        initiative_id="{{ initiative_id }}"
+        gate_type="e2e"
         status="pending"
-        style=filled
-        fillcolor=lightyellow
+        fillcolor=lightblue
     ];
 
-    execute -> validate [label="execution complete"];
-
-    // ================================================================
-    // EVALUATE — check if business goals are met
-    // ================================================================
-    evaluate [
-        shape=diamond
-        label="Goals\nMet?"
-        handler="conditional"
+    // Execute human review
+    hr_execute [
+        shape=hexagon
+        label="Review Impl"
+        handler="wait.human"
+        gate="technical"
+        mode="technical"
+        status="pending"
+        fillcolor=lightcoral
     ];
 
-    validate -> evaluate [label="validated"];
-
-    // All goals met -> close
-    evaluate -> close [
-        label="goals met"
-        condition="$last_status = 'success'"
-        color=green
-        style=bold
-    ];
-
-    // Goals not met, cycles remaining -> loop back with failure context
-    evaluate -> research [
-        label="iterate\n(cycle back)"
-        condition="$last_status = 'failure'"
-        color=orange
-        loop_restart=true
-    ];
+    hr_plan -> execute [label="approved"];
+    execute -> at_execute [label="execution complete"];
+    at_execute -> hr_execute [label="validated"];
 
     // ================================================================
     // EXIT
     // ================================================================
-    close [
+    pipeline_exit [
         shape=Msquare
         label="CLOSE\n{{ initiative_id }}"
-        handler="close"
+        handler="exit"
         status="pending"
-        style=filled
-        fillcolor=lightyellow
+        fillcolor=green
     ];
+
+    hr_execute -> pipeline_exit [label="approved"];
 }

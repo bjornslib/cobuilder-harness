@@ -5,26 +5,32 @@ features:
     name: ClaudeSDKClient Migration
     weight: 0.20
     file: e1-sdk-client.feature
+    validation_method: code-analysis
   - id: E2
     name: Custom Guardian Stop Hook
     weight: 0.25
     file: e2-stop-hook.feature
+    validation_method: code-analysis
   - id: E3
     name: Expanded allowed_tools
     weight: 0.20
     file: e3-tools-permissions.feature
+    validation_method: code-analysis
   - id: E4
     name: Clean Environment
     weight: 0.10
     file: e4-environment.feature
+    validation_method: code-analysis
   - id: E5
     name: Fix run_research.py
     weight: 0.10
     file: e5-research-fix.feature
+    validation_method: e2e-test
   - id: E6
     name: Remove Promise Assumptions
     weight: 0.15
     file: e6-clean-prompt.feature
+    validation_method: code-analysis
 thresholds:
   accept: 0.70
   investigate: 0.50

@@ -23,9 +23,9 @@ Architecture:
 
 CLAUDECODE environment note:
     The Guardian may be launched from inside a Claude Code session. To avoid
-    nested-session conflicts we pass env={"CLAUDECODE": ""} as a workaround
-    to suppress the variable. The definitive fix (subprocess.Popen with a
-    cleaned env) lives in runner.py (spawn mode).
+    nested-session conflicts, the environment is cleaned by stripping
+    CLAUDECODE, CLAUDE_SESSION_ID, and CLAUDE_OUTPUT_STYLE, and setting
+    PIPELINE_SIGNAL_DIR and PROJECT_TARGET_DIR for worker context.
 
 Usage:
     # Single guardian
@@ -78,6 +78,29 @@ import logfire
 _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Gracefully handle missing Logfire project credentials:
+
+# ---------------------------------------------------------------------------
+# Guardian allowed_tools (Epic 3: Expand Tools)
+# ---------------------------------------------------------------------------
+# Guardian is a coordinator, not implementer — NO Write/Edit/MultiEdit.
+# It needs: Bash (commands), Read/Glob/Grep (investigation), ToolSearch/Skill/LSP
+# (deferred MCP loading), Serena (code nav for validation), Hindsight (learning).
+_GUARDIAN_TOOLS: list[str] = [
+    # Base tools
+    "Bash", "Read", "Glob", "Grep", "ToolSearch", "Skill", "LSP",
+    # Serena: code navigation for validation inspection
+    "mcp__serena__activate_project",
+    "mcp__serena__check_onboarding_performed",
+    "mcp__serena__find_symbol",
+    "mcp__serena__search_for_pattern",
+    "mcp__serena__get_symbols_overview",
+    "mcp__serena__find_referencing_symbols",
+    "mcp__serena__find_file",
+    # Hindsight: learning storage
+    "mcp__hindsight__retain",
+    "mcp__hindsight__recall",
+    "mcp__hindsight__reflect",
+]
 # When running in an impl repo without .logfire/, logfire.configure()
 # triggers an interactive prompt that crashes non-interactive contexts.
 _send_to_logfire_env = os.environ.get("LOGFIRE_SEND_TO_LOGFIRE", "").lower()
@@ -512,23 +535,105 @@ def build_initial_prompt(
     )
 
 
+# ---------------------------------------------------------------------------
+# Guardian Stop Hook Factory
+# ---------------------------------------------------------------------------
+
+
+def _create_guardian_stop_hook(dot_path: str, pipeline_id: str) -> dict:
+    """Create a Stop hook that checks pipeline completion instead of promises/hindsight.
+
+    The Guardian should continue driving the pipeline until all nodes reach terminal
+    states (validated, accepted, or failed). This hook blocks exit if non-terminal
+    nodes (pending, active, impl_complete) remain, with a safety valve after 3 blocks.
+
+    Args:
+        dot_path: Absolute path to the pipeline DOT file.
+        pipeline_id: Unique pipeline identifier string.
+
+    Returns:
+        Dict suitable for ClaudeCodeOptions.hooks parameter:
+        {"Stop": [HookMatcher(hooks=[callback])]}
+    """
+    _block_count = 0
+    _MAX_BLOCKS = 3  # Safety valve — allow exit after this many blocks
+
+    async def _check_pipeline(hook_input: dict, event_name: str | None, context: Any) -> Any:
+        """Stop hook: block exit if pipeline has non-terminal nodes."""
+        nonlocal _block_count
+        import subprocess
+
+        try:
+            result = subprocess.run(
+                ["python3", "cobuilder/engine/cli.py", "status", dot_path, "--json", "--summary"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if result.returncode == 0:
+                import json
+                status = json.loads(result.stdout)
+                summary = status.get("summary", {})
+                # Non-terminal states that require continued work
+                non_terminal = (
+                    summary.get("pending", 0)
+                    + summary.get("active", 0)
+                    + summary.get("impl_complete", 0)
+                )
+                if non_terminal == 0:
+                    return {}  # All nodes terminal — allow exit
+
+                _block_count += 1
+                if _block_count > _MAX_BLOCKS:
+                    return {}  # Safety valve — allow exit
+
+                return {
+                    "decision": "block",
+                    "systemMessage": (
+                        f"PIPELINE STOP GATE ({_block_count}/{_MAX_BLOCKS}): "
+                        f"Pipeline '{pipeline_id}' has {non_terminal} non-terminal nodes.\n\n"
+                        f"Continue driving the pipeline to completion. Check node statuses with:\n"
+                        f"  python3 cobuilder/engine/cli.py status {dot_path}\n\n"
+                        f"Dispatch any ready nodes, handle gates, and monitor for completion."
+                    ),
+                }
+        except (subprocess.TimeoutExpired, json.JSONDecodeError, Exception) as e:
+            logfire.warning("[guardian-stop-hook] Status check failed: %s", e)
+            # On error, allow exit — don't block indefinitely
+
+        return {}  # Default: allow exit
+
+    try:
+        from claude_code_sdk.types import HookMatcher
+        return {"Stop": [HookMatcher(hooks=[_check_pipeline])]}
+    except ImportError:
+        logfire.warning("[hooks] claude_code_sdk.types not available — guardian stop hook disabled")
+        return {}
+
+
 def build_options(
     system_prompt: str,
     cwd: str,
     model: str,
     max_turns: int,
+    hooks: dict | None = None,
+    signals_dir: str | None = None,
+    target_dir: str | None = None,
 ) -> Any:
     """Construct a ClaudeCodeOptions instance for the Guardian agent.
 
-    The Guardian is restricted to Bash only — it must not call Edit/Write/etc.
-    CLAUDECODE is overridden to an empty string to suppress nested session
-    warnings (the authoritative fix is in runner.py spawn mode using Popen).
+    The Guardian is a coordinator (not implementer) — it gets read/investigation
+    tools (Bash, Read, Glob, Grep, ToolSearch, Skill, LSP) plus Serena and Hindsight
+    for code navigation and learning storage. It does NOT get Write/Edit/MultiEdit.
 
     Args:
         system_prompt: Pipeline execution instructions for Claude.
         cwd: Working directory for the agent (project root).
         model: Claude model identifier.
         max_turns: Maximum turns before the SDK stops the conversation.
+        hooks: Optional hooks dict for Stop hook configuration.
+        signals_dir: Path to signals directory (set as PIPELINE_SIGNAL_DIR).
+        target_dir: Target implementation repo directory (set as PROJECT_TARGET_DIR).
 
     Returns:
         Configured ClaudeCodeOptions instance.
@@ -536,16 +641,30 @@ def build_options(
     with logfire.span("guardian.build_options", model=model):
         from claude_code_sdk import ClaudeCodeOptions
 
-        return ClaudeCodeOptions(
-            allowed_tools=["Bash"],
-            system_prompt=system_prompt,
-            cwd=cwd,
-            model=model,
-            max_turns=max_turns,
-            # Suppress CLAUDECODE env var to avoid nested-session conflicts.
-            # Definitive fix (subprocess.Popen with cleaned env) is in runner.py spawn mode.
-            env={"CLAUDECODE": ""},
-        )
+        # Build clean environment: strip session identifiers and set pipeline context.
+        # This matches the pattern in pipeline_runner.py:1513-1516.
+        clean_env = {
+            k: v for k, v in os.environ.items()
+            if k not in ("CLAUDECODE", "CLAUDE_SESSION_ID", "CLAUDE_OUTPUT_STYLE")
+        }
+        if signals_dir:
+            clean_env["PIPELINE_SIGNAL_DIR"] = str(signals_dir)
+        if target_dir:
+            clean_env["PROJECT_TARGET_DIR"] = str(target_dir)
+
+        options_kwargs = {
+            "allowed_tools": _GUARDIAN_TOOLS,
+            "permission_mode": "bypassPermissions",
+            "system_prompt": system_prompt,
+            "cwd": cwd,
+            "model": model,
+            "max_turns": max_turns,
+            "env": clean_env,
+        }
+        if hooks:
+            options_kwargs["hooks"] = hooks
+
+        return ClaudeCodeOptions(**options_kwargs)
 
 
 def resolve_scripts_dir() -> str:
@@ -561,17 +680,35 @@ def resolve_scripts_dir() -> str:
     return _THIS_DIR
 
 
-def build_env_config() -> dict[str, str]:
-    """Return environment overrides that suppress the CLAUDECODE variable.
+def build_env_config(
+    signals_dir: str | None = None,
+    target_dir: str | None = None,
+) -> dict[str, str]:
+    """Return environment overrides for the Guardian agent.
 
-    We cannot *delete* env keys via ClaudeCodeOptions.env (it only adds/overrides),
-    so we override CLAUDECODE to an empty string. The authoritative fix is in
-    runner.py (spawn mode) which uses subprocess.Popen with a fully cleaned environment.
+    Strips session identifiers (CLAUDECODE, CLAUDE_SESSION_ID, CLAUDE_OUTPUT_STYLE)
+    and sets pipeline context variables (PIPELINE_SIGNAL_DIR, PROJECT_TARGET_DIR).
+
+    Note: ClaudeCodeOptions.env only adds/overrides keys, it cannot delete.
+    This function provides the clean environment dict that should be passed
+    directly to the options.
+
+    Args:
+        signals_dir: Path to signals directory (set as PIPELINE_SIGNAL_DIR).
+        target_dir: Target implementation repo directory (set as PROJECT_TARGET_DIR).
 
     Returns:
-        Dict of env var overrides to pass to ClaudeCodeOptions.
+        Dict of cleaned env vars with pipeline context set.
     """
-    return {"CLAUDECODE": ""}
+    clean_env = {
+        k: v for k, v in os.environ.items()
+        if k not in ("CLAUDECODE", "CLAUDE_SESSION_ID", "CLAUDE_OUTPUT_STYLE")
+    }
+    if signals_dir:
+        clean_env["PIPELINE_SIGNAL_DIR"] = str(signals_dir)
+    if target_dir:
+        clean_env["PROJECT_TARGET_DIR"] = str(target_dir)
+    return clean_env
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -645,11 +782,13 @@ Examples:
 
 
 async def _run_agent(initial_prompt: str, options: Any) -> None:
-    """Stream messages from the claude_code_sdk query and log them.
+    """Stream messages from the claude_code_sdk ClaudeSDKClient and log them.
 
     Each SDK message type is logged to Logfire as a structured event so that
     tool calls, assistant text, tool results, and session completion are all
     visible in the Logfire dashboard.
+
+    Uses ClaudeSDKClient pattern (connect() then query()) to enable Stop hooks.
 
     Args:
         initial_prompt: The first user message to send to Claude.
@@ -658,7 +797,7 @@ async def _run_agent(initial_prompt: str, options: Any) -> None:
     import time as _time
 
     from claude_code_sdk import (
-        query,
+        ClaudeSDKClient,
         AssistantMessage,
         UserMessage,
         ResultMessage,
@@ -673,79 +812,82 @@ async def _run_agent(initial_prompt: str, options: Any) -> None:
     start_time = _time.time()
 
     with logfire.span("guardian.run_agent") as agent_span:
-        async for message in query(prompt=initial_prompt, options=options):
-            if isinstance(message, AssistantMessage):
-                turn_count += 1
-                for block in message.content:
-                    if isinstance(block, TextBlock):
-                        text_preview = block.text[:300] if block.text else ""
-                        logfire.info(
-                            "guardian.assistant_text",
-                            turn=turn_count,
-                            text_length=len(block.text) if block.text else 0,
-                            text_preview=text_preview,
-                        )
-                        print(f"[Guardian] {block.text}", flush=True)
-
-                    elif isinstance(block, ToolUseBlock):
-                        tool_call_count += 1
-                        input_preview = json.dumps(block.input)[:500]
-                        logfire.info(
-                            "guardian.tool_use",
-                            tool_name=block.name,
-                            tool_use_id=block.id,
-                            tool_input_preview=input_preview,
-                            turn=turn_count,
-                            tool_call_number=tool_call_count,
-                        )
-                        print(f"[Guardian tool] {block.name}: {input_preview[:200]}", flush=True)
-
-                    elif isinstance(block, ThinkingBlock):
-                        logfire.info(
-                            "guardian.thinking",
-                            turn=turn_count,
-                            thinking_length=len(block.thinking) if block.thinking else 0,
-                            thinking_preview=(block.thinking or "")[:200],
-                        )
-
-            elif isinstance(message, UserMessage):
-                # UserMessage carries tool results back from tool execution
-                if isinstance(message.content, list):
+        async with ClaudeSDKClient(options=options) as client:
+            await client.connect()
+            await client.query(initial_prompt)
+            async for message in client.receive_response():
+                if isinstance(message, AssistantMessage):
+                    turn_count += 1
                     for block in message.content:
-                        if isinstance(block, ToolResultBlock):
-                            content_preview = ""
-                            content_length = 0
-                            if isinstance(block.content, str):
-                                content_preview = block.content[:500]
-                                content_length = len(block.content)
-                            elif isinstance(block.content, list):
-                                content_preview = json.dumps(block.content)[:500]
-                                content_length = len(json.dumps(block.content))
+                        if isinstance(block, TextBlock):
+                            text_preview = block.text[:300] if block.text else ""
                             logfire.info(
-                                "guardian.tool_result",
-                                tool_use_id=block.tool_use_id,
-                                is_error=block.is_error or False,
-                                content_length=content_length,
-                                content_preview=content_preview,
+                                "guardian.assistant_text",
                                 turn=turn_count,
+                                text_length=len(block.text) if block.text else 0,
+                                text_preview=text_preview,
+                            )
+                            print(f"[Guardian] {block.text}", flush=True)
+
+                        elif isinstance(block, ToolUseBlock):
+                            tool_call_count += 1
+                            input_preview = json.dumps(block.input)[:500]
+                            logfire.info(
+                                "guardian.tool_use",
+                                tool_name=block.name,
+                                tool_use_id=block.id,
+                                tool_input_preview=input_preview,
+                                turn=turn_count,
+                                tool_call_number=tool_call_count,
+                            )
+                            print(f"[Guardian tool] {block.name}: {input_preview[:200]}", flush=True)
+
+                        elif isinstance(block, ThinkingBlock):
+                            logfire.info(
+                                "guardian.thinking",
+                                turn=turn_count,
+                                thinking_length=len(block.thinking) if block.thinking else 0,
+                                thinking_preview=(block.thinking or "")[:200],
                             )
 
-            elif isinstance(message, ResultMessage):
-                elapsed = _time.time() - start_time
-                logfire.info(
-                    "guardian.result",
-                    session_id=message.session_id,
-                    is_error=message.is_error,
-                    num_turns=message.num_turns,
-                    duration_ms=message.duration_ms,
-                    duration_api_ms=message.duration_api_ms,
-                    total_cost_usd=message.total_cost_usd,
-                    usage=message.usage,
-                    result_preview=(message.result or "")[:300],
-                    wall_time_seconds=round(elapsed, 2),
-                    total_tool_calls=tool_call_count,
-                )
-                print(f"[Guardian done] turns={message.num_turns} cost=${message.total_cost_usd} tools={tool_call_count}", flush=True)
+                elif isinstance(message, UserMessage):
+                    # UserMessage carries tool results back from tool execution
+                    if isinstance(message.content, list):
+                        for block in message.content:
+                            if isinstance(block, ToolResultBlock):
+                                content_preview = ""
+                                content_length = 0
+                                if isinstance(block.content, str):
+                                    content_preview = block.content[:500]
+                                    content_length = len(block.content)
+                                elif isinstance(block.content, list):
+                                    content_preview = json.dumps(block.content)[:500]
+                                    content_length = len(json.dumps(block.content))
+                                logfire.info(
+                                    "guardian.tool_result",
+                                    tool_use_id=block.tool_use_id,
+                                    is_error=block.is_error or False,
+                                    content_length=content_length,
+                                    content_preview=content_preview,
+                                    turn=turn_count,
+                                )
+
+                elif isinstance(message, ResultMessage):
+                    elapsed = _time.time() - start_time
+                    logfire.info(
+                        "guardian.result",
+                        session_id=message.session_id,
+                        is_error=message.is_error,
+                        num_turns=message.num_turns,
+                        duration_ms=message.duration_ms,
+                        duration_api_ms=message.duration_api_ms,
+                        total_cost_usd=message.total_cost_usd,
+                        usage=message.usage,
+                        result_preview=(message.result or "")[:300],
+                        wall_time_seconds=round(elapsed, 2),
+                        total_tool_calls=tool_call_count,
+                    )
+                    print(f"[Guardian done] turns={message.num_turns} cost=${message.total_cost_usd} tools={tool_call_count}", flush=True)
 
 
 # ---------------------------------------------------------------------------
@@ -821,11 +963,17 @@ async def _launch_guardian_async(
         if dry_run:
             return config
 
+        # Create the guardian stop hook that checks pipeline completion
+        hooks = _create_guardian_stop_hook(dot_path, pipeline_id)
+
         options = build_options(
             system_prompt=system_prompt,
             cwd=project_root,
             model=model,
             max_turns=max_turns,
+            hooks=hooks,
+            signals_dir=signals_dir,
+            target_dir=target_dir,
         )
 
     try:
@@ -1220,7 +1368,7 @@ def main(argv: list[str] | None = None) -> None:
             "initial_prompt_length": len(initial_prompt),
         }
         print(json.dumps(config, indent=2))
-        return
+        sys.exit(0)
 
     # Register Layer 0/1 (guardian) identity before starting the agent loop.
     identity_registry.create_identity(

@@ -211,17 +211,50 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 async def _run_research(prompt: str, options: object) -> dict:
-    """Run the research agent via claude_code_sdk and return parsed result."""
-    from claude_code_sdk import query, ResultMessage
+    """Run the research agent via claude_code_sdk ClaudeSDKClient and return parsed result.
 
-    async for message in query(prompt=prompt, options=options):
-        if isinstance(message, ResultMessage):
-            return {
-                "is_error": message.is_error,
-                "num_turns": message.num_turns,
-                "cost_usd": message.total_cost_usd,
-            }
-    return {"is_error": True, "num_turns": 0, "cost_usd": 0}
+    Uses ClaudeSDKClient (bidirectional) instead of query() (unidirectional) to ensure
+    proper async generator cleanup and avoid 'async_generator_athrow' errors.
+
+    Args:
+        prompt: The research prompt to send.
+        options: ClaudeCodeOptions instance.
+
+    Returns:
+        Dict with is_error, num_turns, cost_usd fields.
+    """
+    import claude_code_sdk
+    from claude_code_sdk import ResultMessage
+
+    messages: list = []
+    result: dict = {"is_error": True, "num_turns": 0, "cost_usd": 0}
+
+    # Use ClaudeSDKClient (bidirectional) instead of query() (unidirectional).
+    # ClaudeSDKClient properly manages the async context and avoids
+    # "Task exception was never retrieved / async_generator_athrow" errors
+    # that occur when query()'s async generator is not fully consumed.
+    try:
+        async with claude_code_sdk.ClaudeSDKClient(options=options) as client:  # type: ignore[attr-defined]
+            await client.connect()
+            await client.query(prompt)
+            async for msg in client.receive_response():
+                messages.append(msg)
+                # Capture result from ResultMessage
+                if isinstance(msg, ResultMessage):
+                    result = {
+                        "is_error": msg.is_error,
+                        "num_turns": msg.num_turns,
+                        "cost_usd": msg.total_cost_usd,
+                    }
+    except Exception as exc:  # noqa: BLE001
+        # If we got some messages before the error, treat as partial success
+        if messages:
+            # Already captured result from ResultMessage if we got that far
+            pass
+        else:
+            result = {"is_error": True, "num_turns": 0, "cost_usd": 0, "error": str(exc)}
+
+    return result
 
 
 def main(argv: list[str] | None = None) -> None:
