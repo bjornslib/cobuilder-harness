@@ -90,5 +90,6 @@ The PLAN node in the lifecycle template generates a child implementation pipelin
 
 | Epic | Status | Date | Commit |
 |------|--------|------|--------|
-| E1: Lifecycle launcher function | Remaining | - | - |
-| E2: System prompt child pipeline | Remaining | - | - |
+| E1: Lifecycle launcher function | Done | 2026-03-21 | pipeline-worker |
+| E2: System prompt child pipeline | Done | 2026-03-21 | pipeline-worker |
+| E3: Pilot terminology rename | Done | 2026-03-21 | pipeline-worker |

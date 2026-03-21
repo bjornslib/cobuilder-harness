@@ -22,7 +22,7 @@ System 3 (Opus LLM)           — strategic planning, Gherkin E2E validation
 | Module | Purpose |
 |--------|---------|
 | `pipeline_runner.py` | Main DOT pipeline state machine. Parses DOT, dispatches AgentSDK workers, watches signal files via watchdog, writes checkpoints, transitions node states. Zero LLM intelligence. |
-| `guardian.py` | Layers 0/1 bridge. Launches guardian agent processes via `ClaudeSDKClient` (`--dot` single or `--multi` parallel). Key components: `_GUARDIAN_TOOLS` (Bash/Read/Glob/Grep/Serena/Hindsight — no Write/Edit), `_create_guardian_stop_hook()` (blocks exit when non-terminal nodes remain, safety valve at 3 blocks), `build_options()` (sets `permission_mode="bypassPermissions"`, strips CLAUDECODE/CLAUDE_SESSION_ID/CLAUDE_OUTPUT_STYLE from env, sets PIPELINE_SIGNAL_DIR/PROJECT_TARGET_DIR), `_run_agent()` (ClaudeSDKClient.connect + query + receive_response pattern). |
+| `guardian.py` | Layers 0/1 bridge. Launches Pilot agent processes via `ClaudeSDKClient` (`--dot` single or `--multi` parallel). Key components: `_GUARDIAN_TOOLS` (Bash/Read/Glob/Grep/Serena/Hindsight — no Write/Edit), `_create_guardian_stop_hook()` (blocks Pilot exit when non-terminal nodes remain, safety valve at 3 blocks), `build_options()` (sets `permission_mode="bypassPermissions"`, strips CLAUDECODE/CLAUDE_SESSION_ID/CLAUDE_OUTPUT_STYLE from env, sets PIPELINE_SIGNAL_DIR/PROJECT_TARGET_DIR), `_run_agent()` (ClaudeSDKClient.connect + query + receive_response pattern). |
 | `session_runner.py` | Layer 2 monitoring runner. Monitors an orchestrator tmux session and communicates status via signal files. Supports both `--spawn` (fire-and-forget) and direct monitoring modes. |
 | `cli.py` | Attractor CLI with full subcommand interface: `parse`, `validate`, `status`, `transition`, `checkpoint`, `generate`, `annotate`, `dashboard`, `node`, `edge`, `run`, `guardian`, `agents`, `merge-queue`. |
 | `generate.py` | Generates Attractor-compatible `pipeline.dot` from beads task data. Reads `bd list --json` or a `--beads-json` file. |
@@ -247,7 +247,7 @@ Node attributes:
 
 Traces are emitted under these service names:
 - `cobuilder-pipeline-runner` — pipeline runner spans (node dispatch, transitions, checkpoints)
-- `cobuilder-guardian` — guardian agent spans
+- `cobuilder-guardian` — Pilot agent spans
 - `cobuilder-session-runner` — session runner spans
 
 Use `mcp__logfire-mcp__arbitrary_query` with `service.name = 'cobuilder-pipeline-runner'` to filter traces.

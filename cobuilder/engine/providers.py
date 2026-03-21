@@ -51,7 +51,7 @@ _ENV_VAR_PATTERN = re.compile(r"^\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?$")
 DEFAULT_PROVIDERS_FILE = "providers.yaml"
 
 # Runner-level defaults (layer 5)
-RUNNER_DEFAULT_MODEL = "claude-sonnet-4-5-20250514"
+RUNNER_DEFAULT_MODEL = "claude-sonnet-4-6"
 RUNNER_DEFAULT_BASE_URL = "https://api.anthropic.com"
 
 
@@ -147,11 +147,11 @@ class ProvidersFile:
             base_url: https://api.anthropic.com
 
           anthropic-smart:
-            model: claude-sonnet-4-5-20250514
+            model: claude-sonnet-4-6
             api_key: $ANTHROPIC_API_KEY
 
           openrouter-smart:
-            model: anthropic/claude-sonnet-4-5
+            model: anthropic/claude-sonnet-4-6
             api_key: $OPENROUTER_API_KEY
             base_url: https://openrouter.ai/api/v1
     """

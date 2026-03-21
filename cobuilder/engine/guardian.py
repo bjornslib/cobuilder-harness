@@ -1,28 +1,28 @@
 #!/usr/bin/env python3
-"""guardian.py — Guardian Agent + Terminal Bridge (Layers 0 & 1).
+"""guardian.py — Pilot Agent + Terminal Bridge (Layers 0 & 1).
 
 Merged from guardian_agent.py (Layer 1) and launch_guardian.py (Layer 0).
 
 Provides the interactive terminal (ccsystem3 / Layer 0) with the ability to
-launch one or more Headless Guardian agents (Layer 1) via the claude_code_sdk,
+launch one or more headless Pilot agents (Layer 1) via the claude_code_sdk,
 monitor them for terminal-targeted signals, and handle escalations or
 completion events.
 
 Architecture:
-    guardian.py (Layer 0/1 — launch bridge + Guardian agent process)
+    guardian.py (Layer 0/1 — launch bridge + Pilot agent process)
         │
         ├── parse_args()                → CLI argument parsing (--dot | --multi)
         ├── build_system_prompt()       → pipeline execution instructions for Claude
         ├── build_initial_prompt()      → first user message with pipeline context
         ├── build_options()             → ClaudeCodeOptions (Bash only, max_turns, model)
-        ├── launch_guardian()           → Single guardian launch via Agent SDK query()
+        ├── launch_guardian()           → Single Pilot launch via Agent SDK query()
         ├── launch_multiple_guardians() → Parallel launch via asyncio.gather
         ├── monitor_guardian()          → Health-check loop watching terminal signals
-        ├── handle_escalation()         → Format + forward Guardian escalation to user
+        ├── handle_escalation()         → Format + forward Pilot escalation to user
         └── handle_pipeline_complete()  → Finalize and summarise a completed pipeline
 
 CLAUDECODE environment note:
-    The Guardian may be launched from inside a Claude Code session. To avoid
+    The Pilot may be launched from inside a Claude Code session. To avoid
     nested-session conflicts, the environment is cleaned by stripping
     CLAUDECODE, CLAUDE_SESSION_ID, and CLAUDE_OUTPUT_STYLE, and setting
     PIPELINE_SIGNAL_DIR and PROJECT_TARGET_DIR for worker context.
@@ -64,7 +64,7 @@ from cobuilder.engine.dispatch_worker import load_engine_env
 # ``guardian.wait_for_signal`` directly via unittest.mock.patch.
 from cobuilder.engine.signal_protocol import wait_for_signal  # noqa: E402
 
-# Import merge_queue so it is available in the Guardian process for signal handling
+# Import merge_queue so it is available in the Pilot process for signal handling
 try:
     import cobuilder.engine.merge_queue as merge_queue  # noqa: F401  (imported for side-effects / availability)
 except ImportError:
@@ -80,9 +80,9 @@ _THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 # Gracefully handle missing Logfire project credentials:
 
 # ---------------------------------------------------------------------------
-# Guardian allowed_tools (Epic 3: Expand Tools)
+# Pilot allowed_tools (Epic 3: Expand Tools)
 # ---------------------------------------------------------------------------
-# Guardian is a coordinator, not implementer — NO Write/Edit/MultiEdit.
+# Pilot is a coordinator, not implementer — NO Write/Edit/MultiEdit.
 # It needs: Bash (commands), Read/Glob/Grep (investigation), ToolSearch/Skill/LSP
 # (deferred MCP loading), Serena (code nav for validation), Hindsight (learning).
 _GUARDIAN_TOOLS: list[str] = [
@@ -125,11 +125,11 @@ logfire.configure(
 # Constants
 # ---------------------------------------------------------------------------
 
-DEFAULT_MAX_TURNS = 200          # more turns than runner; guardian runs longer
+DEFAULT_MAX_TURNS = 200          # more turns than runner; Pilot runs longer
 DEFAULT_SIGNAL_TIMEOUT = 600     # 10 minutes per wait cycle
 DEFAULT_MAX_RETRIES = 3          # max retries per node before escalating
 DEFAULT_MONITOR_TIMEOUT = 3600   # 1 hour total monitor timeout
-DEFAULT_MODEL = "claude-sonnet-4-6"  # default Claude model for guardian
+DEFAULT_MODEL = "claude-sonnet-4-6"  # default Claude model for Pilot
 
 
 # ---------------------------------------------------------------------------
@@ -146,7 +146,7 @@ def build_system_prompt(
     target_dir: str = "",
     max_cycles: int = 3,
 ) -> str:
-    """Return the system prompt that instructs the Claude Guardian how to run the pipeline.
+    """Return the system prompt that instructs the Pilot agent how to run the pipeline.
 
     Args:
         dot_path: Absolute path to the pipeline DOT file.
@@ -163,7 +163,7 @@ def build_system_prompt(
     target_dir_line = f"- Target directory: {target_dir}"
     target_dir_flag = f" --target-dir {target_dir}"
     return f"""\
-You are a Headless Guardian agent (Layer 1) in a 4-layer pipeline execution system.
+You are the Pilot agent (Layer 1) in a 4-layer pipeline execution system.
 
 Your role: Drive pipeline execution autonomously by reading the DOT graph, spawning
 Runners for each codergen node, handling signals, and transitioning node statuses.
@@ -260,7 +260,7 @@ IMPORTANT: After ANY graph modification, always:
 
 ### Signal Handler Types
 When reading signals via wait_for_signal.py, you may encounter these signal types from runners:
-- NEEDS_REVIEW: Worker completed but requires guardian review before validation
+- NEEDS_REVIEW: Worker completed but requires Pilot review before validation
 - NEEDS_INPUT: Worker is blocked and requires human input to proceed
 - VIOLATION: Policy or constraint violation detected during execution
 - ORCHESTRATOR_STUCK: The orchestrator has stalled and cannot make progress
@@ -493,6 +493,40 @@ Before each loop-back to RESEARCH:
 
 The max_cycles value is {max_cycles} (from pipeline manifest or default).
 
+### Template Instantiation (For PLAN Nodes)
+When a PLAN node needs to generate a child implementation pipeline:
+
+1. Read the refined BS:
+   cat state/{pipeline_id}-refined.md
+
+2. Break into implementation tasks (each task = one codergen node)
+
+3. Instantiate a template:
+   python3 -c "
+   from cobuilder.templates.instantiator import instantiate_template
+   instantiate_template('sequential-validated', {{
+       'initiative_id': '{pipeline_id}-impl',
+       'tasks': [...],
+       'target_dir': '{target_dir}',
+       'cobuilder_root': '{{cobuilder_root}}',
+   }}, output_path='.pipelines/pipelines/{pipeline_id}-impl.dot')
+   "
+
+   OR create a DOT file manually using node/edge CRUD:
+   python3 {scripts_dir}/cli.py node <dot_path> add impl_task_1 --handler codergen ...
+
+4. Write the plan file:
+   cat > state/{pipeline_id}-plan.json << 'EOF'
+   {{
+       "dot_path": ".pipelines/pipelines/{pipeline_id}-impl.dot",
+       "template": "sequential-validated",
+       "task_count": N,
+       "tasks": [{{"id": "task_1", "description": "..."}}]
+   }}
+   EOF
+
+5. The EXECUTE node will read this plan and implement each task.
+
 ## Important Rules
 - NEVER use Edit or Write tools — you are a coordinator, not an implementer
 - NEVER guess at node status — always read from the DOT file via CLI
@@ -521,7 +555,7 @@ def build_initial_prompt(
     """
     target_dir_line = f"Target directory: {target_dir}\n" if target_dir else ""
     return (
-        f"You are the Headless Guardian for pipeline '{pipeline_id}'.\n\n"
+        f"You are the Pilot for pipeline '{pipeline_id}'.\n\n"
         f"Pipeline DOT file: {dot_path}\n"
         f"Scripts directory: {scripts_dir}\n"
         f"{target_dir_line}\n"
@@ -536,14 +570,14 @@ def build_initial_prompt(
 
 
 # ---------------------------------------------------------------------------
-# Guardian Stop Hook Factory
+# Pilot Stop Hook Factory
 # ---------------------------------------------------------------------------
 
 
 def _create_guardian_stop_hook(dot_path: str, pipeline_id: str) -> dict:
     """Create a Stop hook that checks pipeline completion instead of promises/hindsight.
 
-    The Guardian should continue driving the pipeline until all nodes reach terminal
+    The Pilot should continue driving the pipeline until all nodes reach terminal
     states (validated, accepted, or failed). This hook blocks exit if non-terminal
     nodes (pending, active, impl_complete) remain, with a safety valve after 3 blocks.
 
@@ -620,9 +654,9 @@ def build_options(
     signals_dir: str | None = None,
     target_dir: str | None = None,
 ) -> Any:
-    """Construct a ClaudeCodeOptions instance for the Guardian agent.
+    """Construct a ClaudeCodeOptions instance for the Pilot agent.
 
-    The Guardian is a coordinator (not implementer) — it gets read/investigation
+    The Pilot is a coordinator (not implementer) — it gets read/investigation
     tools (Bash, Read, Glob, Grep, ToolSearch, Skill, LSP) plus Serena and Hindsight
     for code navigation and learning storage. It does NOT get Write/Edit/MultiEdit.
 
@@ -684,7 +718,7 @@ def build_env_config(
     signals_dir: str | None = None,
     target_dir: str | None = None,
 ) -> dict[str, str]:
-    """Return environment overrides for the Guardian agent.
+    """Return environment overrides for the Pilot agent.
 
     Strips session identifiers (CLAUDECODE, CLAUDE_SESSION_ID, CLAUDE_OUTPUT_STYLE)
     and sets pipeline context variables (PIPELINE_SIGNAL_DIR, PROJECT_TARGET_DIR).
@@ -723,7 +757,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="guardian.py",
         description=(
-            "Guardian Agent (Layers 0/1): launch Guardian agents and "
+            "Pilot Agent launcher (Layers 0/1): launch Pilot agents and "
             "monitor pipeline execution via claude_code_sdk."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -738,12 +772,14 @@ Examples:
         """,
     )
 
-    # Mutually exclusive groups: single-launch vs multi-launch
+    # Mutually exclusive groups: single-launch vs multi-launch vs lifecycle
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--dot", dest="dot",
-                       help="Path to pipeline .dot file (single guardian mode)")
+                       help="Path to pipeline .dot file (single Pilot mode)")
     group.add_argument("--multi", dest="multi",
                        help="Path to JSON file containing a list of pipeline configs")
+    group.add_argument("--lifecycle", dest="lifecycle",
+                       help="Path to PRD — auto-instantiates lifecycle pipeline and launches")
 
     parser.add_argument("--pipeline-id", dest="pipeline_id", default=None,
                         help="Unique pipeline identifier (required with --dot)")
@@ -827,7 +863,7 @@ async def _run_agent(initial_prompt: str, options: Any) -> None:
                                 text_length=len(block.text) if block.text else 0,
                                 text_preview=text_preview,
                             )
-                            print(f"[Guardian] {block.text}", flush=True)
+                            print(f"[Pilot] {block.text}", flush=True)
 
                         elif isinstance(block, ToolUseBlock):
                             tool_call_count += 1
@@ -840,7 +876,7 @@ async def _run_agent(initial_prompt: str, options: Any) -> None:
                                 turn=turn_count,
                                 tool_call_number=tool_call_count,
                             )
-                            print(f"[Guardian tool] {block.name}: {input_preview[:200]}", flush=True)
+                            print(f"[Pilot tool] {block.name}: {input_preview[:200]}", flush=True)
 
                         elif isinstance(block, ThinkingBlock):
                             logfire.info(
@@ -887,7 +923,7 @@ async def _run_agent(initial_prompt: str, options: Any) -> None:
                         wall_time_seconds=round(elapsed, 2),
                         total_tool_calls=tool_call_count,
                     )
-                    print(f"[Guardian done] turns={message.num_turns} cost=${message.total_cost_usd} tools={tool_call_count}", flush=True)
+                    print(f"[Pilot done] turns={message.num_turns} cost=${message.total_cost_usd} tools={tool_call_count}", flush=True)
 
 
 # ---------------------------------------------------------------------------
@@ -963,7 +999,7 @@ async def _launch_guardian_async(
         if dry_run:
             return config
 
-        # Create the guardian stop hook that checks pipeline completion
+        # Create the Pilot stop hook that checks pipeline completion
         hooks = _create_guardian_stop_hook(dot_path, pipeline_id)
 
         options = build_options(
@@ -998,11 +1034,11 @@ def launch_guardian(
     pipeline_id: str,
     **kwargs: Any,
 ) -> dict[str, Any]:
-    """Launch a single Guardian agent via the Agent SDK.
+    """Launch a single Pilot agent via the Agent SDK.
 
     Constructs ClaudeCodeOptions with allowed_tools=["Bash"] and
     env={"CLAUDECODE": ""}, then streams the SDK conversation until
-    the Guardian completes or errors.
+    the Pilot completes or errors.
 
     Args:
         dot_path: Path to the pipeline .dot file.
@@ -1077,7 +1113,7 @@ async def _launch_multiple_async(
 def launch_multiple_guardians(
     pipeline_configs: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Launch multiple Guardian agents concurrently.
+    """Launch multiple Pilot agents concurrently.
 
     Uses asyncio.gather with return_exceptions=True so an individual
     failure does not abort the remaining launches.
@@ -1106,7 +1142,7 @@ def monitor_guardian(
     timeout: float = DEFAULT_MONITOR_TIMEOUT,
     poll_interval: float = 5.0,
 ) -> dict[str, Any]:
-    """Watch for terminal-targeted signals from a running Guardian.
+    """Watch for terminal-targeted signals from a running Pilot.
 
     Polls the signals directory for signals with target="terminal" until
     either a PIPELINE_COMPLETE or terminal-escalation signal arrives, or
@@ -1188,7 +1224,7 @@ def handle_validation_complete(
 
 
 def handle_escalation(signal_data: dict[str, Any]) -> dict[str, Any]:
-    """Forward a Guardian escalation signal to the terminal user.
+    """Forward a Pilot escalation signal to the terminal user.
 
     Reads the escalation signal payload and formats it for terminal
     display as a JSON dict.
@@ -1228,7 +1264,7 @@ def handle_pipeline_complete(
     summary with node statuses.
 
     Args:
-        signal_data: Parsed signal dict from the Guardian.
+        signal_data: Parsed signal dict from the Pilot.
         dot_path: Absolute path to the pipeline DOT file.
 
     Returns:
@@ -1238,7 +1274,7 @@ def handle_pipeline_complete(
     """
     payload = signal_data.get("payload", {})
 
-    # Extract node statuses from payload if available (Guardian may include them).
+    # Extract node statuses from payload if available (Pilot may include them).
     node_statuses = payload.get("node_statuses", {})
 
     # Parse issue string to extract structured data if node_statuses not present.
@@ -1261,12 +1297,127 @@ def handle_pipeline_complete(
 
 
 # ---------------------------------------------------------------------------
+# Lifecycle launcher
+# ---------------------------------------------------------------------------
+
+
+def launch_lifecycle(
+    prd_path: str,
+    initiative_id: str | None = None,
+    target_dir: str | None = None,
+    max_cycles: int = 3,
+    model: str = DEFAULT_MODEL,
+    max_turns: int = DEFAULT_MAX_TURNS,
+    dry_run: bool = False,
+) -> dict | None:
+    """Launch a self-driving lifecycle pipeline from a PRD path.
+
+    Steps:
+    1. Derive initiative_id from PRD filename if not provided
+    2. Create placeholder state files for sd_path validation
+    3. Instantiate cobuilder-lifecycle template
+    4. Validate rendered DOT
+    5. Launch Pilot on the pipeline (or return config if dry_run)
+
+    Args:
+        prd_path: Path to the PRD markdown file (e.g. PRD-AUTH-001.md).
+        initiative_id: Optional override for the initiative identifier.
+            Defaults to the PRD stem with 'PRD-' prefix stripped.
+        target_dir: Target implementation repo directory. Defaults to cwd.
+        max_cycles: Maximum full research→validate cycles before forced exit.
+        model: Claude model to use for the Pilot.
+        max_turns: Maximum SDK turns.
+        dry_run: If True, return config dict without launching the Pilot.
+
+    Returns:
+        Result dict from launch_guardian(), or a dry-run config dict.
+    """
+    import subprocess
+
+    # 1. Derive initiative_id
+    if initiative_id is None:
+        stem = Path(prd_path).stem  # e.g. PRD-AUTH-001
+        initiative_id = stem.replace("PRD-", "", 1)
+
+    # 2. Resolve paths
+    project_root = os.getcwd()
+    cobuilder_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if target_dir is None:
+        target_dir = project_root
+
+    # 3. Create placeholder state files
+    state_dir = Path(target_dir) / "state"
+    state_dir.mkdir(exist_ok=True)
+    for suffix in ["-research.json", "-refined.md"]:
+        placeholder = state_dir / f"{initiative_id}{suffix}"
+        if not placeholder.exists():
+            placeholder.write_text(
+                f"# Placeholder — will be populated by pipeline\n"
+            )
+
+    # 4. Instantiate template
+    from cobuilder.templates.instantiator import instantiate_template
+    dot_output = Path(".pipelines/pipelines") / f"lifecycle-{initiative_id}.dot"
+    dot_output.parent.mkdir(parents=True, exist_ok=True)
+
+    instantiate_template(
+        "cobuilder-lifecycle",
+        {
+            "initiative_id": initiative_id,
+            "business_spec_path": str(Path(prd_path).resolve()),
+            "target_dir": target_dir,
+            "cobuilder_root": cobuilder_root,
+            "max_cycles": max_cycles,
+            "require_human_before_launch": True,
+        },
+        output_path=str(dot_output),
+        validate=False,  # Validate via cli.py below
+    )
+
+    # 5. Validate
+    result = subprocess.run(
+        ["python3", "cobuilder/engine/cli.py", "validate", str(dot_output)],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        raise ValueError(
+            f"Pipeline validation failed:\n{result.stderr or result.stdout}"
+        )
+
+    # 6. Launch or dry-run
+    dot_path = str(dot_output.resolve())
+    pipeline_id = f"lifecycle-{initiative_id}"
+
+    if dry_run:
+        return {
+            "dry_run": True,
+            "initiative_id": initiative_id,
+            "prd_path": prd_path,
+            "dot_path": dot_path,
+            "pipeline_id": pipeline_id,
+            "model": model,
+            "max_turns": max_turns,
+            "max_cycles": max_cycles,
+        }
+
+    # Launch Pilot (reuse existing launch_guardian logic)
+    return launch_guardian(
+        dot_path=dot_path,
+        project_root=project_root,
+        pipeline_id=pipeline_id,
+        model=model,
+        max_turns=max_turns,
+        target_dir=target_dir,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
 
 
 def main(argv: list[str] | None = None) -> None:
-    """Parse arguments and launch one or multiple Guardian agents."""
+    """Parse arguments and launch one or multiple Pilot agents."""
     # Load attractor-specific API credentials before any SDK call.
     # claude_code_sdk.query() reads ANTHROPIC_API_KEY / ANTHROPIC_BASE_URL from
     # os.environ, so this must happen before argparse or SDK initialisation.
@@ -1312,7 +1463,24 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     # -----------------------------------------------------------------------
-    # Single guardian mode: --dot + --pipeline-id
+    # Lifecycle mode: --lifecycle <prd_path>
+    # -----------------------------------------------------------------------
+    if args.lifecycle is not None:
+        result = launch_lifecycle(
+            prd_path=args.lifecycle,
+            initiative_id=args.pipeline_id,  # optional override
+            target_dir=args.target_dir,
+            max_cycles=3,
+            model=args.model,
+            max_turns=args.max_turns,
+            dry_run=args.dry_run,
+        )
+        if args.dry_run:
+            print(json.dumps(result, indent=2))
+        return
+
+    # -----------------------------------------------------------------------
+    # Single Pilot mode: --dot + --pipeline-id
     # -----------------------------------------------------------------------
     dot_path = os.path.abspath(args.dot)
     cwd = args.project_root or os.getcwd()
@@ -1370,7 +1538,7 @@ def main(argv: list[str] | None = None) -> None:
         print(json.dumps(config, indent=2))
         sys.exit(0)
 
-    # Register Layer 0/1 (guardian) identity before starting the agent loop.
+    # Register Layer 0/1 (Pilot) identity before starting the agent loop.
     identity_registry.create_identity(
         role="launch",
         name="guardian",
@@ -1378,13 +1546,13 @@ def main(argv: list[str] | None = None) -> None:
         worktree=os.getcwd(),
     )
 
-    # Live run: launch the Guardian agent with retry loop.
-    # If the guardian SDK session crashes or times out, retry up to max_retries times.
+    # Live run: launch the Pilot agent with retry loop.
+    # If the Pilot SDK session crashes or times out, retry up to max_retries times.
     guardian_retries = args.max_retries
     attempt = 0
     while True:
         attempt += 1
-        print(f"[Layer 0] Launching guardian (attempt {attempt}/{guardian_retries + 1})", flush=True)
+        print(f"[Layer 0] Launching Pilot (attempt {attempt}/{guardian_retries + 1})", flush=True)
         result = launch_guardian(
             dot_path=dot_path,
             project_root=cwd,
@@ -1400,15 +1568,15 @@ def main(argv: list[str] | None = None) -> None:
 
         status = result.get("status", "error")
         if status == "ok":
-            break  # Guardian completed successfully
+            break  # Pilot completed successfully
 
         # Check if we should retry
         if attempt > guardian_retries:
-            print(f"[Layer 0] Guardian failed after {attempt} attempts. Giving up.", file=sys.stderr, flush=True)
+            print(f"[Layer 0] Pilot failed after {attempt} attempts. Giving up.", file=sys.stderr, flush=True)
             sys.exit(1)
 
-        # Retry on timeout or error (guardian SDK crash)
-        print(f"[Layer 0] Guardian returned status={status}. Retrying in 5s...", flush=True)
+        # Retry on timeout or error (Pilot SDK crash)
+        print(f"[Layer 0] Pilot returned status={status}. Retrying in 5s...", flush=True)
         time.sleep(5)
 
 
