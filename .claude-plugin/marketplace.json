@@ -1,0 +1,15 @@
+{
+  "name": "bjornslib-cobuilder",
+  "owner": {
+    "name": "bjornslib",
+    "url": "https://github.com/bjornslib"
+  },
+  "plugins": [
+    {
+      "name": "cobuilder-harness",
+      "source": ".",
+      "description": "CoBuilder: Multi-agent AI orchestration pipeline with TDD workflows, pipeline execution engine, and 3-level agent hierarchy",
+      "version": "0.1.0"
+    }
+  ]
+}
