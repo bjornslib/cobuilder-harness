@@ -39,8 +39,8 @@ Traditional AI coding assistants work one prompt at a time. CoBuilder gives you:
 ### Installation
 
 ```bash
-git clone https://github.com/bjornslib/claude-code-harness.git
-cd claude-code-harness
+git clone https://github.com/bjornslib/claude-code-harness.git ~/cobuilder-harness
+cd ~/cobuilder-harness
 
 # Install the CoBuilder package
 pip install -e ".[dev]"
@@ -49,6 +49,8 @@ pip install -e ".[dev]"
 cp cobuilder/engine/.env.example cobuilder/engine/.env
 # Edit .env with your API keys
 ```
+
+> To use CoBuilder in an actual project, see [Installing in a Project](#installing-in-a-project) below.
 
 ### Run Your First Pipeline
 
@@ -251,20 +253,60 @@ Lifecycle automation that enforces process compliance:
 
 Progressive disclosure wrappers for 9+ MCP servers — Context7 (framework docs), Perplexity (web research), Serena (semantic code navigation), Hindsight (institutional memory), and more. Wrappers reduce context usage by 90%+ compared to native MCP loading.
 
-## Deploying to a Project
+## Installing in a Project
 
-The harness is designed to be symlinked or copied into your application repositories:
+CoBuilder is a Claude Code plugin. Install it once and all your Claude Code sessions in that project pick up the skills, hooks, output styles, and pipeline engine automatically.
+
+### Option A: Plugin Install (Recommended)
 
 ```bash
-# Symlink approach (all projects share one harness)
-ln -s ~/claude-code-harness/.claude /path/to/your-project/.claude
-ln -s ~/claude-code-harness/.mcp.json /path/to/your-project/.mcp.json
+# 1. Clone the harness (once, anywhere on your machine)
+git clone https://github.com/bjornslib/claude-code-harness.git ~/cobuilder-harness
 
-# Or use the deploy script
-python3 .claude/skills/setup-harness/deploy-harness.sh /path/to/your-project
+# 2. Install the CoBuilder Python package (editable, so updates pull through)
+pip install -e ~/cobuilder-harness
+
+# 3. Register the plugin in your target project
+cd /path/to/your-project
+claude plugin install --scope project --plugin-dir ~/cobuilder-harness/.claude
 ```
 
-Update once in the harness → all projects get the update automatically.
+This registers the harness as a plugin in your project's `.claude/settings.json`:
+```json
+{ "enabledPlugins": { "cobuilder": true } }
+```
+
+### Option B: Symlink (Simpler, No Plugin CLI Needed)
+
+```bash
+# All projects share one harness — update once, every project gets it
+ln -s ~/cobuilder-harness/.claude /path/to/your-project/.claude
+ln -s ~/cobuilder-harness/.mcp.json /path/to/your-project/.mcp.json
+
+# Still need the Python package for pipeline execution
+pip install -e ~/cobuilder-harness
+```
+
+### Post-Install: Configure Credentials
+
+```bash
+# Copy the MCP config template and fill in your API keys
+cp ~/cobuilder-harness/.mcp.json.example /path/to/your-project/.mcp.json
+# Edit .mcp.json with your ANTHROPIC_API_KEY, PERPLEXITY_API_KEY, etc.
+
+# Configure LLM profiles for the pipeline engine
+cp ~/cobuilder-harness/cobuilder/engine/.env.example cobuilder/engine/.env
+# Edit .env with your API keys (DASHSCOPE_API_KEY for near-zero cost execution)
+```
+
+### Post-Install: Create Runtime Directories
+
+```bash
+mkdir -p .pipelines/pipelines/signals
+mkdir -p .pipelines/pipelines/evidence
+```
+
+These are gitignored — they hold pipeline state, checkpoints, and signal files at runtime.
 
 ## Directory Structure
 
