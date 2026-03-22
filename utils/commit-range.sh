@@ -2,7 +2,7 @@
 # Commit Range Detection Utility
 # Uses git reflog to detect commits since last push
 #
-# Epic 2: Commit Range Analysis (agencheck-45t)
+# Epic 2: Commit Range Analysis (my-project-45t)
 # AC-4: Correctly identify all commits since last push
 # AC-5: Gracefully handle first push with fallback to last 10 commits
 #

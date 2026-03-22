@@ -78,11 +78,11 @@ Parallel Development Status
 ==========================
 
 Active Worktrees:
-- feature/user-auth (../agencheck-feature) - Implementation
+- feature/user-auth (../my-project-feature) - Implementation
   Status: Active, 15 commits ahead of main
   Process: PID 12345, Running, Memory: 245MB
   
-- research/auth-patterns (../agencheck-research) - Research  
+- research/auth-patterns (../my-project-research) - Research  
   Status: Active, 8 commits ahead of main
   Process: PID 12346, Running, Memory: 178MB
 

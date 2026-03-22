@@ -123,7 +123,7 @@ if merged_metadata.get("agent_type") == "chat":
 
 **Current pipeline** (voice only):
 1. `on_session_end()` uploads voice transcript to S3
-2. Redis Stream event `agencheck:calls:completed` triggers Prefect consumer
+2. Redis Stream event `my-project:calls:completed` triggers Prefect consumer
 3. `post_call_processor.py` downloads transcript from S3
 4. Calls `subthread_cycle_helper.py --action batch-import` to store in `sub_threads.all_messages` (JSONB)
 5. Dashboard loads transcript from `sub_threads.all_messages` (Priority 1) or S3 fallback (Priority 3)

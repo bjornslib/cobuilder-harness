@@ -44,7 +44,7 @@ Task(
   description="Find existing UI patterns",
   subagent_type="Explore",
   prompt="""
-  Search the agencheck-support-frontend codebase for:
+  Search the my-project-frontend codebase for:
 
   1. Components similar to: {list from brief}
   2. Layout patterns matching: {layout description}
@@ -143,7 +143,7 @@ Use shadcn MCP or check filesystem:
 
 ```bash
 # List installed components
-ls agencheck-support-frontend/components/ui/
+ls my-project-frontend/components/ui/
 
 # Check for specific component
 Glob: "components/ui/{component-name}.tsx"
@@ -151,7 +151,7 @@ Glob: "components/ui/{component-name}.tsx"
 
 ### Common Components Available
 
-Already installed in AgenCheck:
+Already installed in My Project:
 - `button`, `card`, `badge`
 - `dialog`, `popover`, `tooltip`
 - `tabs`, `accordion`

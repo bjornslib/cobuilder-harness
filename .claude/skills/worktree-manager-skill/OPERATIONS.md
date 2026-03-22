@@ -38,7 +38,7 @@ The command handles:
 **⚠️ CRITICAL SYMLINKS**: These are essential for worktree functionality. If manually creating a worktree:
 ```bash
 # .claude - for skills/hooks/output-styles
-ln -s $(pwd)/.claude trees/<branch-name>/agencheck/.claude
+ln -s $(pwd)/.claude trees/<branch-name>/my-project/.claude
 
 # .beads - for issue tracking (bd commands)
 ln -s $(dirname $(pwd))/.beads trees/<branch-name>/.beads

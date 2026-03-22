@@ -467,7 +467,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from utils.status_labels import StatusLabelMapper
 
-OUTPUT = Path(__file__).parent.parent.parent / "agencheck-support-frontend" / "generated" / "statusLabels.ts"
+OUTPUT = Path(__file__).parent.parent.parent / "my-project-frontend" / "generated" / "statusLabels.ts"
 
 def main():
     data = StatusLabelMapper.export_for_frontend()
@@ -624,7 +624,7 @@ Row click navigates to `/checks-dashboard/cases/{case_id}`.
 
 ## 7. Files to Create/Modify
 
-### Backend (agencheck-support-agent)
+### Backend (my-project-backend)
 
 | File | Action | Epic | Notes |
 | --- | --- | --- | --- |
@@ -638,7 +638,7 @@ Row click navigates to `/checks-dashboard/cases/{case_id}`.
 
 **PREREQUISITE**: The per-step task creation changes (SD-SEQ-PERSTEP-TASKS-001) must be completed BEFORE deploying this SD's timeline endpoint. Without per-step `background_tasks` rows, the timeline will only show step 1 data. Research validated: `create_step_task()` function pattern confirmed in `utils/background_task_helpers.py:162-280` (`create_retry_task` pattern is reusable).
 
-### Frontend (agencheck-support-frontend)
+### Frontend (my-project-frontend)
 
 | File | Action | Epic | Notes |
 | --- | --- | --- | --- |

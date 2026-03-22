@@ -4,8 +4,8 @@
   "skill": "codebase-quality:security",
   "input": {
     "changed_files": [
-      "agencheck-support-agent/config.py",
-      "agencheck-support-agent/.env.example"
+      "my-project-backend/config.py",
+      "my-project-backend/.env.example"
     ]
   },
   "result": {
@@ -23,7 +23,7 @@
             "id": "C001",
             "severity": "critical",
             "type": "exposed_api_key",
-            "file": "agencheck-support-agent/config.py",
+            "file": "my-project-backend/config.py",
             "line": 45,
             "pattern": "OpenAI API Key",
             "action": "Remove, rotate key, use env var"

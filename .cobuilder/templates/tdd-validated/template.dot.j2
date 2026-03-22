@@ -1,0 +1,280 @@
+// Generated from template: tdd-validated v1.0
+// PRD: {{ prd_ref }}
+// TDD Pipeline: RED-GREEN-REFACTOR per worker with superpowers
+
+digraph "{{ prd_ref }}-tdd" {
+    graph [
+        label="TDD Pipeline: {{ prd_ref }}"
+        labelloc="t"
+        fontsize=16
+        rankdir="TB"
+        prd_ref="{{ prd_ref }}"
+        sd_path="{{ sd_path }}"
+        promise_id="{{ promise_id }}"
+        _template="tdd-validated"
+        _template_version="1.0"
+        default_worker_powers="{{ default_worker_powers }}"
+    ];
+
+    node [fontname="Helvetica" fontsize=11];
+    edge [fontname="Helvetica" fontsize=9];
+
+    // ================================================================
+    // ENTRY
+    // ================================================================
+    start [
+        shape=Mdiamond
+        label="START\n{{ prd_ref }}"
+        handler="start"
+        status="pending"
+        style=filled
+        fillcolor=lightyellow
+    ];
+
+    {% if include_research %}
+    // ================================================================
+    // RESEARCH — investigate domain before TDD
+    // ================================================================
+    research [
+        shape=tab
+        label="Research\nDomain & Patterns"
+        handler="research"
+        worker_type="backend-solutions-engineer"
+        llm_profile="{{ llm_profile_test }}"
+        prd_ref="{{ prd_ref }}"
+        sd_path="{{ sd_path }}"
+        prompt="Research the problem domain for {{ prd_ref }}. Read {{ sd_path }} for context. Identify testing patterns, framework constraints, and prior art. Write findings to state/{{ prd_ref }}-research.json."
+        status="pending"
+        style=filled
+        fillcolor=lightcyan
+    ];
+
+    start -> research [label="begin"];
+    {% endif %}
+
+    // ================================================================
+    // PARALLEL FAN-OUT (if multiple workers)
+    // ================================================================
+    {% if workers | length > 1 %}
+    parallel_start [
+        shape=component
+        label="Fan-Out:\n{{ workers | length }} TDD Workers"
+        handler="parallel"
+        status="pending"
+        style=filled
+        fillcolor=lightyellow
+    ];
+
+    {% if include_research %}
+    research -> parallel_start [label="research complete"];
+    {% else %}
+    start -> parallel_start [label="begin"];
+    {% endif %}
+    {% endif %}
+
+    {% for worker in workers %}
+    // ================================================================
+    // WORKER {{ loop.index }}: {{ worker.label }}
+    // TDD Cycle: RED → GREEN → REFACTOR → Validate
+    // ================================================================
+
+    // --- RED PHASE: Write failing tests ---
+    red_{{ worker.bead_id | slugify }} [
+        shape=box
+        label="RED: {{ worker.label }}\nWrite Failing Tests"
+        handler="codergen"
+        bead_id="{{ worker.bead_id }}-RED"
+        worker_type="{{ worker.worker_type }}"
+        worker_powers="{{ worker.worker_powers | default(default_worker_powers) }}"
+        llm_profile="{{ llm_profile_test }}"
+        prd_ref="{{ prd_ref }}"
+        sd_path="{{ sd_path }}"
+        {% if worker.scope is defined %}scope="{{ worker.scope }}"{% endif %}
+        {% if worker.test_command is defined %}test_command="{{ worker.test_command }}"{% endif %}
+        prompt="RED PHASE for {{ worker.label }}. Read {{ sd_path }} and understand the acceptance criteria: {{ worker.acceptance | truncate(200) }}. Write failing tests that capture the expected behavior. Run the tests — they MUST fail. If tests pass, the feature already exists or the tests are wrong. Load Skill('worker-superpowers') for TDD protocol. Do NOT write implementation code."
+        acceptance="Test files exist and all new tests FAIL (proving the feature is not yet implemented)."
+        status="pending"
+        style=filled
+        fillcolor="#ffcccc"
+    ];
+
+    {% if workers | length > 1 %}
+    parallel_start -> red_{{ worker.bead_id | slugify }} [color=blue style=bold];
+    {% elif include_research %}
+    research -> red_{{ worker.bead_id | slugify }} [label="research complete"];
+    {% else %}
+    start -> red_{{ worker.bead_id | slugify }} [label="begin"];
+    {% endif %}
+
+    // --- GREEN PHASE: Minimal implementation ---
+    green_{{ worker.bead_id | slugify }} [
+        shape=box
+        label="GREEN: {{ worker.label }}\nMinimal Implementation"
+        handler="codergen"
+        bead_id="{{ worker.bead_id }}-GREEN"
+        worker_type="{{ worker.worker_type }}"
+        worker_powers="{{ worker.worker_powers | default(default_worker_powers) }}"
+        llm_profile="{{ llm_profile_impl }}"
+        prd_ref="{{ prd_ref }}"
+        sd_path="{{ sd_path }}"
+        {% if worker.scope is defined %}scope="{{ worker.scope }}"{% endif %}
+        {% if worker.test_command is defined %}test_command="{{ worker.test_command }}"{% endif %}
+        prompt="GREEN PHASE for {{ worker.label }}. The RED phase wrote failing tests. Now write the MINIMUM code to make those tests pass. Do NOT add features beyond what the tests require. Run the tests — they MUST pass. If tests still fail, fix the implementation (not the tests). Load Skill('worker-superpowers') for TDD protocol. If stuck, use systematic-debugging power."
+        acceptance="All tests from RED phase now PASS. Only minimum code was added."
+        status="pending"
+        style=filled
+        fillcolor="#ccffcc"
+    ];
+
+    red_{{ worker.bead_id | slugify }} -> green_{{ worker.bead_id | slugify }}
+        [label="tests fail\n(expected)"];
+
+    // --- REFACTOR PHASE: Clean up while green ---
+    refactor_{{ worker.bead_id | slugify }} [
+        shape=box
+        label="REFACTOR: {{ worker.label }}\nClean & Verify"
+        handler="codergen"
+        bead_id="{{ worker.bead_id }}-REFACTOR"
+        worker_type="{{ worker.worker_type }}"
+        worker_powers="{{ worker.worker_powers | default(default_worker_powers) }}"
+        llm_profile="{{ llm_profile_refactor }}"
+        prd_ref="{{ prd_ref }}"
+        sd_path="{{ sd_path }}"
+        {% if worker.scope is defined %}scope="{{ worker.scope }}"{% endif %}
+        {% if worker.test_command is defined %}test_command="{{ worker.test_command }}"{% endif %}
+        prompt="REFACTOR PHASE for {{ worker.label }}. Tests are passing. Now improve code quality: remove duplication, improve naming, simplify logic. Run tests after EVERY change — they must stay green. Do NOT add new functionality. Load Skill('worker-superpowers') and run verification-before-completion checklist before signaling complete."
+        acceptance="{{ worker.acceptance | truncate(200) }}. All tests pass. Code is clean (no TODO/FIXME). Git status is clean."
+        status="pending"
+        style=filled
+        fillcolor="#ccccff"
+    ];
+
+    green_{{ worker.bead_id | slugify }} -> refactor_{{ worker.bead_id | slugify }}
+        [label="tests pass"];
+
+    // --- VALIDATION GATE ---
+    validate_{{ worker.bead_id | slugify }} [
+        shape=hexagon
+        label="{{ worker.label }}\nTDD Validation"
+        handler="wait.cobuilder"
+        gate_type="unit"
+        bead_id="AT-{{ worker.bead_id }}-TDD"
+        status="pending"
+        style=filled
+        fillcolor=lightblue
+    ];
+
+    refactor_{{ worker.bead_id | slugify }} -> validate_{{ worker.bead_id | slugify }}
+        [label="refactor complete"];
+
+    // --- DECISION: Pass or retry from RED ---
+    decision_{{ worker.bead_id | slugify }} [
+        shape=diamond
+        label="{{ worker.label }}\nResult?"
+        handler="conditional"
+    ];
+
+    validate_{{ worker.bead_id | slugify }} -> decision_{{ worker.bead_id | slugify }};
+
+    decision_{{ worker.bead_id | slugify }} -> {% if workers | length > 1 %}join_tdd{% elif include_e2e %}e2e_tests{% else %}finalize{% endif %} [
+        label="pass"
+        condition="$last_status = 'success'"
+        color=green
+    ];
+
+    decision_{{ worker.bead_id | slugify }} -> red_{{ worker.bead_id | slugify }} [
+        label="fail\nretry from RED"
+        condition="$last_status = 'failure'"
+        color=red
+        style=dashed
+    ];
+
+    {% endfor %}
+
+    {% if workers | length > 1 %}
+    // ================================================================
+    // FAN-IN: All TDD cycles complete
+    // ================================================================
+    join_tdd [
+        shape=tripleoctagon
+        label="Join:\nAll TDD Validated"
+        handler="fan_in"
+        status="pending"
+        style=filled
+        fillcolor=lightyellow
+    ];
+    {% endif %}
+
+    {% if include_e2e %}
+    // ================================================================
+    // E2E INTEGRATION TESTS
+    // ================================================================
+    e2e_tests [
+        shape=box
+        label="E2E Integration\nTests"
+        handler="codergen"
+        bead_id="E2E-{{ prd_ref }}"
+        worker_type="tdd-test-engineer"
+        worker_powers="tdd,systematic-debugging,verification"
+        llm_profile="{{ llm_profile_impl }}"
+        prd_ref="{{ prd_ref }}"
+        sd_path="{{ sd_path }}"
+        prompt="Run the full E2E integration test suite for {{ prd_ref }}. Check acceptance-tests/{{ prd_ref }}/ for blind acceptance tests. Execute them and collect evidence. Load Skill('worker-superpowers') for systematic debugging if tests fail."
+        acceptance="Full E2E integration test suite passes. All blind acceptance tests from acceptance-tests/{{ prd_ref }}/ pass."
+        status="pending"
+        style=filled
+        fillcolor=lightyellow
+    ];
+
+    {% if workers | length > 1 %}
+    join_tdd -> e2e_tests [label="all TDD pass"];
+    {% endif %}
+
+    validate_e2e [
+        shape=hexagon
+        label="E2E\nValidation"
+        handler="wait.cobuilder"
+        gate_type="e2e"
+        bead_id="AT-E2E-{{ prd_ref }}"
+        status="pending"
+        style=filled
+        fillcolor=lightblue
+    ];
+
+    e2e_tests -> validate_e2e [label="e2e complete"];
+
+    decision_e2e [
+        shape=diamond
+        label="E2E\nResult?"
+        handler="conditional"
+    ];
+
+    validate_e2e -> decision_e2e;
+
+    decision_e2e -> finalize [
+        label="pass"
+        condition="$last_status = 'success'"
+        color=green
+    ];
+
+    decision_e2e -> e2e_tests [
+        label="fail\nretry"
+        condition="$last_status = 'failure'"
+        color=red
+        style=dashed
+    ];
+    {% endif %}
+
+    // ================================================================
+    // FINALIZE
+    // ================================================================
+    finalize [
+        shape=Msquare
+        label="FINALIZE\n{{ prd_ref }}"
+        handler="exit"
+        {% if promise_id %}promise_id="{{ promise_id }}"{% endif %}
+        status="pending"
+        style=filled
+        fillcolor=lightyellow
+    ];
+}

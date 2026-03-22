@@ -3,7 +3,7 @@ title: "SD: Migrate Live Form Filler to openai/gpt-oss-20b"
 status: active
 type: reference
 epic_id: MODEL-MIGRATION-001
-prd_ref: AgenCheck Configuration Consolidation
+prd_ref: MyProject Configuration Consolidation
 last_verified: 2026-03-11
 ---
 
@@ -47,7 +47,7 @@ Update the live_form_filler agent to use `openai/gpt-oss-20b` (instead of curren
 
 ### 1. Update Form Filler Agent Model
 
-**File:** `agencheck-support-agent/live_form_filler/agent.py`
+**File:** `my-project-backend/live_form_filler/agent.py`
 
 **Change on line 20:**
 ```python
@@ -66,7 +66,7 @@ groq_model = PatchedGroqModel(
 
 ### 2. Update Stale Comment
 
-**File:** `agencheck-support-agent/live_form_filler/agent.py`
+**File:** `my-project-backend/live_form_filler/agent.py`
 
 **Change on line 26:**
 ```python
@@ -126,9 +126,9 @@ Check that:
 
 ## Related Files
 
-- `agencheck-support-agent/live_form_filler/agent.py`
-- `agencheck-support-agent/.env` (for GROQ_API_KEY)
-- `agencheck-communication-agent/livekit_prototype/cli_poc/voice_agent/config.py` (for parity)
+- `my-project-backend/live_form_filler/agent.py`
+- `my-project-backend/.env` (for GROQ_API_KEY)
+- `my-project-communication/livekit_prototype/cli_poc/voice_agent/config.py` (for parity)
 
 ## Notes
 

@@ -220,9 +220,9 @@ PRIMARY_CLEANUP_DIRECTORIES = [
 CLAUDE_MD_LOCATIONS = [
     "CLAUDE.md",
     ".claude/CLAUDE.md",
-    "agencheck-support-agent/CLAUDE.md",
-    "agencheck-support-frontend/CLAUDE.md",
-    "agencheck-communication-agent/CLAUDE.md",
+    "my-project-backend/CLAUDE.md",
+    "my-project-frontend/CLAUDE.md",
+    "my-project-communication/CLAUDE.md",
     ".taskmaster/CLAUDE.md",
 ]
 
@@ -372,7 +372,7 @@ class TestAC20_DocumentationInventory:
         claude_paths = [
             "CLAUDE.md",
             ".claude/CLAUDE.md",
-            "agencheck-support-agent/CLAUDE.md",
+            "my-project-backend/CLAUDE.md",
         ]
 
         for path in claude_paths:

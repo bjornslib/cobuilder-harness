@@ -11,7 +11,7 @@ last_verified: 2026-03-09T00:00:00.000Z
 **Date**: 2026-03-09
 **Methodology**: Reverse Engineering — working backwards from the ideal customer experience
 **Companion PRD**: [PRD-DASHBOARD-AUDIT-001.md](./PRD-DASHBOARD-AUDIT-001.md)
-**Codebase Verified**: `zenagent2/zenagent/agencheck` (backend + frontend, 2026-03-09)
+**Codebase Verified**: `my-org/my-project` (backend + frontend, 2026-03-09)
 
 ---
 
@@ -35,7 +35,7 @@ The format question is not purely cosmetic — it determines the operational sur
 1. Backfill via `row_number() OVER (PARTITION BY YYYYMM ORDER BY id)` is deterministic but means case 0042 exists in every month — if a customer emails "AC-202603-0042" and support searches "0042", they must also filter by month.
 2. A global counter means `AC-202603-00042` is permanently unique across all time. The date prefix still provides temporal context for auditors.
 
-**In email subject lines**: `[AgenCheck] Verification AC-202603-00042 — John Doe at Acme Corp` is acceptable. Users who want brevity can use `00042` as the short-form within a session where the month is implied.
+**In email subject lines**: `[MyProject] Verification AC-202603-00042 — John Doe at Acme Corp` is acceptable. Users who want brevity can use `00042` as the short-form within a session where the month is implied.
 
 ---
 
@@ -490,12 +490,12 @@ Steps 2 and 3 can be executed in parallel once Step 1 is deployed.
 
 ## HINDSIGHT FINDINGS
 
-Reflected against `claude-code-agencheck` bank (2026-03-09).
+Reflected against `claude-code-my-project` bank (2026-03-09).
 
 **Prior learnings confirmed by this analysis:**
 - The `verification_events` table exists for billing but is separate from `background_tasks`. The audit trail for the dashboard should come from `background_tasks` (the execution record), not `verification_events` (the billing record). These serve different audiences.
 - The `partial_verification` enum is correct terminology (not "completed with discrepancies"). The frontend `EMPLOYMENT_STATUS_DISPLAY` object already uses this key — no frontend rename needed, only ensure the display label reads "Partial Verification" not "partial_verification".
-- The `left JOIN cases c ON bt.case_id = c.id` + `LEFT JOIN university_contacts uc ON c.employer_contact_id = uc.id` pattern is already in `list_verifications` (added in Fix agencheck-io2w, 2026-02-06). The employer name source is correct. Only `case_reference` and `sequence_step_order` are missing from this query.
+- The `left JOIN cases c ON bt.case_id = c.id` + `LEFT JOIN university_contacts uc ON c.employer_contact_id = uc.id` pattern is already in `list_verifications` (added in Fix my-project-io2w, 2026-02-06). The employer name source is correct. Only `case_reference` and `sequence_step_order` are missing from this query.
 
 **New finding from this analysis:**
 - The frontend `work-history.ts` line 368 maps `case_id: v.task_id`. This is the single root cause of the identity confusion. All downstream components that read `case_id` are actually reading the `task_id` UUID. This must be corrected at the API client layer — not in each component individually.

@@ -46,10 +46,10 @@ The orchestrator does NOT invoke validation-test-agent, acceptance-test-runner, 
 
 ```bash
 # Backend (Python)
-cd agencheck-support-agent && pytest tests/ -v --tb=short
+cd my-project-backend && pytest tests/ -v --tb=short
 
 # Frontend (TypeScript)
-cd agencheck-support-frontend && npm run test
+cd my-project-frontend && npm run test
 ```
 
 **Component Test Pattern (Frontend)**:
@@ -74,7 +74,7 @@ curl -s http://localhost:5184/health | jq .
 curl -s http://localhost:5185/health | jq .
 
 # Main endpoint test
-curl -X POST http://localhost:8000/agencheck \
+curl -X POST http://localhost:8000/my-project \
   -H "Content-Type: application/json" \
   -d '{
     "query": "Can MIT credentials be verified?",
@@ -116,7 +116,7 @@ Before executing any browser tests, verify Chrome connectivity:
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │ 1. TEST SPECIFICATION (Markdown)                                    │
-│    Location: agencheck-support-frontend/__tests__/e2e/specs/       │
+│    Location: my-project-frontend/__tests__/e2e/specs/       │
 │    Template: TEMPLATE.md                                            │
 │    Format: Given/When/Then with MCP chrome-devtools steps          │
 └──────────────────────────────────────────────────────────────────────┘
@@ -263,7 +263,7 @@ User Request → Frontend (5001) → Backend Orchestrator (8000) →
 
 **Backend Services**:
 ```bash
-cd /Users/theb/Documents/Windsurf/zenagent/agencheck/agencheck-support-agent
+cd $CLAUDE_PROJECT_DIR/my-project-backend
 ./start_services.sh
 ```
 
@@ -276,7 +276,7 @@ cd /Users/theb/Documents/Windsurf/zenagent/agencheck/agencheck-support-agent
 
 **Frontend**:
 ```bash
-cd /Users/theb/Documents/Windsurf/zenagent/agencheck/agencheck-support-frontend
+cd $CLAUDE_PROJECT_DIR/my-project-frontend
 npm run dev
 # Starts on port 5001 with Turbopack
 ```
@@ -324,14 +324,14 @@ lsof -i :5001 -i :8000 -i :5184 -i :5185 | grep LISTEN && \
   echo "❌ Ports still in use" || echo "✅ Ports free"
 
 # Step 4: Start backend services
-cd /Users/theb/Documents/Windsurf/zenagent/agencheck/agencheck-support-agent
+cd $CLAUDE_PROJECT_DIR/my-project-backend
 tmux new-session -d -s backend -c "$(pwd)"
 tmux send-keys -t backend "./start_services.sh"
 tmux send-keys -t backend Enter
 sleep 10
 
 # Step 5: Start frontend
-cd /Users/theb/Documents/Windsurf/zenagent/agencheck/agencheck-support-frontend
+cd $CLAUDE_PROJECT_DIR/my-project-frontend
 tmux new-session -d -s frontend -c "$(pwd)"
 tmux send-keys -t frontend "npm run dev"
 tmux send-keys -t frontend Enter
@@ -362,7 +362,7 @@ curl -s http://localhost:5001 | head -5 && echo "✅ Frontend responding"
 
 | File | Purpose |
 |------|---------|
-| `main.py` | FastAPI app, /agencheck endpoint |
+| `main.py` | FastAPI app, /my-project endpoint |
 | `enhanced_aura_orchestrator.py` | Core orchestration logic |
 | `aura/aura_graph_v2.py` | Response-first graph |
 | `aura/aura_prompt.py` | Prompt generation |

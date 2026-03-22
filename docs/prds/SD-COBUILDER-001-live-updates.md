@@ -360,7 +360,7 @@ def refresh(
     Use after node validation to update the baseline without a full rescan.
 
     Example:
-        cobuilder repomap refresh --name agencheck --scope cobuilder/bridge.py --scope cobuilder/pipeline/
+        cobuilder repomap refresh --name my-project --scope cobuilder/bridge.py --scope cobuilder/pipeline/
     """
 ```
 
@@ -760,7 +760,7 @@ python cobuilder/orchestration/spawn_orchestrator.py \
 The DOT file path is always passed to `_cmd_transition()` as `args.file`. The project root is inferred by `_infer_project_root()` walking up until `.repomap/` is found. This works for the current directory structure:
 
 ```
-/Users/theb/Documents/Windsurf/claude-harness-setup/  ← project root (.repomap/ here)
+$CLAUDE_PROJECT_DIR/  ← project root (.repomap/ here)
   .repomap/config.yaml
   .claude/attractor/pipelines/
     cobuilder-001.dot                                  ← dot_file (3 levels down)

@@ -527,7 +527,7 @@ This makes `.claude/settings.json` a thin bridge that reads from `cobuilder.toml
 
 ### Key Files for Each Agent
 
-**Phase 0**: Create `/Users/theb/Documents/Windsurf/claude-harness-setup/cobuilder/dirs.py`; update `cobuilder/__init__.py`
+**Phase 0**: Create `$CLAUDE_PROJECT_DIR/cobuilder/dirs.py`; update `cobuilder/__init__.py`
 
 **Phase 1**: Edit `cobuilder/pipeline/signal_protocol.py` lines 26-27 and 88-91
 

@@ -305,7 +305,7 @@ prd_id: "PRD-PREFECT-001"
 prd_title: "Prefect Pipeline Integration"
 created_at: "2026-02-19T10:00:00+11:00"
 created_by: "cobuilder-guardian"
-impl_repo: "/Users/theb/Documents/Windsurf/zenagent3/zenagent/agencheck"
+impl_repo: "$CLAUDE_PROJECT_DIR"
 
 thresholds:
   accept: 0.60

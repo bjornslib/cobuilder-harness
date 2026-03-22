@@ -328,13 +328,13 @@ Dependencies: blocks <bead-id> | blocked by <bead-id> | None
 ### Real Example (from Work History Phase 1)
 
 ```bash
-bd update zenagent-irpn --design "
+bd update my-project-irpn --design "
 Delta: NEW + MODIFIED
 Epic: 1.3 - SendGrid Email Templates (GAP 7)
 TM-ID: 175
 Files:
-- agencheck-support-agent/utils/sendgrid_client.py (MODIFIED - extend with Dynamic Templates)
-- agencheck-support-agent/templates/verification_request.html (NEW)
+- my-project-backend/utils/sendgrid_client.py (MODIFIED - extend with Dynamic Templates)
+- my-project-backend/templates/verification_request.html (NEW)
 Components: SendGridTemplateIntegration, EmailTemplateHTML, SendGridClientExtension
 Technologies: SendGrid, Python, HTML, CSS
 Interface:

@@ -170,7 +170,7 @@ Before sending the initialization prompt, System 3 must:
 
 ```bash
 # 1. Create tmux session in worktree
-tmux new-session -d -s "orch-[name]" -c trees/[name]/agencheck
+tmux new-session -d -s "orch-[name]" -c trees/[name]/my-project
 
 # 2. CRITICAL: Set env vars BEFORE launching Claude Code
 tmux send-keys -t "orch-[name]" "export CLAUDE_SESSION_ID=orch-[name]"
@@ -220,7 +220,7 @@ domain_patterns = mcp__hindsight__reflect(
     3. Common pitfalls
     """,
     budget="mid",
-    bank_id="claude-code-agencheck"
+    bank_id="claude-code-my-project"
 )
 
 # Format the wisdom injection

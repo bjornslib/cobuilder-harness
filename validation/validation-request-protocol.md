@@ -110,7 +110,7 @@ SendMessage(
       ".claude/skills/system3-orchestrator/SKILL.md"
     ]
   },
-  "worktree_path": "/Users/theb/Documents/Windsurf/claude-harness-setup/trees/epic4-validation-teammate",
+  "worktree_path": "$CLAUDE_PROJECT_DIR/trees/epic4-validation-teammate",
   "branch": "epic4-validation-teammate"
 }
 ```

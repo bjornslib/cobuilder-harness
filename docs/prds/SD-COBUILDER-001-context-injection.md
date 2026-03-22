@@ -106,7 +106,7 @@ When `repomap_context` is provided, `create_enriched_input()` concatenates SD co
 The `get_repomap_context()` function in `bridge.py` produces this schema when `format="yaml"`:
 
 ```yaml
-repository: agencheck
+repository: my-project
 snapshot_date: "2026-02-27T10:00:00Z"
 total_nodes: 3037
 total_files: 312

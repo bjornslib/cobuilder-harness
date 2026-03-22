@@ -2,7 +2,7 @@
 
 **Date**: 2026-02-22
 **Branch**: `feature/ue-a-workflow-config-sla`
-**Worktree**: `/Users/theb/Documents/Windsurf/zenagent2/zenagent/agencheck-ue-a-workflow/`
+**Worktree**: `$CLAUDE_PROJECT_DIR/`
 **Validated By**: S3 Guardian (live API + unit test + DB inspection)
 **Docker Image Rebuilt**: Yes (app-server from feature branch with manual Dockerfile fix)
 
@@ -408,7 +408,7 @@ All 5 backend gaps CLOSED. Frontend overlay fixed with browser E2E evidence. Wei
 **Executed**: 2026-02-22 ~05:30-05:40 UTC
 **Docker Stack**: app-server (8001), prefect-server (4200), app-postgres (5434), prefect-redis (6380)
 **Auth**: `X-API-Key: whv_testapikey12345...` (customer_id=1 via auth)
-**DB Access**: `docker exec agencheck-support-agent-app-postgres-1 sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'`
+**DB Access**: `docker exec my-project-backend-app-postgres-1 sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'`
 
 ### J2: Work History Check Triggers Prefect Flow with DB-Backed Config
 

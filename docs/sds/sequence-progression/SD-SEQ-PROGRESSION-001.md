@@ -10,7 +10,7 @@ research_validated: true
 
 **PRD**: PRD-SEQ-PROGRESSION-001
 **Epic**: A (Sequence Advancement Logic) + B (Delay Scheduling) + C (Terminal Detection) + D (Seed Data Fix)
-**Target Repo**: zenagent2/zenagent/agencheck/agencheck-support-agent
+**Target Repo**: my-org/my-project/my-project-backend
 **Estimated Effort**: ~3-4 days
 
 ---

@@ -145,18 +145,18 @@ Create `.zerorepo-central/` with manifest + baseline storage:
 │   {
 │     "repos": [
 │       {
-│         "name": "agencheck",
-│         "path": "/Users/theb/Documents/Windsurf/zenagent2/zenagent/agencheck",
+│         "name": "my-project",
+│         "path": "$CLAUDE_PROJECT_DIR",
 │         "last_synced": "2026-02-27T10:00:00Z",
 │         "baseline_hash": "sha256:abc..."
 │       }
 │     ]
 │   }
 ├── manifests/
-│   ├── agencheck.manifest.json     # Summary: node count, top-level modules, delta
+│   ├── my-project.manifest.json     # Summary: node count, top-level modules, delta
 │   └── unified.manifest.json       # Merged cross-repo graph summary
 └── baselines/
-    └── agencheck/
+    └── my-project/
         ├── baseline.json           # Full baseline (copied from repo)
         └── baseline.prev.json      # Previous version (for diff)
 ```
@@ -183,7 +183,7 @@ class ZeroRepoBridge:
 
         Returns:
             {
-                "repo": "agencheck",
+                "repo": "my-project",
                 "total_nodes": 3037,
                 "modules": [{"name": "auth", "files": 12, "delta": "existing"}, ...],
                 "top_level_structure": "...",
@@ -210,22 +210,22 @@ Extend `cli.py` with a `zerorepo` subcommand group:
 
 ```bash
 # Initialize and register a repo in central storage
-python3 cli.py zerorepo init --target-dir /path/to/repo --name agencheck
+python3 cli.py zerorepo init --target-dir /path/to/repo --name my-project
 
 # Sync latest baseline from repo to central
-python3 cli.py zerorepo sync --name agencheck
+python3 cli.py zerorepo sync --name my-project
 
 # Sync ALL registered repos
 python3 cli.py zerorepo sync --all
 
 # Get RPG context for SD injection
-python3 cli.py zerorepo context --name agencheck --prd PRD-AUTH-001 --format markdown
+python3 cli.py zerorepo context --name my-project --prd PRD-AUTH-001 --format markdown
 
 # Get unified cross-repo context
 python3 cli.py zerorepo context --unified --format markdown
 
 # Refresh baseline after implementation (scoped)
-python3 cli.py zerorepo refresh --name agencheck --scope "src/auth/,src/api/"
+python3 cli.py zerorepo refresh --name my-project --scope "src/auth/,src/api/"
 
 # Show status of all tracked repos
 python3 cli.py zerorepo status
@@ -253,10 +253,10 @@ Currently `generate.py` reads beads exclusively. Add an `--rpg-source` flag:
 python3 cli.py generate --prd PRD-AUTH-001 --output pipeline.dot
 
 # New: RPG-primary with beads enrichment
-python3 cli.py generate --prd PRD-AUTH-001 --rpg-source agencheck --output pipeline.dot
+python3 cli.py generate --prd PRD-AUTH-001 --rpg-source my-project --output pipeline.dot
 
 # New: RPG-only (no beads required)
-python3 cli.py generate --prd PRD-AUTH-001 --rpg-source agencheck --no-beads --output pipeline.dot
+python3 cli.py generate --prd PRD-AUTH-001 --rpg-source my-project --no-beads --output pipeline.dot
 ```
 
 **How hybrid mode works**:
@@ -329,7 +329,7 @@ When System 3 delegates SD creation to `solution-design-architect`, include RPG 
 ```markdown
 ## Codebase Context (from ZeroRepo)
 
-### Repository: agencheck
+### Repository: my-project
 **Total modules**: 47 | **Total files**: 312 | **Total functions**: 1,847
 
 ### Modules Relevant to This Epic
@@ -364,7 +364,7 @@ The `zerorepo context` CLI command outputs this format:
 ```bash
 # Generate SD-ready context
 python3 cli.py zerorepo context \
-    --name agencheck \
+    --name my-project \
     --prd PRD-AUTH-001 \
     --format sd-injection \
     --output /tmp/rpg-context-auth.md
@@ -417,7 +417,7 @@ Worktrees share `.zerorepo/` with the main checkout (because `.zerorepo/` is in 
 
 ```
 .zerorepo-central/baselines/
-├── agencheck/
+├── my-project/
 │   ├── baseline.json              # Main branch baseline
 │   ├── baseline.prev.json
 │   └── worktrees/
@@ -443,7 +443,7 @@ When `spawn_orchestrator.py` detects orchestrator completion (tmux session ends)
 ```bash
 # Added to orchestrator cleanup in spawn_orchestrator.py
 python3 cli.py zerorepo refresh \
-    --name agencheck \
+    --name my-project \
     --worktree epic1 \
     --scope "$(get_modified_files_from_git)"
 ```
@@ -469,8 +469,8 @@ python3 cli.py zerorepo refresh \
   "generated_at": "2026-02-27T10:00:00Z",
   "repos": [
     {
-      "name": "agencheck",
-      "path": "/path/to/agencheck",
+      "name": "my-project",
+      "path": "/path/to/my-project",
       "total_nodes": 3037,
       "total_files": 312,
       "top_modules": ["auth", "api", "database", "voice_agent", "eddy_validate"]
@@ -485,7 +485,7 @@ python3 cli.py zerorepo refresh \
   ],
   "cross_repo_edges": [
     {
-      "from": {"repo": "agencheck", "module": "voice_agent"},
+      "from": {"repo": "my-project", "module": "voice_agent"},
       "to": {"repo": "claude-harness-setup", "module": "skills/orchestrator-multiagent"},
       "type": "configuration_dependency"
     }
@@ -500,7 +500,7 @@ python3 cli.py zerorepo refresh \
 python3 cli.py zerorepo context --unified --format sd-injection --output /tmp/unified-context.md
 
 # Filter to specific repos
-python3 cli.py zerorepo context --unified --repos agencheck,harness --format sd-injection
+python3 cli.py zerorepo context --unified --repos my-project,harness --format sd-injection
 ```
 
 **Acceptance Criteria**:
@@ -529,7 +529,7 @@ When spawning orchestrators, inject RPG context into the wisdom file:
 ```bash
 # In spawn_orchestrator.py or guardian Phase 2
 RPG_CONTEXT=$(python3 cli.py zerorepo context \
-    --name agencheck \
+    --name my-project \
     --prd PRD-AUTH-001 \
     --node impl_auth \
     --format worker-brief)
@@ -564,7 +564,7 @@ Store RPG context snapshots to Hindsight for cross-session awareness:
 
 ```python
 mcp__hindsight__retain(
-    content=f"ZeroRepo baseline for agencheck: {node_count} nodes, {file_count} files. "
+    content=f"ZeroRepo baseline for my-project: {node_count} nodes, {file_count} files. "
             f"Delta from PRD-AUTH-001: {new_count} NEW, {mod_count} MODIFIED, {exist_count} EXISTING",
     context="zerorepo-baselines",
     bank_id=PROJECT_BANK
@@ -584,7 +584,7 @@ mcp__hindsight__retain(
 2. Implement `zerorepo_bridge.py` with `init_repo`, `sync_baseline`, `get_rpg_context`
 3. Add `zerorepo` subcommand group to `cli.py`
 4. Implement `init`, `sync`, `status` subcommands
-5. Test with zenagent2/agencheck as first tracked repo
+5. Test with my-org/my-project as first tracked repo
 
 ### Phase 2: Pipeline Integration (Epic 2) — RPG-Aware Generation
 
@@ -627,7 +627,7 @@ mcp__hindsight__retain(
 1. Implement unified manifest generation
 2. Add cross-repo edge detection
 3. Implement `--unified` context command
-4. Test with agencheck + claude-harness-setup as two repos
+4. Test with my-project + claude-harness-setup as two repos
 
 ---
 

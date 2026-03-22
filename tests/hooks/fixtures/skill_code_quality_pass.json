@@ -5,8 +5,8 @@
   "prerequisites": ["codebase-quality:security"],
   "input": {
     "changed_files": [
-      "agencheck-support-agent/main.py",
-      "agencheck-support-agent/utils/helpers.py"
+      "my-project-backend/main.py",
+      "my-project-backend/utils/helpers.py"
     ]
   },
   "result": {

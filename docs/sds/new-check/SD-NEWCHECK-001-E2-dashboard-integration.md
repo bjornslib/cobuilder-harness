@@ -11,9 +11,9 @@ last_verified: 2026-03-07
 ## Epic
 E2 — Add `+ New check` button to dashboard + handle success state
 
-Bead: `agencheck-afm7`
+Bead: `my-project-afm7`
 
-Depends on: `agencheck-0h4w` (E1 must be complete)
+Depends on: `my-project-0h4w` (E1 must be complete)
 
 ## Overview
 
@@ -101,7 +101,7 @@ function DashboardContent() {
 
 ## Primary Color
 
-Use `bg-primary` (defined as `#3b1e8a` in AgenCheck Tailwind config — matches the header/sidebar active state). Check `tailwind.config.ts` or `globals.css` for the `primary` color definition; if not present as a Tailwind key, use inline style or add the class.
+Use `bg-primary` (defined as `#3b1e8a` in MyProject Tailwind config — matches the header/sidebar active state). Check `tailwind.config.ts` or `globals.css` for the `primary` color definition; if not present as a Tailwind key, use inline style or add the class.
 
 Verify: look for `primary` in `tailwind.config.ts` in the frontend root. If found, use `bg-primary`. If only defined as CSS variable, use the hex inline: `style={{ backgroundColor: '#3b1e8a' }}`.
 
@@ -117,7 +117,7 @@ Note: `useSearchParams` requires a `Suspense` boundary — the existing `<Suspen
 ## Acceptance Criteria
 
 - [ ] `+ New check` button appears in top-right of Overview header on `/checks-dashboard`
-- [ ] Button is styled with `bg-primary` (dark purple) matching AgenCheck design
+- [ ] Button is styled with `bg-primary` (dark purple) matching MyProject design
 - [ ] Clicking button navigates to `/checks-dashboard/new`
 - [ ] After successful form submission, `/checks-dashboard?checkCreated=1` shows green success banner
 - [ ] Success banner disappears if user navigates away and returns without the query param

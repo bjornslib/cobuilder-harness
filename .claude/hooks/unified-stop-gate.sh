@@ -98,13 +98,15 @@ ${message}"
     exit 0
 }
 
-# --- Fast path: Agencheck project directories stop freely ---
-# Sessions in agencheck directories are externally monitored and should not
+# --- Fast path: Externally-monitored project directories stop freely ---
+# Sessions in externally-monitored directories (e.g., my-project) should not
 # be blocked by harness-level stop gate checks.
+# To use: set STOP_GATE_BYPASS_PATTERN to a glob matching your project directory.
+# Example: export STOP_GATE_BYPASS_PATTERN="*my-project*"
 PROJECT_DIR="${CLAUDE_PROJECT_DIR:-$(pwd)}"
-if [[ "$PROJECT_DIR" == *agencheck* ]]; then
+if [ -n "${STOP_GATE_BYPASS_PATTERN:-}" ] && [[ "$PROJECT_DIR" == $STOP_GATE_BYPASS_PATTERN ]]; then
     printf '%s\n%s\n' "0" "$(date +%s)" > "$BLOCK_COUNT_FILE"
-    output_json "approve" "systemMessage" "Agencheck project directory — approved (stop gate bypassed)"
+    output_json "approve" "systemMessage" "Bypass pattern matched — approved (stop gate bypassed)"
     exit 0
 fi
 

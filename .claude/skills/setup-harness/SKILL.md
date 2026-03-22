@@ -56,7 +56,7 @@ deployment lifecycle: source validation, rsync with exclusions, runtime director
 
 **Deploy to a named target:**
 ```bash
-.claude/skills/setup-harness/deploy-harness.sh --name zenagent2-agencheck
+.claude/skills/setup-harness/deploy-harness.sh --name my-project
 ```
 
 **Preview without changes:**
@@ -218,7 +218,7 @@ User: Deploy harness to all targets
 
 Claude: Running deploy-harness.sh (deploying to all configured targets)
 
-[Script deploys to zenagent2-agencheck and zenagent3-agencheck]
+[Script deploys to my-project and my-project]
 
 Both targets updated successfully.
 ```

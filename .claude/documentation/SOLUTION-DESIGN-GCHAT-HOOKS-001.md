@@ -1249,9 +1249,9 @@ The Stop hook is extended within `unified-stop-gate.sh` itself (see section 4.4)
     <key>ProgramArguments</key>
     <array>
         <string>/usr/bin/python3</string>
-        <string>/Users/theb/Documents/Windsurf/claude-harness-setup/.claude/scripts/gchat-response-poller/gchat-response-poller.py</string>
+        <string>$CLAUDE_PROJECT_DIR/.claude/scripts/gchat-response-poller/gchat-response-poller.py</string>
         <string>--pending-dir</string>
-        <string>/Users/theb/Documents/Windsurf/claude-harness-setup/.claude/state/pending-questions</string>
+        <string>$CLAUDE_PROJECT_DIR/.claude/state/pending-questions</string>
         <string>--poll-interval</string>
         <string>10</string>
     </array>
@@ -1271,15 +1271,15 @@ The Stop hook is extended within `unified-stop-gate.sh` itself (see section 4.4)
     <integer>20</integer>
 
     <key>StandardOutPath</key>
-    <string>/Users/theb/.claude/logs/gchat-response-poller.log</string>
+    <string>~/.claude/logs/gchat-response-poller.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/Users/theb/.claude/logs/gchat-response-poller.err</string>
+    <string>~/.claude/logs/gchat-response-poller.err</string>
 
     <key>EnvironmentVariables</key>
     <dict>
         <key>GOOGLE_CHAT_CREDENTIALS_FILE</key>
-        <string>/Users/theb/.config/google/service-account.json</string>
+        <string>~/.config/google/service-account.json</string>
         <key>GOOGLE_CHAT_SPACE_ID</key>
         <string>spaces/AAAA...</string>
         <key>PATH</key>
@@ -1287,7 +1287,7 @@ The Stop hook is extended within `unified-stop-gate.sh` itself (see section 4.4)
     </dict>
 
     <key>WorkingDirectory</key>
-    <string>/Users/theb/Documents/Windsurf/claude-harness-setup</string>
+    <string>$CLAUDE_PROJECT_DIR</string>
 </dict>
 </plist>
 ```

@@ -371,7 +371,7 @@ Based on Hindsight patterns and this codebase's specific constraints:
 
 ## 9. Hindsight Integration
 
-Findings from `mcp__hindsight__reflect()` consulted during this analysis (bank_id: claude-code-agencheck):
+Findings from `mcp__hindsight__reflect()` consulted during this analysis (bank_id: claude-code-my-project):
 
 - **Thin adapter pattern** (validated): "Using thin adapters for incremental migration
   provides a safe layer that allows the codebase to continue importing old V1 names

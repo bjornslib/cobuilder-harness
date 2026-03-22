@@ -20,7 +20,7 @@ Feed chat messages into the SAME extraction pipeline that voice uses. Two integr
 
 In the chat agent's text handler (where user chat messages arrive), after processing the message with the LLM, emit the user's text AND the agent's response as transcription-format data packets so `listener_service.py` can extract fields.
 
-**File**: `agencheck-support-agent/live_form_filler/agent.py`
+**File**: `my-project-backend/live_form_filler/agent.py`
 
 In the `chat_text_handler` callback:
 

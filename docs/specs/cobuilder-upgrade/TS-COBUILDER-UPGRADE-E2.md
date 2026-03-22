@@ -548,7 +548,7 @@ Execute steps in this exact order. Do not skip steps or reorder.
 
 ```bash
 # Verify cobuilder/engine/ exists from E0 merge
-ls /Users/theb/Documents/Windsurf/claude-harness-setup/cobuilder/engine/
+ls $CLAUDE_PROJECT_DIR
 
 # Create __init__.py placeholder if not present (will be overwritten in Step 5)
 touch cobuilder/engine/__init__.py
@@ -559,7 +559,7 @@ touch cobuilder/engine/__init__.py
 Execute these `git mv` commands in order. The `git mv` preserves git history.
 
 ```bash
-cd /Users/theb/Documents/Windsurf/claude-harness-setup
+cd $CLAUDE_PROJECT_DIR
 
 # Core dispatch layer
 git mv cobuilder/attractor/pipeline_runner.py cobuilder/engine/pipeline_runner.py
@@ -631,7 +631,7 @@ rmdir cobuilder/attractor  # Fails if not empty — investigate if so
 Run this automated replacement across all Python files. The replacement must be exact-string, not regex-based, to avoid false positives:
 
 ```bash
-cd /Users/theb/Documents/Windsurf/claude-harness-setup
+cd $CLAUDE_PROJECT_DIR
 
 # Python source files: replace import paths
 find . -name "*.py" \
@@ -815,7 +815,7 @@ sed -i '' \
 ### Step 13: Run full test suite
 
 ```bash
-cd /Users/theb/Documents/Windsurf/claude-harness-setup
+cd $CLAUDE_PROJECT_DIR
 
 # First: verify no import errors
 python3 -c "from cobuilder.engine.pipeline_runner import PipelineRunner; print('Import OK')"

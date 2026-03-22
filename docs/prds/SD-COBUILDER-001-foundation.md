@@ -93,8 +93,8 @@ cobuilder/
 # .repomap/config.yaml
 version: "1.0"
 repos:
-  - name: agencheck
-    path: /Users/theb/Documents/Windsurf/zenagent2/zenagent/agencheck
+  - name: my-project
+    path: $CLAUDE_PROJECT_DIR
     last_synced: 2026-02-27T10:00:00Z
     baseline_hash: "sha256:abc123..."
     node_count: 3037
@@ -104,8 +104,8 @@ repos:
 ### manifest.yaml Schema
 
 ```yaml
-# .repomap/manifests/agencheck.manifest.yaml
-repository: agencheck
+# .repomap/manifests/my-project.manifest.yaml
+repository: my-project
 snapshot_date: 2026-02-27T10:00:00Z
 total_nodes: 3037
 total_files: 312

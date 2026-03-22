@@ -172,7 +172,7 @@ TaskCreate(
     description="""
     ## Task: Create API endpoint for user authentication
 
-    **Bead ID**: agencheck-042
+    **Bead ID**: my-project-042
     **Context**: We're building a FastAPI backend with JWT auth
     **Requirements**:
     - POST /api/auth/login endpoint
@@ -185,8 +185,8 @@ TaskCreate(
     - Token expires in 24 hours
 
     **Scope** (ONLY these files):
-    - agencheck-support-agent/app/routes/auth.py
-    - agencheck-support-agent/app/schemas/auth.py
+    - my-project-backend/app/routes/auth.py
+    - my-project-backend/app/schemas/auth.py
 
     **When Done**:
     1. Run validation steps
@@ -605,8 +605,8 @@ Every task description MUST include an explicit scope array limiting which files
 
 ```markdown
 **Scope** (ONLY these files):
-- agencheck-support-agent/app/routes/auth.py
-- agencheck-support-agent/app/schemas/auth.py
+- my-project-backend/app/routes/auth.py
+- my-project-backend/app/schemas/auth.py
 ```
 
 Workers that modify files outside scope have their work rejected. Create a new task with clearer boundaries if this occurs.
@@ -638,8 +638,8 @@ result = Task(
     - Token expires in 24 hours
 
     **Scope**: ONLY these files:
-    - agencheck-support-agent/app/routes/auth.py
-    - agencheck-support-agent/app/schemas/auth.py
+    - my-project-backend/app/routes/auth.py
+    - my-project-backend/app/schemas/auth.py
 
     **Report back with**: Files modified, tests written, any blockers
     """

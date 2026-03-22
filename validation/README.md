@@ -13,5 +13,5 @@ This directory stores evidence from validation-test-agent runs.
 ## Naming Convention
 
 Evidence files follow: `<task-id>_<timestamp>_<type>.<ext>`
-- Example: `agencheck-xyz_20260112_120000_unit-tests.log`
-- Example: `agencheck-xyz_20260112_120100_e2e-screenshot.png`
+- Example: `my-project-xyz_20260112_120000_unit-tests.log`
+- Example: `my-project-xyz_20260112_120100_e2e-screenshot.png`

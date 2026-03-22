@@ -66,14 +66,12 @@ mcp__serena__switch_modes(["editing", "interactive"])
 
 ## Quick Reference
 
-### Required Superpowers Skills
+### Required Powers
 ```
-Skill("superpowers:verification-before-completion")  # MANDATORY before done
-Skill("superpowers:test-driven-development")         # RED-GREEN-REFACTOR
-Skill("superpowers:brainstorming")                   # Before unclear decisions
-Skill("superpowers:systematic-debugging")            # For troubleshooting
-Skill("superpowers:root-cause-tracing")              # For complex bugs
+Skill("worker-superpowers")                          # ALL powers: TDD, debugging, verification, brainstorming
 ```
+
+Load `Skill("worker-superpowers")` at task start — it bundles all four powers (TDD, systematic-debugging, verification-before-completion, brainstorming) in a single skill. The superpowers plugin skills (`superpowers:test-driven-development`, etc.) are also available as the upstream source.
 
 ### Model Hierarchy
 - **You (Worker)**: Opus 4.5
@@ -199,7 +197,7 @@ SendMessage(
 
 ```json
 {
-  "scope": ["agencheck-support-frontend/components/ChatInterface.tsx"]
+  "scope": ["my-project-frontend/components/ChatInterface.tsx"]
 }
 ```
 
@@ -382,7 +380,7 @@ const snapshot = await browser_snapshot();
 curl http://localhost:8000/health
 
 # Test endpoint
-curl -X POST http://localhost:8000/agencheck \
+curl -X POST http://localhost:8000/my-project \
   -H "Content-Type: application/json" \
   -d '{"query": "test", "thread_id": "test-001"}'
 ```

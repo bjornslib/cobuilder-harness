@@ -162,8 +162,8 @@ curl http://localhost:8000/health
 ### Main Endpoint Test
 
 ```bash
-# POST to /agencheck
-curl -X POST http://localhost:8000/agencheck \
+# POST to /my-project
+curl -X POST http://localhost:8000/my-project \
   -H "Content-Type: application/json" \
   -d '{
     "query": "Can MIT credentials be verified?",
@@ -251,7 +251,7 @@ pytest tests/test_orchestrator.py -v
 pytest tests/test_orchestrator.py::test_specific_function -v
 
 # With coverage
-pytest --cov=agencheck_support_agent tests/
+pytest --cov=my_project_backend tests/
 ```
 
 ### Writing Tests (TDD)
@@ -280,7 +280,7 @@ describe('ChatInput', () => {
 **Backend Function Test**:
 ```python
 import pytest
-from agencheck_support_agent.orchestrator import process_query
+from my_project_backend.orchestrator import process_query
 
 @pytest.mark.asyncio
 async def test_process_query_returns_response():
@@ -302,11 +302,11 @@ async def test_process_query_returns_response():
 
 ```bash
 # Terminal 1: Backend services
-cd agencheck-support-agent
+cd my-project-backend
 ./start_services.sh
 
 # Terminal 2: Frontend
-cd agencheck-support-frontend
+cd my-project-frontend
 npm run dev
 ```
 
@@ -355,7 +355,7 @@ while (attempts < 10) {
 
 ```bash
 # API: Test invalid input
-curl -X POST http://localhost:8000/agencheck \
+curl -X POST http://localhost:8000/my-project \
   -H "Content-Type: application/json" \
   -d '{"query": ""}'
 # Should return error response, not crash

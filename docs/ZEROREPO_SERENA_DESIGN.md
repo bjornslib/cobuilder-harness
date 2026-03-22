@@ -62,7 +62,7 @@ zerorepo init --project-path /path/to/project
 
    | RPG Level | Source | Example |
    |-----------|--------|---------|
-   | MODULE | Top-level packages | `agencheck-support-agent/` |
+   | MODULE | Top-level packages | `my-project-backend/` |
    | COMPONENT | Subdirectories, files within packages | `api/routers/`, `models/` |
    | FEATURE | Individual classes, functions, methods | `class PostCallProcessor`, `def dispatch_verification_request()` |
 
@@ -102,10 +102,10 @@ zerorepo init --project-path /path/to/project
 {
   "nodes": {
     "uuid-1": {
-      "name": "agencheck-support-agent",
+      "name": "my-project-backend",
       "level": "MODULE",
       "node_type": "FOLDER_AUGMENTED",
-      "folder_path": "agencheck-support-agent/",
+      "folder_path": "my-project-backend/",
       "serena_validated": true,
       "metadata": {
         "language": "python",
@@ -118,7 +118,7 @@ zerorepo init --project-path /path/to/project
       "name": "PostCallProcessor",
       "level": "FEATURE",
       "node_type": "FUNCTION_AUGMENTED",
-      "file_path": "agencheck-support-agent/processors/post_call_processor.py",
+      "file_path": "my-project-backend/processors/post_call_processor.py",
       "interface_type": "CLASS",
       "signature": "class PostCallProcessor(BaseProcessor):",
       "docstring": "Handles post-call processing...",
@@ -140,7 +140,7 @@ zerorepo init --project-path /path/to/project
     }
   },
   "metadata": {
-    "project_name": "agencheck",
+    "project_name": "my-project",
     "generated_at": "2026-02-07T12:00:00Z",
     "serena_version": "1.0",
     "total_modules": 5,
@@ -211,15 +211,15 @@ Output: `pipeline-report.md` — human-readable summary:
 ```markdown
 ## ZeroRepo Pipeline Report
 
-### Baseline: agencheck (5 modules, 187 features)
+### Baseline: my-project (5 modules, 187 features)
 
 ### Changes Required by PRD: work-history-phase1-enterprise-readiness
 
 **New Modules**: 0
 **Modified Modules**: 3
-  - agencheck-support-agent: +2 new components (workflow_config, verification_token)
-  - agencheck-support-frontend: +1 new component (verify/work-history page)
-  - agencheck-communication-agent: +1 modified component (dispatch logic)
+  - my-project-backend: +2 new components (workflow_config, verification_token)
+  - my-project-frontend: +1 new component (verify/work-history page)
+  - my-project-communication: +1 modified component (dispatch logic)
 
 **New Features**: 15
   - WorkflowConfig model (Pydantic, 9 fields)

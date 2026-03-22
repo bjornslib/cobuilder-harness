@@ -4,7 +4,8 @@
 
 set -e
 
-PROJECT_ROOT="/Users/theb/Documents/Windsurf/claude-harness-setup"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="${CLAUDE_PROJECT_DIR:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 STOP_GATE="$PROJECT_ROOT/.claude/hooks/unified-stop-gate.sh"
 CS_SCRIPTS="$PROJECT_ROOT/.claude/scripts/completion-state"
 

@@ -1,3 +1,14 @@
+---
+title: "Claude Harness Repository Cleanup"
+description: "Cleanup and consolidation of the cobuilder-harness repository to eliminate runtime artifacts"
+version: "1.1.0"
+last-updated: 2026-03-22
+status: active
+type: prd
+grade: authoritative
+prd_id: PRD-HARNESS-CLEANUP-001
+---
+
 # PRD-HARNESS-CLEANUP-001: Claude Harness Repository Cleanup
 
 ## Overview
@@ -78,3 +89,13 @@ The claude-harness-setup repository has accumulated runtime artifacts, untracked
 ## Estimated Effort
 
 Small-medium initiative. 5 epics, ~15 tasks. Most are file operations (gitignore edits, git add/rm). No code logic changes.
+
+## Implementation Status
+
+| Epic | Status | Date | Commit |
+|------|--------|------|--------|
+| Epic 1: Gitignore Updates | Done | 2026-03-22 | (this PR) |
+| Epic 2: File Cleanup | Done | 2026-03-22 | (this PR) |
+| Epic 3: Track Untracked Documentation | Deferred | - | Already tracked or deleted as dead files |
+| Epic 4: Acceptance Test Consolidation | Done | 2026-03-22 | Tests consolidated at root `acceptance-tests/` |
+| Epic 5: Verification | In Progress | 2026-03-22 | - |

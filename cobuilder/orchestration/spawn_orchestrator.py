@@ -234,7 +234,7 @@ def main() -> None:
                     "Claude Code may not find its project configuration or may create "
                     "worktrees in the wrong location. "
                     "Ensure --repo-root points to the directory containing .claude/ "
-                    "(e.g., 'agencheck/' in a monorepo, not the monorepo root)."
+                    "(e.g., 'my-project/' in a monorepo, not the monorepo root)."
                 )
             }),
             file=sys.stderr,

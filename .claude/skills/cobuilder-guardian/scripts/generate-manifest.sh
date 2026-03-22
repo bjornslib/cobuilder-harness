@@ -19,7 +19,7 @@ if [ $# -lt 2 ]; then
     echo ""
     echo "Examples:"
     echo "  $0 PRD-AUTH-001 \"Authentication System\""
-    echo "  $0 PRD-PIPELINE-002 \"Prefect Pipeline Integration\" /Users/theb/project"
+    echo "  $0 PRD-PIPELINE-002 \"Prefect Pipeline Integration\" /path/to/project"
     exit 1
 fi
 

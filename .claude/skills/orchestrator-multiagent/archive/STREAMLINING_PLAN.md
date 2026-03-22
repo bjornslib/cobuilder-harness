@@ -354,7 +354,7 @@ Create **PREFLIGHT.md** with ONE unified checklist consolidating ALL mandatory c
 □ **Serena Active**
   ```bash
   mcp__serena__check_onboarding_performed
-  # If not active: mcp__serena__activate_project with project="agencheck"
+  # If not active: mcp__serena__activate_project with project="my-project"
   ```
 
 □ **Services Healthy**
@@ -570,7 +570,7 @@ LOOP:
   5. VALIDATE (THREE LEVELS - ALL MANDATORY)
 
      Level 1: Unit Tests
-     - Backend: pytest agencheck-support-agent/tests/
+     - Backend: pytest my-project-backend/tests/
      - Frontend: npm run test (Jest)
      - Must PASS before proceeding
 
@@ -614,14 +614,14 @@ LOOP:
 
 **Backend (Python/pytest)**:
 ```bash
-cd agencheck-support-agent
+cd my-project-backend
 pytest tests/ -v --tb=short
 # Must show all tests PASSED
 ```
 
 **Frontend (TypeScript/Jest)**:
 ```bash
-cd agencheck-support-frontend
+cd my-project-frontend
 npm run test -- --coverage
 # Must show all tests PASSED
 ```
@@ -636,7 +636,7 @@ curl -s http://localhost:5184/health | jq .
 curl -s http://localhost:5185/health | jq .
 
 # Feature-specific endpoints
-curl -X POST http://localhost:8000/agencheck \
+curl -X POST http://localhost:8000/my-project \
   -H "Content-Type: application/json" \
   -d '{"query": "test message", "session_id": "test-123"}'
 ```
@@ -796,7 +796,7 @@ tmux send-keys -t worker-F001 Enter
 
 # Start services (from clean state)
 # NOTE: Each Enter is SEPARATE command (critical!)
-tmux new-session -d -s backend -c /path/to/agencheck-support-agent
+tmux new-session -d -s backend -c /path/to/my-project-backend
 tmux send-keys -t backend "./start_services.sh"
 tmux send-keys -t backend Enter
 ```
@@ -834,7 +834,7 @@ AT Epic:         "AT-User Login Flow"
 ### AT Epic Structure
 
 UBER-EPIC: Q1 Authentication
-├── EPIC: User Login Flow (agencheck-abc)
+├── EPIC: User Login Flow (my-project-abc)
 ...
 ```
 

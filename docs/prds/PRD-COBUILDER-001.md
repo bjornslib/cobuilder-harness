@@ -31,7 +31,7 @@ The core insight: **a map of the codebase is essential for every stage of the de
 As a guardian, I want to run `cobuilder repomap init` on the target repo and have the codebase context automatically injected into the SD creation prompt, so that the solution-design-architect produces technically accurate specifications grounded in the actual codebase.
 
 ### US-2: System 3 Generating a Pipeline
-As System 3, I want to run `cobuilder pipeline create --sd SD-AUTH-001.md --repo agencheck` and get a fully enriched DOT pipeline where each node carries precise file scope, LLM-crafted acceptance criteria, and delta classification, so that orchestrators receive implementation-ready work packages.
+As System 3, I want to run `cobuilder pipeline create --sd SD-AUTH-001.md --repo my-project` and get a fully enriched DOT pipeline where each node carries precise file scope, LLM-crafted acceptance criteria, and delta classification, so that orchestrators receive implementation-ready work packages.
 
 ### US-3: Orchestrator Completing a Node
 As an orchestrator, when my workers complete a node and it transitions to `validated`, I want the RepoMap baseline to automatically refresh for the affected files, so that subsequent nodes and future initiatives see the current codebase state.
@@ -81,7 +81,7 @@ As a guardian spawning orchestrators in tmux, I want each orchestrator's worktre
 
 ### Acceptance Criteria
 
-- [ ] `cobuilder pipeline create --sd SD-AUTH-001.md --repo agencheck` produces valid DOT pipeline
+- [ ] `cobuilder pipeline create --sd SD-AUTH-001.md --repo my-project` produces valid DOT pipeline
 - [ ] Each DOT node carries: `file_path`, `delta_status`, `interfaces`, `change_summary`, `worker_type`, `solution_design`
 - [ ] Worker type selection uses LLM (not keyword heuristic) and is more accurate than current regex
 - [ ] TaskMaster receives RepoMap YAML context appended to SD input

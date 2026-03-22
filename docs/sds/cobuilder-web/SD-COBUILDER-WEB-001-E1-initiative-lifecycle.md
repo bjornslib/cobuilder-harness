@@ -165,7 +165,7 @@ def _atomic_write(self, dot_path: str, content: str) -> None:
 **Input**:
 - `prd_id: str` -- e.g. `"PRD-DASHBOARD-AUDIT-001"`
 - `description: str` -- e.g. `"Dashboard audit trail feature"`
-- `target_repo: str` -- e.g. `"/Users/theb/Documents/Windsurf/zenagent2"`
+- `target_repo: str` -- e.g. `"/path/to/project"`
 
 **Output**: A DOT file at `{pipelines_dir}/{prd_id}.dot` containing exactly 3 nodes and 2 edges.
 
@@ -206,7 +206,7 @@ digraph prd_dashboard_audit_001 {
     graph [
         label="Dashboard Audit Trail"
         prd_id="PRD-DASHBOARD-AUDIT-001"
-        target_repo="/Users/theb/Documents/Windsurf/zenagent2"
+        target_repo="/path/to/project"
         worktree_path=".claude/worktrees/prd-dashboard-audit-001/"
     ];
 
@@ -279,7 +279,7 @@ digraph prd_dashboard_audit_001 {
     graph [
         label="Dashboard Audit Trail"
         prd_id="PRD-DASHBOARD-AUDIT-001"
-        target_repo="/Users/theb/Documents/Windsurf/zenagent2"
+        target_repo="/path/to/project"
         worktree_path=".claude/worktrees/prd-dashboard-audit-001/"
     ];
 

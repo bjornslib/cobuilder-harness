@@ -1,6 +1,6 @@
 #!/bin/bash
 # Advisory Report Generation Utility
-# Epic 5: Advisory Reporting (agencheck-r1m)
+# Epic 5: Advisory Reporting (my-project-r1m)
 #
 # Implements:
 #   AC-16: Generate consolidated reports in .claude/reports/post-push/

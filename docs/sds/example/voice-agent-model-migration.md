@@ -3,13 +3,13 @@ title: "SD: Migrate Voice Agent to openai/gpt-oss-20b"
 status: active
 type: reference
 epic_id: MODEL-MIGRATION-001
-prd_ref: AgenCheck Configuration Consolidation
+prd_ref: MyProject Configuration Consolidation
 last_verified: 2026-03-11
 ---
 
 ## Overview
 
-Replace Groq's `meta-llama/llama-4-maverick-17b-128e-instruct` model with OpenAI's `openai/gpt-oss-20b` in the voice agent configuration. This is part of a broader model consolidation across AgenCheck agents.
+Replace Groq's `meta-llama/llama-4-maverick-17b-128e-instruct` model with OpenAI's `openai/gpt-oss-20b` in the voice agent configuration. This is part of a broader model consolidation across MyProject agents.
 
 ## Research Findings (Verified 2026-03-11)
 
@@ -39,7 +39,7 @@ Replace Groq's `meta-llama/llama-4-maverick-17b-128e-instruct` model with OpenAI
 
 ### 1. Update Voice Agent Config
 
-**File:** `agencheck-communication-agent/livekit_prototype/cli_poc/voice_agent/config.py`
+**File:** `my-project-communication/livekit_prototype/cli_poc/voice_agent/config.py`
 
 **Change on line 28:**
 ```python
@@ -52,7 +52,7 @@ llm_model: str = os.getenv("LLM_MODEL", "openai/gpt-oss-20b")
 
 ### 2. Update Test Configuration
 
-**File:** `agencheck-communication-agent/livekit_prototype/cli_poc/voice_agent/tests/conftest.py`
+**File:** `my-project-communication/livekit_prototype/cli_poc/voice_agent/tests/conftest.py`
 
 Search for all instances of `"meta-llama/llama-4-maverick-17b-128e-instruct"` and replace with `"openai/gpt-oss-20b"`.
 
@@ -116,9 +116,9 @@ Check that:
 
 ## Related Files
 
-- `agencheck-communication-agent/livekit_prototype/cli_poc/voice_agent/config.py`
-- `agencheck-communication-agent/livekit_prototype/cli_poc/voice_agent/tests/conftest.py`
-- `agencheck-support-agent/.env` (for GROQ_API_KEY)
+- `my-project-communication/livekit_prototype/cli_poc/voice_agent/config.py`
+- `my-project-communication/livekit_prototype/cli_poc/voice_agent/tests/conftest.py`
+- `my-project-backend/.env` (for GROQ_API_KEY)
 
 ## Implementation Status
 

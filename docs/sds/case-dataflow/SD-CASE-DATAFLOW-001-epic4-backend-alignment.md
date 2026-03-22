@@ -15,7 +15,7 @@ prd_ref: PRD-CASE-DATAFLOW-001
 
 Unify the two outcome production paths (Live Form Filler and voice agent transcript processing) to both produce canonical `VerificationOutcome` objects. Ensure all JSONB reads use `Model.model_validate()`.
 
-**Target**: `agencheck-support-agent/`
+**Target**: `my-project-backend/`
 **Worker Type**: `backend-solutions-engineer`
 **Depends On**: Epic 1 (canonical types + outcome_converter.py)
 

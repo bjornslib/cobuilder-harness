@@ -1,6 +1,6 @@
 #!/bin/bash
 # Document Lifecycle Management Utility
-# Epic 4: Document Lifecycle Management (agencheck-u7w)
+# Epic 4: Document Lifecycle Management (my-project-u7w)
 #
 # Implements:
 #   AC-9: Parse acceptance criteria checkboxes and calculate completion percentage
@@ -39,9 +39,9 @@ DOC_DIRECTORIES=(
     "documentation/prds"
     "documentation/solution_designs"
     ".taskmaster/docs"
-    "agencheck-support-agent/documentation"
-    "agencheck-support-frontend/documentation"
-    "agencheck-communication-agent/documentation"
+    "my-project-backend/documentation"
+    "my-project-frontend/documentation"
+    "my-project-communication/documentation"
 )
 
 # Ephemeral directories to exclude (AC-15)

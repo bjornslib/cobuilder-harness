@@ -570,7 +570,7 @@ The prompt includes all file paths the Guardian needs to do its job:
 | PRD path | DOT graph `output_path` attr on `write_prd` node | `docs/prds/dashboard-audit-trail/PRD-DASHBOARD-AUDIT-001.md` |
 | SD paths | DOT graph `output_path` attrs on `write_sd_*` nodes | List of SD file paths |
 | DOT path | `dot_path` argument | `.pipelines/pipelines/prd-dashboard-audit-001.dot` |
-| Target repo | `target_repo` argument | `/Users/theb/Documents/Windsurf/zenagent2` |
+| Target repo | `target_repo` argument | `/path/to/project` |
 | Worktree | DOT graph `worktree_path` attr or derived from PRD ID | `{target_repo}/.claude/worktrees/prd-dashboard-audit-001/` |
 
 ### 3.3 Skill Invocation Hints
@@ -586,7 +586,7 @@ The exact tmux command sequence (mirrors `spawn_orchestrator.py` patterns):
 ```bash
 # Step 1: Create detached tmux session
 tmux new-session -d -s guardian-prd-dashboard-audit-001 \
-    -c /Users/theb/Documents/Windsurf/zenagent2 \
+    -c /path/to/project \
     -x 220 -y 50 \
     "exec zsh"
 

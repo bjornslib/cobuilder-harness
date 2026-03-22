@@ -111,7 +111,7 @@ PRD structure:
 zerorepo init --project-path /path/to/impl-repo
 
 # Result: baseline.json with node/edge counts
-# Example: 3,037 nodes for zenagent2/agencheck
+# Example: 3,037 nodes for my-org/my-project
 ```
 
 This step creates a BEFORE snapshot. After implementation, a new baseline is generated and `zerorepo diff` compares them for regression detection.

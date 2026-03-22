@@ -11,7 +11,7 @@ last_verified: 2026-03-09T00:00:00.000Z
 **Date**: 2026-03-09
 **PRD**: PRD-DASHBOARD-AUDIT-001, Epic B
 **Design Source**: Stitch project `4785994430092730679`, screen `2906fd2e2b044991b8e672b9c41e3bc5`
-**Target Repo**: `zenagent3/zenagent/agencheck/agencheck-support-frontend`
+**Target Repo**: `my-org/my-project/my-project-frontend`
 **Constraint**: Main navigation (header) and side navigation (sidebar) are OUT OF SCOPE
 
 ---
@@ -235,7 +235,7 @@ interface VerificationComparisonTableProps {
 
 - shadcn `<Card>` wrapper
 - Header row: `<CardHeader>` with `fact_check` icon + "Verification Results" + status Badge
-- Column headers: "Candidate Claimed" | "AgenCheck Verified"
+- Column headers: "Candidate Claimed" | "MyProject Verified"
 - Each `<ComparisonRow>`: field label, claimed value, verified value, match indicator
   - Match: green circle with white check icon
   - Mismatch: amber warning icon + "Mismatch" Badge (variant=`outline`, amber)

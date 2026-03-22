@@ -789,8 +789,8 @@ class TestAC14_MultiDirectoryScanning:
         service_specific = fixture["managed_directories"]["service_specific"]
 
         expected_paths = [d["path"] for d in service_specific]
-        assert any("agencheck-support-agent" in p for p in expected_paths)
-        assert any("agencheck-support-frontend" in p for p in expected_paths)
+        assert any("my-project-backend" in p for p in expected_paths)
+        assert any("my-project-frontend" in p for p in expected_paths)
 
     @pytest.mark.parametrize(
         "directory",

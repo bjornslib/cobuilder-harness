@@ -16,7 +16,7 @@ estimated_duration: "2-4 minutes"
 
 ## Description
 
-Validates the core `/agencheck` API endpoint that processes credential verification requests. This endpoint is the backbone of the AgenCheck system -- it accepts institution and credential details, orchestrates verification through Eddy, and returns a structured response. This test sends a POST request via the browser-based API documentation interface and validates the response structure and content.
+Validates the core `/my-project` API endpoint that processes credential verification requests. This endpoint is the backbone of the MyProject system -- it accepts institution and credential details, orchestrates verification through Eddy, and returns a structured response. This test sends a POST request via the browser-based API documentation interface and validates the response structure and content.
 
 ## Steps
 
@@ -27,12 +27,12 @@ Validates the core `/agencheck` API endpoint that processes credential verificat
    - Target: `screenshots/01-api-docs-loaded.png`
    - Expected: Screenshot saved showing Swagger UI with available endpoints
 
-3. **Click** the `/agencheck` POST endpoint section to expand it
-   - Target: The `/agencheck` endpoint row in the Swagger UI endpoint listing
+3. **Click** the `/my-project` POST endpoint section to expand it
+   - Target: The `/my-project` endpoint row in the Swagger UI endpoint listing
    - Expected: Endpoint details expand showing request body schema, parameters, and response format
 
-4. **Click** the "Try it out" button for the `/agencheck` endpoint
-   - Target: "Try it out" button within the expanded `/agencheck` section
+4. **Click** the "Try it out" button for the `/my-project` endpoint
+   - Target: "Try it out" button within the expanded `/my-project` section
    - Expected: The request body field becomes editable
 
 5. **Fill** the request body with a credential verification payload
@@ -55,7 +55,7 @@ Validates the core `/agencheck` API endpoint that processes credential verificat
    - Expected: Screenshot saved showing the filled-in request body before execution
 
 7. **Click** the "Execute" button
-   - Target: "Execute" button in the Swagger UI `/agencheck` section
+   - Target: "Execute" button in the Swagger UI `/my-project` section
    - Expected: Request is sent to the backend and the response section populates
 
 8. **Wait** for the API response to appear (timeout: 30s)
@@ -80,11 +80,11 @@ Validates the core `/agencheck` API endpoint that processes credential verificat
 13. **Navigate** to `http://localhost:8000/docs`
     - Expected: Swagger UI reloads fresh for the error case test
 
-14. **Click** the `/agencheck` POST endpoint section to expand it
-    - Target: The `/agencheck` endpoint row in the Swagger UI
+14. **Click** the `/my-project` POST endpoint section to expand it
+    - Target: The `/my-project` endpoint row in the Swagger UI
     - Expected: Endpoint details expand
 
-15. **Click** the "Try it out" button for the `/agencheck` endpoint
+15. **Click** the "Try it out" button for the `/my-project` endpoint
     - Target: "Try it out" button within the expanded section
     - Expected: Request body field becomes editable
 

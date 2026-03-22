@@ -106,18 +106,18 @@ UBER-EPIC: Initiative Name
 ```bash
 # 1. Create uber-epic (ALWAYS FIRST)
 bd create --title="Q1 Authentication" --type=epic --priority=1
-# Returns: agencheck-001
+# Returns: my-project-001
 
 # 2. Create functional + AT epic pair
-bd create --title="User Login Flow" --type=epic --priority=2      # agencheck-002
-bd create --title="AT-User Login Flow" --type=epic --priority=2   # agencheck-003
-bd dep add agencheck-002 agencheck-001 --type=parent-child        # Under uber-epic
-bd dep add agencheck-003 agencheck-001 --type=parent-child        # Under uber-epic
-bd dep add agencheck-002 agencheck-003 --type=blocks              # AT blocks functional
+bd create --title="User Login Flow" --type=epic --priority=2      # my-project-002
+bd create --title="AT-User Login Flow" --type=epic --priority=2   # my-project-003
+bd dep add my-project-002 my-project-001 --type=parent-child        # Under uber-epic
+bd dep add my-project-003 my-project-001 --type=parent-child        # Under uber-epic
+bd dep add my-project-002 my-project-003 --type=blocks              # AT blocks functional
 
 # 3. Create tasks
-bd create --title="Implement login API" --type=task --priority=2  # agencheck-004
-bd dep add agencheck-004 agencheck-002 --type=parent-child        # Under epic
+bd create --title="Implement login API" --type=task --priority=2  # my-project-004
+bd dep add my-project-004 my-project-002 --type=parent-child        # Under epic
 ```
 
 ### Closure Order (MUST follow)
@@ -153,8 +153,8 @@ AT tasks → AT epic → Functional epic → Uber-epic
 
 ```bash
 # Start services
-cd agencheck-support-agent && ./start_services.sh
-cd agencheck-support-frontend && npm run dev
+cd my-project-backend && ./start_services.sh
+cd my-project-frontend && npm run dev
 
 # Verify running
 lsof -i :5001 -i :8000 -i :5184 -i :5185 | grep LISTEN
@@ -180,7 +180,7 @@ Run this at the start of every orchestrator session:
 
 ```markdown
 ### Phase 1: Tool Activation
-- [ ] Serena: `mcp__serena__activate_project("agencheck")`
+- [ ] Serena: `mcp__serena__activate_project("my-project")`
 - [ ] Serena: `mcp__serena__check_onboarding_performed`
 
 ### Phase 2: Memory Check

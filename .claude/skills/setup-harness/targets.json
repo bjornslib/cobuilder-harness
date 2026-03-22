@@ -1,35 +1,15 @@
 {
-  "description": "Default deployment targets for setup-harness. Paths with ~ are expanded at runtime.",
+  "description": "Default deployment targets for setup-harness. Paths with ~ are expanded at runtime. Replace these with your actual project paths.",
   "targets": [
     {
-      "name": "zenagent2-agencheck",
-      "path": "~/Documents/Windsurf/zenagent2/zenagent/agencheck",
-      "description": "zenagent2 application repo"
+      "name": "my-project",
+      "path": "~/projects/my-project",
+      "description": "Example application repo"
     },
     {
-      "name": "zenagent3-agencheck",
-      "path": "~/Documents/Windsurf/zenagent3/zenagent/agencheck",
-      "description": "zenagent3 application repo"
-    },
-    {
-      "name": "zenagent-agencheck",
-      "path": "~/Documents/Windsurf/zenagent/agencheck",
-      "description": "zenagent application repo"
-    },
-    {
-      "name": "dspy-preemployment-poc",
-      "path": "~/Documents/Windsurf/DSPY_PreEmploymentDirectory_PoC",
-      "description": "DSPy Pre-Employment Directory PoC"
-    },
-    {
-      "name": "hindsight",
-      "path": "/Users/theb/Documents/Windsurf/hindsight_fork",
-      "description": "Hindsight Memory Bank"
-    },
-    {
-      "name": "story-writer",
-      "path": "~/Documents/Windsurf/story-writer",
-      "description": "Story Writer project"
+      "name": "my-second-project",
+      "path": "~/projects/my-second-project",
+      "description": "Example second application repo"
     }
   ]
 }

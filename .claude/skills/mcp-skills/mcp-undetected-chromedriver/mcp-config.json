@@ -4,7 +4,7 @@
   "args": [
     "run",
     "--directory",
-    "/Users/theb/Documents/Windsurf/mcp-undetected-chromedriver",
+    "$HOME/mcp-undetected-chromedriver",
     "mcp-server-undetected-chromedriver"
   ],
   "env": null

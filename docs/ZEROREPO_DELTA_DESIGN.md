@@ -11,7 +11,7 @@
 
 ### Delta Classification Accuracy: 0%
 
-When run against `zenagent2/zenagent/agencheck/` (3,037-node baseline), the delta report shows:
+When run against `my-org/my-project/` (3,037-node baseline), the delta report shows:
 
 - **0 existing** nodes (should be many)
 - **0 modified** nodes
@@ -354,7 +354,7 @@ Phase 3: Validation → 3-level testing
 
 ### Wave 3: End-to-End Validation
 
-1. Run against agencheck codebase with real LLM
+1. Run against my-project codebase with real LLM
 2. Measure: existing/modified/new accuracy vs manual ground truth
 3. **Target**: >70% classification accuracy (from current 0%)
 

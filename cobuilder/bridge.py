@@ -181,7 +181,7 @@ def init_repo(
     If *name* is already registered, raises ``ValueError`` unless *force=True*.
 
     Args:
-        name: Short identifier for the repository (e.g. ``"agencheck"``).
+        name: Short identifier for the repository (e.g. ``"my-project"``).
         target_dir: Absolute path to the repository root to track.
         project_root: Root of the project that owns .repomap/ (default: cwd).
         force: If True, update an existing entry instead of raising.

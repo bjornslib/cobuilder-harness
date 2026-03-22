@@ -3,7 +3,7 @@
 **Status**: Draft v1
 **Date**: 2026-03-14
 **Parent PRD**: PRD-VCHAT-001-CHAT-AGENT-FIXES
-**Target repo**: `zenagent3/zenagent/agencheck`
+**Target repo**: `my-org3/my-org/my-project`
 
 ---
 
@@ -39,7 +39,7 @@ agent.py :: handle_form_event()
 
 ### 2.1 Remove Mode Gate in VerificationAgent
 
-**File**: `agencheck-communication-agent/livekit_prototype/cli_poc/voice_agent/verification_agents.py`
+**File**: `my-project-communication/livekit_prototype/cli_poc/voice_agent/verification_agents.py`
 **Line**: 1219
 
 **Current**:
@@ -84,7 +84,7 @@ Apply the same `{candidate_name}` / `{company}` interpolation to the `was_employ
 
 ### 2.3 Rebuild Agent on Discrepancy Snapshot
 
-**File**: `agencheck-communication-agent/livekit_prototype/cli_poc/voice_agent/agent.py`
+**File**: `my-project-communication/livekit_prototype/cli_poc/voice_agent/agent.py`
 **Function**: `handle_form_event()` (line 1913)
 **Section**: `FORM_STATE_SNAPSHOT` with `trigger == "discrepancy"` (lines 1975-2022)
 
@@ -216,7 +216,7 @@ Already addressed in §2.2. The employment instruction text in VerificationAgent
 
 ### 4.1 Add Current Date to Listener User Message
 
-**File**: `agencheck-support-agent/live_form_filler/services/listener_service.py`
+**File**: `my-project-backend/live_form_filler/services/listener_service.py`
 **Line**: ~421 (user_message template)
 
 **Add** after the `## VERIFICATION CONTEXT` header:
@@ -233,7 +233,7 @@ user_message = f"""## VERIFICATION CONTEXT
 
 ### 4.2 Add Current Date Rule to Form Filler System Prompt
 
-**File**: `agencheck-support-agent/live_form_filler/agent.py`
+**File**: `my-project-backend/live_form_filler/agent.py`
 **Line**: ~47 (within system_prompt, under DATE CALCULATION section)
 
 **Add** rule 5:

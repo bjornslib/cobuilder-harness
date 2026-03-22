@@ -1,7 +1,7 @@
 # Harness Documentation Gardening Report
 
 **Generated**: 2026-03-14T19:59:04
-**Target**: `/Users/theb/Documents/Windsurf/claude-harness-setup/.claude`
+**Target**: `$CLAUDE_PROJECT_DIR/.claude`
 **Mode**: EXECUTE (fixes applied)
 
 ## Summary
