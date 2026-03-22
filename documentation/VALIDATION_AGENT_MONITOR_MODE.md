@@ -76,7 +76,7 @@ Monitor captures detailed evidence:
 ```json
 {
   "file_exists": true,
-  "file_path": "$CLAUDE_PROJECT_DIR
+  "file_path": ".claude/tests/demo/test_monitor_demo.py",
   "file_size": 2098,
   "has_test_code": true,
   "pytest_output": "...",
@@ -157,7 +157,7 @@ python ~/.claude/validation/validation-test-agent-monitor.py \
 [INFO]
 [INFO] PHASE 2: Validating work product...
 [INFO] ----------------------------------------------------------------------
-[INFO] File found: $CLAUDE_PROJECT_DIR (2098 bytes)
+[INFO] File found: .claude/tests/demo/test_monitor_demo.py (2098 bytes)
 [INFO] File content (2098 chars)
 [INFO] Found test function definitions
 [INFO] Python syntax validation: OK
@@ -182,7 +182,7 @@ python ~/.claude/validation/validation-test-agent-monitor.py \
   "message": "Task #15 completed and work product validated",
   "evidence": {
     "file_exists": true,
-    "file_path": "$CLAUDE_PROJECT_DIR
+    "file_path": ".claude/tests/demo/test_monitor_demo.py",
     "file_size": 2098,
     "has_test_code": true,
     "pytest_output": "============================= test session starts ...",
