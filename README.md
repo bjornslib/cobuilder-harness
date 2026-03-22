@@ -255,9 +255,7 @@ Progressive disclosure wrappers for 9+ MCP servers — Context7 (framework docs)
 
 ## Installing in a Project
 
-CoBuilder is a Claude Code plugin. Install it once and all your Claude Code sessions in that project pick up the skills, hooks, output styles, and pipeline engine automatically.
-
-### Option A: Plugin Install (Recommended)
+CoBuilder is a Claude Code plugin. Install it once and all your Claude Code sessions in that project get the skills, hooks, output styles, and pipeline engine automatically.
 
 ```bash
 # 1. Clone the harness (once, anywhere on your machine)
@@ -269,44 +267,20 @@ pip install -e ~/cobuilder-harness
 # 3. Register the plugin in your target project
 cd /path/to/your-project
 claude plugin install --scope project --plugin-dir ~/cobuilder-harness/.claude
-```
 
-This registers the harness as a plugin in your project's `.claude/settings.json`:
-```json
-{ "enabledPlugins": { "cobuilder": true } }
-```
-
-### Option B: Symlink (Simpler, No Plugin CLI Needed)
-
-```bash
-# All projects share one harness — update once, every project gets it
-ln -s ~/cobuilder-harness/.claude /path/to/your-project/.claude
-ln -s ~/cobuilder-harness/.mcp.json /path/to/your-project/.mcp.json
-
-# Still need the Python package for pipeline execution
-pip install -e ~/cobuilder-harness
-```
-
-### Post-Install: Configure Credentials
-
-```bash
-# Copy the MCP config template and fill in your API keys
-cp ~/cobuilder-harness/.mcp.json.example /path/to/your-project/.mcp.json
+# 4. Copy the MCP config template and fill in your API keys
+cp ~/cobuilder-harness/.mcp.json.example .mcp.json
 # Edit .mcp.json with your ANTHROPIC_API_KEY, PERPLEXITY_API_KEY, etc.
 
-# Configure LLM profiles for the pipeline engine
-cp ~/cobuilder-harness/cobuilder/engine/.env.example cobuilder/engine/.env
+# 5. Configure LLM profiles for the pipeline engine
+cp ~/cobuilder-harness/cobuilder/engine/.env.example ~/cobuilder-harness/cobuilder/engine/.env
 # Edit .env with your API keys (DASHSCOPE_API_KEY for near-zero cost execution)
+
+# 6. Create runtime directories (gitignored)
+mkdir -p .pipelines/pipelines/signals .pipelines/pipelines/evidence
 ```
 
-### Post-Install: Create Runtime Directories
-
-```bash
-mkdir -p .pipelines/pipelines/signals
-mkdir -p .pipelines/pipelines/evidence
-```
-
-These are gitignored — they hold pipeline state, checkpoints, and signal files at runtime.
+Update the harness with `git pull` — all projects pick up the changes automatically.
 
 ## Directory Structure
 
