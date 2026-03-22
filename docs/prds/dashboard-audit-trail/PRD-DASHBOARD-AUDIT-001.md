@@ -11,13 +11,13 @@ last_verified: 2026-03-09T00:00:00.000Z
 **Date**: 2026-03-09
 **Status**: DRAFT — pending research → refine pipeline
 **Parent PRDs**: Epic 7 Structured Interpretation PRD (v1.4), Phase 1 UE-F Platform Infrastructure (Epic F.6)
-**Target Repo**: zenagent3/zenagent/agencheck (frontend + backend)
+**Target Repo**: my-org3/my-org/my-project (frontend + backend)
 
 ---
 
 ## 1. Executive Summary
 
-The AgenCheck checks-dashboard frontend incorrectly uses `task_id` (per-attempt UUID from `background_tasks`) for navigation and display, even though a stable case identity already exists via `cases.id` and the `background_tasks.case_id` FK. Customers cannot see the full audit trail — they see isolated task snapshots without understanding which step in the check sequence they're viewing.
+The MyProject checks-dashboard frontend incorrectly uses `task_id` (per-attempt UUID from `background_tasks`) for navigation and display, even though a stable case identity already exists via `cases.id` and the `background_tasks.case_id` FK. Customers cannot see the full audit trail — they see isolated task snapshots without understanding which step in the check sequence they're viewing.
 
 This PRD addresses three interconnected problems:
 
@@ -186,7 +186,7 @@ CREATE SEQUENCE cases_reference_seq START 1;
 2. Data: `candidate_name`, `employer_name` from case detail API
 
 #### B.4: Verification Results Comparison Table (left column, below candidate)
-1. Two-column comparison: "Candidate Claimed" vs "AgenCheck Verified"
+1. Two-column comparison: "Candidate Claimed" vs "MyProject Verified"
 2. Rows: Start Date, End Date, Employment Type, Position (from `verification_results` API field)
 3. Each verified field shows green check (match) or amber warning icon + "Mismatch" badge (discrepancy)
 4. Header badge: overall status — "Verified", "Discrepancy Found", "Pending" (shadcn Badge with variant)

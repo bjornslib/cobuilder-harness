@@ -176,7 +176,7 @@ def sensitive_endpoint():
 ## CRITICAL Issues (Block Merge)
 
 ### C001: Exposed API Key
-- **File**: `agencheck-support-agent/config.py:45`
+- **File**: `my-project-backend/config.py:45`
 - **Type**: OpenAI API Key
 - **Pattern**: `sk-proj-xxxxx...`
 - **Action Required**:

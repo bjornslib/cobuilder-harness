@@ -9,17 +9,17 @@ last_verified: 2026-03-07T00:00:00.000Z
 
 ## 1. Overview
 
-Add a **New Check** page to the AgenCheck customer dashboard, accessible from the checks-dashboard via a prominent `+ New check` button in the top-right header. The page allows users to submit a background verification check for a candidate by filling out a structured form.
+Add a **New Check** page to the MyProject customer dashboard, accessible from the checks-dashboard via a prominent `+ New check` button in the top-right header. The page allows users to submit a background verification check for a candidate by filling out a structured form.
 
 ## 2. Business Goals
 
 - Reduce friction for submitting new verification checks (currently requires navigating to the Voice Sandbox/aura-call page, which is intended for testing)
-- Provide a clean, production-grade form UI matching the AgenCheck design system (Stitch design)
+- Provide a clean, production-grade form UI matching the MyProject design system (Stitch design)
 - Re-use the existing `POST /api/verify` backend endpoint — zero backend work required
 
 ## 3. Users & Use Cases
 
-**Primary user**: HR Manager / Compliance Officer logged into AgenCheck dashboard
+**Primary user**: HR Manager / Compliance Officer logged into MyProject dashboard
 
 **Use case**: User is on checks-dashboard, wants to submit a new employment verification for a candidate. Clicks `+ New check`, fills out the form, submits.
 
@@ -119,8 +119,8 @@ On error: show inline error banner on the form.
 
 | Epic | Title | Bead | Description |
 | --- | --- | --- | --- |
-| E1 | New Check form page UI | agencheck-0h4w | Create `/checks-dashboard/new/page.tsx` with full form matching Stitch design |
-| E2 | Dashboard integration | agencheck-afm7 | Add `+ New check` button to dashboard header, wire navigation |
+| E1 | New Check form page UI | my-project-0h4w | Create `/checks-dashboard/new/page.tsx` with full form matching Stitch design |
+| E2 | Dashboard integration | my-project-afm7 | Add `+ New check` button to dashboard header, wire navigation |
 
 ## 9. Acceptance Criteria
 

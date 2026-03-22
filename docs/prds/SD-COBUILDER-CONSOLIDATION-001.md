@@ -24,7 +24,7 @@ This SD designs the consolidation: attractor scripts that are still active merge
 
 ## 2. Hindsight Findings
 
-Queried Hindsight (bank: `claude-code-agencheck`) before finalising this design.
+Queried Hindsight (bank: `claude-code-my-project`) before finalising this design.
 
 **Relevant prior learnings:**
 - **13 dead files** in `.claude/scripts/attractor/` were identified in the 2026-03-04 cleanup audit (POC scripts, tmux-era tools, deprecated signal protocol CLIs). These are confirmed dead and safe to delete.

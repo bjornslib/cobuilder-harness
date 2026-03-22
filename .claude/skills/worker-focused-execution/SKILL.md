@@ -197,7 +197,7 @@ SendMessage(
 
 ```json
 {
-  "scope": ["agencheck-support-frontend/components/ChatInterface.tsx"]
+  "scope": ["my-project-frontend/components/ChatInterface.tsx"]
 }
 ```
 
@@ -380,7 +380,7 @@ const snapshot = await browser_snapshot();
 curl http://localhost:8000/health
 
 # Test endpoint
-curl -X POST http://localhost:8000/agencheck \
+curl -X POST http://localhost:8000/my-project \
   -H "Content-Type: application/json" \
   -d '{"query": "test", "thread_id": "test-001"}'
 ```

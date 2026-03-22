@@ -145,8 +145,8 @@ These types are used as `subagent_type` when spawning teammates via `Task(..., t
 
 ```bash
 # Services (see VALIDATION.md for details)
-./agencheck-support-agent/start_services.sh
-cd agencheck-support-frontend && npm run dev
+./my-project-backend/start_services.sh
+cd my-project-frontend && npm run dev
 
 # Task status (Beads - RECOMMENDED)
 bd ready                                    # Get unblocked tasks
@@ -262,16 +262,16 @@ UBER-EPIC: "Q1 Authentication System"
 ```bash
 # 1. Create uber-epic (ALWAYS FIRST)
 bd create --title="Q1 Authentication System" --type=epic --priority=1
-# Returns: agencheck-001
+# Returns: my-project-001
 
 # 2. Create functional epic + paired AT epic
-bd create --title="User Login Flow" --type=epic --priority=2           # agencheck-002
-bd create --title="AT-User Login Flow" --type=epic --priority=2        # agencheck-003
-bd dep add agencheck-002 agencheck-003 --type=blocks                   # AT blocks functional
+bd create --title="User Login Flow" --type=epic --priority=2           # my-project-002
+bd create --title="AT-User Login Flow" --type=epic --priority=2        # my-project-003
+bd dep add my-project-002 my-project-003 --type=blocks                   # AT blocks functional
 
 # 3. Create tasks under each epic
 bd create --title="Implement login API" --type=task --priority=2
-bd dep add agencheck-004 agencheck-002 --type=parent-child             # Task under epic
+bd dep add my-project-004 my-project-002 --type=parent-child             # Task under epic
 ```
 
 **Dependency Types**:
@@ -305,10 +305,10 @@ bd dep add agencheck-004 agencheck-002 --type=parent-child             # Task un
 
 **Planning Workflow**:
 ```bash
-# 1. Create uber-epic in zenagent/ (from validated PRD)
-cd /Users/theb/Documents/Windsurf/zenagent
+# 1. Create uber-epic in my-org/ (from validated PRD)
+cd $CLAUDE_PROJECT_DIR
 bd create --title="[Initiative from PRD]" --type=epic --priority=1
-# Note the returned ID (e.g., agencheck-001)
+# Note the returned ID (e.g., my-project-001)
 
 # 2. Create Solution Design (SD) per epic from PRD
 #    Delegate to solution-design-architect worker — do NOT write SD yourself
@@ -353,12 +353,12 @@ task-master analyze-complexity --research
 task-master expand --all --research
 # Note the new ID range (e.g., 171-210)
 
-# 5. Sync ONLY new tasks to Beads (run from zenagent/ root!)
-cd /Users/theb/Documents/Windsurf/zenagent
-node agencheck/.claude/skills/orchestrator-multiagent/scripts/sync-taskmaster-to-beads.js \
-    --uber-epic=agencheck-001 \
+# 5. Sync ONLY new tasks to Beads (run from my-org/ root!)
+cd $CLAUDE_PROJECT_DIR
+node my-project/.claude/skills/orchestrator-multiagent/scripts/sync-taskmaster-to-beads.js \
+    --uber-epic=my-project-001 \
     --from-id=171 --to-id=210 \
-    --tasks-path=agencheck/.taskmaster/tasks/tasks.json
+    --tasks-path=my-project/.taskmaster/tasks/tasks.json
 # This also closes Task Master tasks 171-210 (status=done)
 
 # 6. Generate acceptance tests from SD (IMMEDIATELY after sync)
@@ -387,8 +387,8 @@ cobuilder pipeline validate \
     .pipelines/pipelines/auth-001.dot
 
 # 8. Review hierarchy (filter by uber-epic)
-bd list --parent=agencheck-001   # See only tasks under this initiative
-bd ready --parent=agencheck-001  # Ready tasks for this initiative only
+bd list --parent=my-project-001   # See only tasks under this initiative
+bd ready --parent=my-project-001  # Ready tasks for this initiative only
 
 # 9. Commit planning artifacts (completes Phase 1)
 git add .beads/ .taskmaster/docs/ .pipelines/pipelines/ && \
@@ -412,10 +412,10 @@ bd create --title="[Hotfix Description]" --type=epic --priority=1
 
 ### Sync Script Reference (Task Master → Beads)
 
-**🚨 Run from project root** (e.g., `zenagent/`) to use the correct `.beads` database.
+**🚨 Run from project root** (e.g., `my-org/`) to use the correct `.beads` database.
 
 ```bash
-node agencheck/.claude/skills/orchestrator-multiagent/scripts/sync-taskmaster-to-beads.js \
+node my-project/.claude/skills/orchestrator-multiagent/scripts/sync-taskmaster-to-beads.js \
     --uber-epic=<id> --from-id=<start> --to-id=<end> --tasks-path=<path>
 ```
 
@@ -425,7 +425,7 @@ node agencheck/.claude/skills/orchestrator-multiagent/scripts/sync-taskmaster-to
 - ✅ Creates beads with rich field mapping (description, design, acceptance)
 - ✅ Links all beads to uber-epic via parent-child
 - ✅ Closes synced Task Master tasks (status=done)
-- ✅ Filter by initiative: `bd ready --parent=agencheck-001`
+- ✅ Filter by initiative: `bd ready --parent=my-project-001`
 
 ### Phase 2: Execution (Incremental Implementation)
 
@@ -616,8 +616,8 @@ bd update <bd-id> --status=impl_complete
 
 ```bash
 # Start services (see VALIDATION.md for details)
-cd agencheck-support-agent && ./start_services.sh
-cd agencheck-support-frontend && npm run dev
+cd my-project-backend && ./start_services.sh
+cd my-project-frontend && npm run dev
 
 # Verify services running
 lsof -i :5001 -i :8000 -i :5184 -i :5185 | grep LISTEN
@@ -906,7 +906,7 @@ Status is persisted in the DOT file itself. After context compaction or session 
 - v5.1: **ZeroRepo Integration** - Added codebase-aware orchestration via ZeroRepo delta analysis. New Step 2.5 in Phase 1 planning runs `zerorepo init` + `zerorepo generate` to classify PRD components as EXISTING/MODIFIED/NEW. Delta context enriches worker task assignments with precise file paths and change summaries. New ZEROREPO.md reference guide. Three wrapper scripts (`zerorepo-init.sh`, `zerorepo-generate.sh`, `zerorepo-update.sh`). Codebase-Aware Task Creation workflow added to WORKFLOWS.md.
 - v5.0: **Native Agent Teams** - Replaced Task subagent worker delegation with native Agent Teams (Teammate + TaskCreate + SendMessage). Workers are now persistent teammates that claim tasks from a shared TaskList, communicate peer-to-peer, and maintain session state across multiple assignments. Validator is a team role (not a separate Task subagent). Worker communication uses native team inboxes. Fallback to Task subagent mode when AGENT_TEAMS is not enabled.
 - v4.0: **Task-Based Worker Delegation** - Replaced tmux worker delegation with Task subagents. Workers now receive assignments via `Task(subagent_type="...")` and return results directly. No session management, monitoring loops, or cleanup required. Parallel workers use `run_in_background=True` with `TaskOutput()` collection. System 3 -> Orchestrator still uses tmux for session isolation; Orchestrator -> Worker now uses Task subagents.
-- v3.13: 🆕 **Sync Script Finalization** - Sync script now auto-closes Task Master tasks after sync (status=done). Removed mapping file (redundant with beads hierarchy). **IMPORTANT**: Must run from `zenagent/` root to use correct `.beads` database. Updated all docs with correct paths and `--tasks-path` usage.
+- v3.13: 🆕 **Sync Script Finalization** - Sync script now auto-closes Task Master tasks after sync (status=done). Removed mapping file (redundant with beads hierarchy). **IMPORTANT**: Must run from `my-org/` root to use correct `.beads` database. Updated all docs with correct paths and `--tasks-path` usage.
 - v3.12: **ID Range Filtering** - `--from-id=<id>` and `--to-id=<id>` to filter which Task Master tasks to sync. Essential for multi-PRD projects.
 - v3.11: **Enhanced Sync Script** - `--uber-epic=<id>` for parent-child linking. Auto-maps description, details→design, testStrategy→acceptance.
 - v3.10: **Reference Consolidation** - Created REFERENCE.md as quick reference card. Merged BEADS_INTEGRATION.md, README.md, and ORCHESTRATOR_INITIALIZATION_TEMPLATE.md into REFERENCE.md. Reduced reference files from 6 to 5. Essential commands, patterns, and session templates now in single quick-lookup location.

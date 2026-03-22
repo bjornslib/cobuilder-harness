@@ -12,7 +12,7 @@
 
 Guardian and runner use different signal directories:
 - Guardian reads from harness repo: `claude-harness-setup/.cobuilder/signals/`
-- Runner writes to impl repo worktree: `zenagent/.claude/worktrees/verify-check-002/.cobuilder/signals/`
+- Runner writes to impl repo worktree: `my-project/.claude/worktrees/verify-check-002/.cobuilder/signals/`
 
 Result: Guardian's `wait_for_signal.py` never finds runner's RUNNER_EXITED signal. Guardian waits full 600s timeout, then discovers signal on filesystem scan of the wrong directory.
 

@@ -1,8 +1,8 @@
 ---
 title: "CoBuilder Plugin Migration & Setup Command"
 description: "Solution design for converting cobuilder-harness into a Claude Code plugin with /setup command and project-specific file separation"
-version: "1.0.0"
-last-updated: 2026-03-21
+version: "1.1.0"
+last-updated: 2026-03-22
 status: active
 type: sd
 grade: authoritative
@@ -410,6 +410,89 @@ Options:
 
 ---
 
+## 4b. Optional Extensions Mechanism
+
+### Problem
+
+The plugin ships with ~13 hooks and ~41 skills, but only 4 hooks and 3 skills are core. Users shouldn't be burdened with GChat integration, Serena enforcement, or doc-gardener hooks unless they opt in.
+
+### Solution: Core-Only hooks.json + Documented Opt-In
+
+The `hooks.json` shipped with the plugin includes **only core hooks**:
+
+| Hook | Event | Purpose |
+|------|-------|---------|
+| `session-start-orchestrator-detector.py` | SessionStart | Orchestrator mode detection |
+| `load-mcp-skills.sh` | SessionStart | MCP skills progressive disclosure |
+| `user-prompt-orchestrator-reminder.py` | UserPromptSubmit | Orchestrator delegation enforcement |
+| `unified-stop-gate.sh` | Stop | Session completion validation |
+
+Extension hooks (GChat, Hindsight, Serena, doc-gardener) remain in the plugin directory but are **not referenced in hooks.json**. Users enable them via `settings.local.json`:
+
+```json
+{
+  "hooks": {
+    "Notification": [{
+      "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/gchat-notification-dispatch.py" }]
+    }],
+    "PreToolUse": [{
+      "matcher": "Bash",
+      "hooks": [{ "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/doc-gardener-pre-push-hook.py", "timeout": 65 }]
+    }]
+  }
+}
+```
+
+### Extension Categories
+
+| Category | Hooks | Enable When |
+|----------|-------|-------------|
+| **GChat Integration** | `gchat-notification-dispatch.py`, `gchat-ask-user-forward.py` | Team uses Google Chat for async notifications |
+| **Serena Enforcement** | `serena_enforce_pretool.py`, `serena_enforce_posttool.py` | Project uses Serena for code navigation |
+| **Documentation Governance** | `doc-gardener-pre-push-hook.py` | Project enforces documentation standards |
+| **Memory Persistence** | `hindsight-memory-flush.py` | Running Hindsight MCP server for long-term memory |
+
+### Optional Skills
+
+All 38 non-core skills ship in the plugin directory but are not auto-loaded (skills require explicit invocation). No mechanism change needed — they are optional by design.
+
+### providers.yaml
+
+`cobuilder/engine/providers.yaml` ships as part of the pip package with current LLM profiles as a working starting point. Users customize per-project via environment variables or by editing the file directly.
+
+---
+
+## 4c. Dead Files — Delete from Repository
+
+Deep research (2026-03-22) identified files/directories with **zero code references** that are historical artifacts. These should be deleted from the repository entirely, not just stripped from the plugin.
+
+### Root-Level Dead Files
+
+| File/Directory | Contents | Evidence |
+|---------------|----------|----------|
+| `learnings/` | 3 md files (decomposition, coordination, failures) | Zero grep hits across entire codebase |
+| `pinchtab/` | Empty directory | Only referenced in 2 old design docs |
+| `src/` | `api.py`, `api_endpoint.py` | Test fixture stubs only imported by `tests/test_api_endpoint.py` |
+| `state/` | `add_numbers.py`, `test_add_numbers.py`, `ADD-TWO-NUMBERS-bs.md` | Demo artifacts from System 3 showcase |
+| `E0-IMPL-PIPELINE-PROGRESS-MONITOR-SUMMARY.md` | Historical summary | Zero incoming references |
+| `IMPLEMENTATION_VERIFICATION_E3.md` | Historical verification | References `.claude/progress/` which doesn't exist |
+| `API_README.md` | API readme for dead `src/api.py` | Zero references |
+| `guardian-workflow.md` | Workflow doc | Duplicate of `.claude/skills/cobuilder-guardian/references/guardian-workflow.md` |
+| `phase0-prd-design.md` | PRD design guide | Duplicate of `.claude/skills/cobuilder-guardian/references/phase0-prd-design.md` |
+| `settings.json` (root) | Stale copy of `.claude/settings.json` | Diverged — has zenagent-specific webhook, extra hooks. Claude Code reads `.claude/settings.json` |
+| `docs-gardener.config.json` (root) | Stale config | Active config at `.claude/scripts/doc-gardener/docs-gardener.config.json` |
+
+### .claude/ Dead Directories
+
+| Directory | Contents | Evidence |
+|-----------|----------|----------|
+| `.claude/schemas/` | `v3.9-agent-quick-reference.md`, `v3.9-contact-schema.md` (70KB) | Zero code references. Agencheck-communication-agent specific schemas |
+| `.claude/narrative/` | `harness-upgrade.md` (825 bytes) | Only referenced by optional hindsight-narrative-logger hook. Stale content |
+| `.claude/scripts/attractor/` | 13 Python deprecation wrappers | All files are thin shims with `DeprecationWarning` pointing to `cobuilder/engine/`. Past deprecation expiry date |
+| `.claude/user-input-queue/` | `.gitkeep` + `README.md` | Referenced in old PRDs as aspirational. Never actually used by any code |
+
+---
+
 ## 5. Workstream 3: Project-Specific File Cleanup
 
 ### 5.1 Files to Remove (Project-Specific Artifacts)
@@ -427,14 +510,11 @@ These files contain hardcoded paths (`/Users/theb/...`), project names (`zenagen
 !.claude/evidence/.gitkeep
 ```
 
-#### 5.1.2 Targets Configuration — DELETE
+#### 5.1.2 Targets Configuration — KEEP & SANITIZE
 
-`.claude/skills/setup-harness/targets.json` — Contains hardcoded paths to specific machines:
-- `~/Documents/Windsurf/zenagent2/zenagent/agencheck`
-- `/Users/theb/Documents/Windsurf/hindsight_fork`
-- etc.
+`.claude/skills/setup-harness/targets.json` — Contains hardcoded paths to specific machines. The file itself is structurally useful as a deploy target registry.
 
-**Action**: Delete. Replace with `targets.json.example` containing placeholder entries.
+**Action**: Keep the file but replace hardcoded machine paths with generic placeholder entries using `$CLAUDE_PROJECT_DIR`.
 
 #### 5.1.3 Hardcoded Path References — UPDATE
 
@@ -623,7 +703,8 @@ Execute in this order to minimize breakage:
 
 | Epic | Status | Date | Commit |
 |------|--------|------|--------|
-| Phase 1: Clean | Remaining | - | - |
+| Phase 0: Delete dead files | Done | 2026-03-22 | (this PR) |
+| Phase 1: Clean | Done | 2026-03-22 | (this PR) |
 | Phase 2: Plugin Structure | Remaining | - | - |
 | Phase 3: Setup Command | Remaining | - | - |
 | Phase 4: Validate | Remaining | - | - |

@@ -16,7 +16,7 @@ grade: reference
 ### 1. Project Activation
 ```python
 # ALWAYS activate Serena project first
-mcp__serena__activate_project("agencheck")
+mcp__serena__activate_project("my-project")
 ```
 
 ### 2. Configuration Check  
@@ -148,7 +148,7 @@ mcp__serena__think_about_whether_you_are_done()
 ### Code Analysis Workflow
 ```bash
 # 1. Activate and get overview
-mcp__serena__activate_project("agencheck")
+mcp__serena__activate_project("my-project")
 mcp__serena__get_symbols_overview(".")
 
 # 2. Find specific functionality  
@@ -244,7 +244,7 @@ mcp__serena__restart_language_server()
 mcp__serena__get_current_config()
 
 # Re-activate if necessary
-mcp__serena__activate_project("agencheck")
+mcp__serena__activate_project("my-project")
 ```
 
 ## Integration with Other Tools

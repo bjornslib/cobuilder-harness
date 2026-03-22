@@ -4,7 +4,7 @@ How agents query their own runtime behavior using Pydantic Logfire.
 
 ## Overview
 
-Logfire provides OpenTelemetry-based observability for all agencheck services. Agents access Logfire data through the `logfire-mcp` MCP server, which exposes SQL queries over trace/span/log data collected automatically by the Logfire SDK (v4.17.0+).
+Logfire provides OpenTelemetry-based observability for all project services. Agents access Logfire data through the `logfire-mcp` MCP server, which exposes SQL queries over trace/span/log data collected automatically by the Logfire SDK (v4.17.0+).
 
 ## Available MCP Tools
 

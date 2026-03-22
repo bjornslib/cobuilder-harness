@@ -375,7 +375,7 @@ Two new graph-level attributes:
 digraph "PRD-COBUILDER-WEB-001" {
     graph [
         prd_ref="PRD-COBUILDER-WEB-001"
-        target_dir="/Users/theb/Documents/Windsurf/target-repo"
+        target_dir="/path/to/target-repo"
         worktree_path=".claude/worktrees/PRD-COBUILDER-WEB-001/"  // NEW
         base_branch="main"                                         // NEW (optional)
     ];
@@ -527,7 +527,7 @@ For this epic, the `cleanup()` method is the primary defense. The PRD notes that
 
 ### 7.5 Path Length Limits
 
-**Risk:** Deeply nested paths like `/Users/theb/Documents/Windsurf/target-repo/.claude/worktrees/PRD-COBUILDER-WEB-001/` approach filesystem limits on some platforms.
+**Risk:** Deeply nested paths like `/path/to/target-repo/.claude/worktrees/PRD-COBUILDER-WEB-001/` approach filesystem limits on some platforms.
 
 **Mitigation:** The `prd_id` is used directly as the directory name (no additional nesting). PRD IDs are typically 15-25 characters. The full path stays well under the 260-character Windows limit and the 1024-character macOS/Linux limit. No action needed beyond documenting the convention.
 

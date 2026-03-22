@@ -98,7 +98,7 @@ class TestWorkerInitialPrompt:
             prd_ref="PRD-HARNESS-UPGRADE-001",
             acceptance="AC-7.1.1: Worker system prompt under 4K chars.",
             solution_design="docs/sds/harness-upgrade/SD-HARNESS-UPGRADE-001-E7.1-worker-prompt.md",
-            target_dir="/Users/theb/Documents/Windsurf/claude-harness-setup",
+            target_dir="$CLAUDE_PROJECT_DIR",
         )
 
     def test_contains_prd_reference(self):

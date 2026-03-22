@@ -1,6 +1,6 @@
 #!/bin/bash
 # Documentation Cleanup Utility
-# Epic 6: Documentation Cleanup (agencheck-b3d)
+# Epic 6: Documentation Cleanup (my-project-b3d)
 #
 # Implements:
 #   AC-20: Audit existing docs across 40+ directories, generate inventory
@@ -29,7 +29,7 @@ fi
 # CONFIGURATION
 # ============================================
 
-# Project root (agencheck)
+# Project root (my-project)
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
 # All documentation directories to audit (expanded list for AC-20)
@@ -46,21 +46,21 @@ AUDIT_DIRECTORIES=(
     ".taskmaster/docs"
 
     # Service-specific documentation
-    "agencheck-support-agent/documentation"
-    "agencheck-support-frontend/documentation"
-    "agencheck-communication-agent/documentation"
-    "agencheck-communication-agent/docs"
-    "agencheck-communication-agent/livekit_prototype/cli_poc/voice_agent/documentation"
-    "agencheck-communication-agent/livekit_prototype/cli_poc/voice_agent/docs"
+    "my-project-backend/documentation"
+    "my-project-frontend/documentation"
+    "my-project-communication/documentation"
+    "my-project-communication/docs"
+    "my-project-communication/livekit_prototype/cli_poc/voice_agent/documentation"
+    "my-project-communication/livekit_prototype/cli_poc/voice_agent/docs"
 
     # MCP tools
-    "agencheck-mcp-tools/Agent-MCP/docs"
+    "my-project-mcp-tools/Agent-MCP/docs"
 
     # Deep research
-    "agencheck-support-agent/eddy_deep_research/documentation"
+    "my-project-backend/eddy_deep_research/documentation"
 
     # User chat docs
-    "agencheck-support-agent/user_chat/docs"
+    "my-project-backend/user_chat/docs"
 
     # Root docs
     "docs"
@@ -667,7 +667,7 @@ EOF
 show_help() {
     cat << EOF
 Documentation Cleanup Utility
-Epic 6: Documentation Cleanup (agencheck-b3d)
+Epic 6: Documentation Cleanup (my-project-b3d)
 
 Usage: $0 [command] [args...]
 

@@ -11,8 +11,7 @@
       "Bash(npm:*)",
       "Bash(python:*)",
       "Bash(pytest:*)",
-      "Bash(task-master:*)",
-      "Write(//Users/theb/Documents/Windsurf/zenagent2/zenagent/agencheck/agencheck-support-frontend/__tests__/e2e/specs/J*.md)"
+      "Bash(task-master:*)"
     ]
   },
   "hooks": {
@@ -21,7 +20,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/Users/theb/.claude/hooks/session-start-orchestrator-detector.py"
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/session-start-orchestrator-detector.py"
           }
         ]
       },
@@ -39,7 +38,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/Users/theb/.claude/hooks/user-prompt-orchestrator-reminder.py"
+            "command": "$CLAUDE_PROJECT_DIR/.claude/hooks/user-prompt-orchestrator-reminder.py"
           }
         ]
       }

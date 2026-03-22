@@ -165,9 +165,9 @@ The `/verify-check` page displays salary amount and currency as separate fields.
 
 ## 3. Target Repository
 
-**Codebase**: `zenagent2/zenagent/agencheck`
-- Frontend: `agencheck-support-frontend/` (Next.js, TypeScript, shadcn/ui)
-- Backend: `agencheck-support-agent/` (FastAPI, Pydantic, Python)
+**Codebase**: `my-org/my-project`
+- Frontend: `my-project-frontend/` (Next.js, TypeScript, shadcn/ui)
+- Backend: `my-project-backend/` (FastAPI, Pydantic, Python)
 
 ## 4. Scope
 
@@ -278,16 +278,16 @@ Epic 1 (Canonical Types + ISO)
 
 | Layer | File | Purpose |
 |-------|------|---------|
-| Canonical Models | `agencheck-support-agent/models/work_history.py` | Single source of truth |
-| Contact Models | `agencheck-support-agent/models/contacts.py` | AdditionalContact, EmployerContact |
-| Backend Router | `agencheck-support-agent/api/routers/work_history.py` | /api/v1/verify (imports from canonical) |
-| Case Service | `agencheck-support-agent/helpers/work_history_case.py` | Case creation + JSONB writes |
-| Outcome Builder | `agencheck-support-agent/live_form_filler/services/outcome_builder.py` | Live Form Filler → VerificationOutcome |
-| DB Writer | `agencheck-support-agent/live_form_filler/services/database_writer.py` | Write outcomes to cases table |
-| PostCheckProcessor | `agencheck-support-agent/prefect_flows/flows/tasks/process_post_call.py` | Transcript → VerificationOutcome |
-| Frontend Form | `agencheck-support-frontend/app/checks-dashboard/new/page.tsx` | New Case form |
-| Frontend Proxy | `agencheck-support-frontend/app/api/verify/route.ts` | Field mapping to backend |
-| TS Types | `agencheck-support-frontend/lib/types/work-history.generated.ts` | Auto-generated from Pydantic |
+| Canonical Models | `my-project-backend/models/work_history.py` | Single source of truth |
+| Contact Models | `my-project-backend/models/contacts.py` | AdditionalContact, EmployerContact |
+| Backend Router | `my-project-backend/api/routers/work_history.py` | /api/v1/verify (imports from canonical) |
+| Case Service | `my-project-backend/helpers/work_history_case.py` | Case creation + JSONB writes |
+| Outcome Builder | `my-project-backend/live_form_filler/services/outcome_builder.py` | Live Form Filler → VerificationOutcome |
+| DB Writer | `my-project-backend/live_form_filler/services/database_writer.py` | Write outcomes to cases table |
+| PostCheckProcessor | `my-project-backend/prefect_flows/flows/tasks/process_post_call.py` | Transcript → VerificationOutcome |
+| Frontend Form | `my-project-frontend/app/checks-dashboard/new/page.tsx` | New Case form |
+| Frontend Proxy | `my-project-frontend/app/api/verify/route.ts` | Field mapping to backend |
+| TS Types | `my-project-frontend/lib/types/work-history.generated.ts` | Auto-generated from Pydantic |
 
 ## Implementation Status
 

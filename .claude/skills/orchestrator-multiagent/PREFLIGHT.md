@@ -141,10 +141,10 @@ bd list --status=closed
 **Level 1: Unit Tests**
 ```bash
 # Backend
-cd agencheck-support-agent && pytest tests/ -v --tb=short
+cd my-project-backend && pytest tests/ -v --tb=short
 
 # Frontend
-cd agencheck-support-frontend && npm run test
+cd my-project-frontend && npm run test
 ```
 
 **Level 2: API Tests**
@@ -197,7 +197,7 @@ mcp__hindsight__recall("What is the current initiative and its goals?")
 ```bash
 # Step 1: Create uber-epic
 bd create --title="[Initiative Name]" --type=epic --priority=1
-# Save the returned ID (e.g., agencheck-xyz)
+# Save the returned ID (e.g., my-project-xyz)
 
 # Step 2: Create capability stream epics
 bd create --title="[Stream A]" --type=epic --priority=2

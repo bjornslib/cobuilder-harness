@@ -28,7 +28,7 @@ Fixed:
 
 ## Implementation
 
-### File 1: `agencheck-support-agent/live_form_filler/ag_ui_routes.py`
+### File 1: `my-project-backend/live_form_filler/ag_ui_routes.py`
 
 In `ingest_chat_message()` (~line 432), after pushing to SSE queue, publish the chat message to the LK room using LiveKit server-side API:
 
@@ -64,7 +64,7 @@ async def _publish_chat_to_lk_room(room_name: str, speaker: str, text: str):
 
 Call `_publish_chat_to_lk_room()` inside `ingest_chat_message()` for BOTH user and assistant messages.
 
-### File 2: `agencheck-support-agent/live_form_filler/services/listener_service.py`
+### File 2: `my-project-backend/live_form_filler/services/listener_service.py`
 
 In `process_transcription_data()` (~line 311), the existing handler already processes any data packet with `{"type": "transcription"}` format. The only change needed:
 

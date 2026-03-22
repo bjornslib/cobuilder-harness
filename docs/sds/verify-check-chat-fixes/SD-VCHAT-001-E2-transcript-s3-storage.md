@@ -89,7 +89,7 @@ This may require adding `chat_transcript_s3_key` column to the relevant table, o
 
 ### 4. PostCheckProcessor: Evaluate Both Transcripts
 
-**File**: `agencheck-support-agent/prefect_flows/flows/tasks/process_post_call.py`
+**File**: `my-project-backend/prefect_flows/flows/tasks/process_post_call.py`
 
 Modify to accept optional `chat_transcript_s3_key`:
 

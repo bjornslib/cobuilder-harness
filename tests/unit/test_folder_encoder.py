@@ -349,7 +349,7 @@ class TestFolderEncoderBaselineIntegration:
         )
         # Simulate converter copying file_path from baseline (but not folder_path)
         # This creates a mismatch: file_path doesn't match the hierarchy-based folder_path
-        child.file_path = "agencheck-communication-agent/livekit_prototype/cli_poc/voice_agent/agent.py"
+        child.file_path = "my-project-backend/livekit_prototype/cli_poc/voice_agent/agent.py"
         graph.add_node(child)
         graph.add_edge(_make_hierarchy_edge(root.id, child.id))
 
@@ -399,7 +399,7 @@ class TestFolderEncoderBaselineIntegration:
 
         # Baseline node with hyphenated folder path (real filesystem)
         bnode = _make_node("dispatch_work_history_call", level=NodeLevel.COMPONENT)
-        bnode.folder_path = "agencheck-communication-agent/helpers/"
+        bnode.folder_path = "my-project-backend/helpers/"
         baseline.add_node(bnode)
 
         # New graph node with matching name
@@ -410,7 +410,7 @@ class TestFolderEncoderBaselineIntegration:
         enc.encode(graph, baseline=baseline)
 
         # Original filesystem hyphens should be preserved
-        assert node.folder_path == "agencheck-communication-agent/helpers/"
+        assert node.folder_path == "my-project-backend/helpers/"
         assert "-" in node.folder_path
         assert node.metadata.get("baseline_folder_used") is True
 

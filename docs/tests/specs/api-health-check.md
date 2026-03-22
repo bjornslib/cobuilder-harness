@@ -54,7 +54,7 @@ Validates that all backend service health endpoints return HTTP 200 with appropr
     - Expected: FastAPI auto-generated Swagger/OpenAPI documentation page loads
 
 11. **Assert** the API documentation page renders with endpoint listings
-    - Expected: Swagger UI is visible with at least the `/health` and `/agencheck` endpoints listed
+    - Expected: Swagger UI is visible with at least the `/health` and `/my-project` endpoints listed
 
 12. **Capture** screenshot of API documentation page
     - Target: `screenshots/12-api-docs.png`

@@ -39,7 +39,7 @@ def find_transcript_for_cwd(cwd: str) -> Path | None:
     Claude Code stores transcripts in ~/.claude/projects/-path-to-project/
     """
     # Convert cwd to Claude's project directory format
-    # e.g., /Users/theb/project -> -Users-theb-project
+    # e.g., /home/user/project -> -home-user-project
     project_slug = cwd.replace("/", "-")
     if project_slug.startswith("-"):
         project_slug = project_slug  # Keep leading dash

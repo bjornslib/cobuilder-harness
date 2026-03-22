@@ -23,7 +23,7 @@ grade: reference
 ### Initial Context Gathering
 ```bash
 # 1. Activate Serena project (ALWAYS FIRST)
-mcp__serena__activate_project("agencheck")
+mcp__serena__activate_project("my-project")
 
 # 2. Check configuration and onboarding
 mcp__serena__check_onboarding_performed()

@@ -16,7 +16,7 @@ Mode switch messages (`{"type": "mode_switch", "mode": "voice|chat"}`) are sent 
 
 ### Backend: Filter Mode Switch in chat_text_handler
 
-**File**: `agencheck-support-agent/live_form_filler/agent.py`
+**File**: `my-project-backend/live_form_filler/agent.py`
 
 Add a filter at the TOP of the chat text handler, before any LLM processing:
 

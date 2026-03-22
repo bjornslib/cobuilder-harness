@@ -5,11 +5,11 @@
   "prerequisites": ["codebase-quality:security", "codebase-quality:code-quality"],
   "input": {
     "changed_files": [
-      "agencheck-support-agent/main.py",
-      "agencheck-support-agent/utils/helpers.py"
+      "my-project-backend/main.py",
+      "my-project-backend/utils/helpers.py"
     ],
     "trigger": "post_feature",
-    "bead_id": "agencheck-xyz"
+    "bead_id": "my-project-xyz"
   },
   "result": {
     "status": "updated",
@@ -19,7 +19,7 @@
     "updates_applied": {
       "claude_md": [
         {
-          "file": "agencheck-support-agent/CLAUDE.md",
+          "file": "my-project-backend/CLAUDE.md",
           "changes": ["Added new utility pattern", "Updated dependencies section"]
         }
       ],

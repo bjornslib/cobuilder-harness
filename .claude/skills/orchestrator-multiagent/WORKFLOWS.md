@@ -193,13 +193,13 @@ LOOP:
 
 **Backend (Python/pytest)**:
 ```bash
-cd agencheck-support-agent
+cd my-project-backend
 pytest tests/ -v --tb=short
 ```
 
 **Frontend (TypeScript/Jest)**:
 ```bash
-cd agencheck-support-frontend
+cd my-project-frontend
 npm run test -- --coverage
 ```
 
@@ -215,7 +215,7 @@ curl -s http://localhost:5184/health | jq .
 curl -s http://localhost:5185/health | jq .
 
 # Feature-specific endpoints
-curl -X POST http://localhost:8000/agencheck \
+curl -X POST http://localhost:8000/my-project \
   -H "Content-Type: application/json" \
   -d '{"query": "test message", "session_id": "test-123"}'
 ```

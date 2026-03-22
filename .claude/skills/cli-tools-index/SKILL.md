@@ -5,11 +5,11 @@ status: active
 
 # CLI Tools Index
 
-This skill provides documentation and usage examples for various CLI helper scripts used within the AgenCheck project.
+This skill provides documentation and usage examples for various CLI helper scripts used within the My Project project.
 
 ## `subthread_cycle_helper.py`
 
-**Location**: `agencheck-communication-agent/helpers/subthread_cycle_helper.py`
+**Location**: `my-project-communication/helpers/subthread_cycle_helper.py`
 
 **Purpose**: Bash-callable wrapper for SubThreadManager operations, providing a synchronous interface to manage university contact validation cycles (sub-threads). It is called ONLY by Aura Communicator sub-agents via bash commands.
 

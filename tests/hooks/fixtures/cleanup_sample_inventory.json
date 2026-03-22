@@ -43,7 +43,7 @@
           "type": "claude_config"
         },
         {
-          "path": "agencheck-support-agent/CLAUDE.md",
+          "path": "my-project-backend/CLAUDE.md",
           "type": "service_specific"
         }
       ]

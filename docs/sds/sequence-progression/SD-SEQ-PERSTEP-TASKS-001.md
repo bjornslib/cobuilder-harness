@@ -10,7 +10,7 @@ last_verified: 2026-03-11
 
 **PRD**: PRD-SEQ-PROGRESSION-001 (Epic E), PRD-DASHBOARD-AUDIT-001 (Epic A prerequisite)
 **Parent SDs**: SD-SEQ-PROGRESSION-001 (advance_sequence), SD-SEQ-RETRY-LOOP-001 (guard + retry loop)
-**Target Repo**: zenagent2/zenagent/agencheck/agencheck-support-agent
+**Target Repo**: my-org/my-project/my-project-backend
 **Estimated Effort**: ~2 days
 
 ---

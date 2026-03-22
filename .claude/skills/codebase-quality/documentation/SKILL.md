@@ -134,12 +134,12 @@ owners:
 
 **Hierarchy**:
 ```
-agencheck/CLAUDE.md (root)
-    ├── agencheck-support-agent/CLAUDE.md
+my-project/CLAUDE.md (root)
+    ├── my-project-backend/CLAUDE.md
     │       ├── eddy_validate/CLAUDE.md
     │       └── user_chat/CLAUDE.md
-    ├── agencheck-support-frontend/CLAUDE.md
-    └── agencheck-communication-agent/CLAUDE.md
+    ├── my-project-frontend/CLAUDE.md
+    └── my-project-communication/CLAUDE.md
 ```
 
 **Sync Rules**:
@@ -204,7 +204,7 @@ agencheck/CLAUDE.md (root)
 
 ### CLAUDE.md Updates
 
-**agencheck-support-frontend/CLAUDE.md**:
+**my-project-frontend/CLAUDE.md**:
 ```diff
 + - Custom hooks in `hooks/` for shared state
 + - Beads integration for task management

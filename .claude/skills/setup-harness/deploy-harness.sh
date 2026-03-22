@@ -62,7 +62,7 @@ ${BOLD}OPTIONS${NC}
 ${BOLD}EXAMPLES${NC}
     deploy-harness.sh                                      # Deploy to all targets
     deploy-harness.sh --target ~/Documents/my-project      # Deploy to specific path
-    deploy-harness.sh --name zenagent2-agencheck           # Deploy to named target
+    deploy-harness.sh --name my-project           # Deploy to named target
     deploy-harness.sh --dry-run                            # Preview all deployments
     deploy-harness.sh --target ~/proj --include-mcp        # Deploy with .mcp.json
 

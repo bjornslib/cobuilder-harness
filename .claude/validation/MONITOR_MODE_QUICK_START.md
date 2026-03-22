@@ -80,7 +80,7 @@ When a task completes, monitor validates:
 [INFO] VALIDATION-AGENT MONITOR MODE
 [INFO] Iteration 1: Task #15 status: completed
 [INFO] FOUND: Task #15 is completed!
-[INFO] File found: /Users/theb/.claude/tests/demo/test_monitor_demo.py (2098 bytes)
+[INFO] File found: ~/.claude/tests/demo/test_monitor_demo.py (2098 bytes)
 [INFO] Found test function definitions
 [INFO] Python syntax validation: OK
 [INFO] pytest: All tests passed
@@ -133,7 +133,7 @@ Check the evidence JSON for `pytest_returncode` field.
 ## Documentation
 
 For complete documentation, see:
-`/Users/theb/Documents/Windsurf/claude-harness-setup/docs/architecture/VALIDATION_AGENT_MONITOR_MODE.md`
+`$CLAUDE_PROJECT_DIR/docs/architecture/VALIDATION_AGENT_MONITOR_MODE.md`
 
 ## Testing
 

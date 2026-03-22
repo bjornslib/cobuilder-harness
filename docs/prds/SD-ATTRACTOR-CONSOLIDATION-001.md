@@ -583,13 +583,13 @@ Two Hindsight reflect calls were made before finalizing this document.
 **Do not combine Phase 3 with Phase 4 in the same session.** The state directory question (Phase 4) is low-risk and can be deferred indefinitely if the team decides `.claude/attractor/` is a permanent home for pipeline state.
 
 **Key file paths relevant to implementation**:
-- Pipeline state: `/Users/theb/Documents/Windsurf/claude-harness-setup/.claude/attractor/pipelines/`
-- Code to migrate: `/Users/theb/Documents/Windsurf/claude-harness-setup/.claude/scripts/attractor/`
-- Migration target: `/Users/theb/Documents/Windsurf/claude-harness-setup/cobuilder/`
-- Output style to update: `/Users/theb/Documents/Windsurf/claude-harness-setup/.claude/output-styles/cobuilder-guardian.md`
-- Skills to update: `/Users/theb/Documents/Windsurf/claude-harness-setup/.claude/skills/cobuilder-guardian/references/` (7 files)
-- Test suite: `/Users/theb/Documents/Windsurf/claude-harness-setup/.claude/scripts/attractor/tests/` (12,299 lines, 19 files)
-- Package manifest: `/Users/theb/Documents/Windsurf/claude-harness-setup/pyproject.toml`
+- Pipeline state: `$CLAUDE_PROJECT_DIR/.claude/attractor/pipelines/`
+- Code to migrate: `$CLAUDE_PROJECT_DIR/.claude/scripts/attractor/`
+- Migration target: `$CLAUDE_PROJECT_DIR/cobuilder/`
+- Output style to update: `$CLAUDE_PROJECT_DIR/.claude/output-styles/cobuilder-guardian.md`
+- Skills to update: `$CLAUDE_PROJECT_DIR/.claude/skills/cobuilder-guardian/references/` (7 files)
+- Test suite: `$CLAUDE_PROJECT_DIR/.claude/scripts/attractor/tests/` (12,299 lines, 19 files)
+- Package manifest: `$CLAUDE_PROJECT_DIR/pyproject.toml`
 
 ## Implementation Status
 

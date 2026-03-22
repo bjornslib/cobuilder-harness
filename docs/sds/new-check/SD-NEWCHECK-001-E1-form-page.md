@@ -12,7 +12,7 @@ version: "2.0"
 ## Epic
 E1 — New Check form page at `/checks-dashboard/new`
 
-Bead: `agencheck-0h4w`
+Bead: `my-project-0h4w`
 
 ---
 
@@ -37,7 +37,7 @@ Bead: `agencheck-0h4w`
 ### ShadCN Components to Install (Run Before Implementing)
 
 ```bash
-# Run in agencheck-support-frontend/
+# Run in my-project-frontend/
 npx shadcn@latest add radio-group alert breadcrumb collapsible form
 ```
 
@@ -409,7 +409,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 
 ```bash
 # 1. Install missing ShadCN components FIRST
-cd /path/to/agencheck-support-frontend
+cd /path/to/my-project-frontend
 npx shadcn@latest add radio-group alert breadcrumb collapsible form
 
 # 2. Verify zod + react-hook-form + @hookform/resolvers are available

@@ -131,9 +131,9 @@ class TestExtractNodeScope:
 
 class TestExtractGraphRepoName:
     def test_repo_name_present(self):
-        dot = _dot_with_file_path("N1", "cobuilder/bridge.py", repo_name="agencheck")
+        dot = _dot_with_file_path("N1", "cobuilder/bridge.py", repo_name="my-project")
         result = _extract_graph_repo_name(dot)
-        assert result == "agencheck"
+        assert result == "my-project"
 
     def test_repo_name_default(self):
         dot = _dot_with_file_path("N1", "cobuilder/bridge.py", repo_name="myrepo")

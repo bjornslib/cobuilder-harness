@@ -18,15 +18,15 @@
     ],
     "service_specific": [
       {
-        "path": "agencheck-support-agent/documentation/",
+        "path": "my-project-backend/documentation/",
         "subfolders": ["approved", "in-progress", "implemented", "staged"]
       },
       {
-        "path": "agencheck-support-frontend/documentation/",
+        "path": "my-project-frontend/documentation/",
         "subfolders": ["approved", "in-progress", "implemented", "staged"]
       },
       {
-        "path": "agencheck-communication-agent/documentation/",
+        "path": "my-project-communication/documentation/",
         "subfolders": ["approved", "in-progress", "implemented", "staged"]
       }
     ]

@@ -13,7 +13,7 @@ grade: reference
 ### Essential First 5 Commands (ALWAYS)
 ```bash
 # 1. Activate Serena (MANDATORY FIRST)
-mcp__serena__activate_project("agencheck")
+mcp__serena__activate_project("my-project")
 
 # 2. Check configuration
 mcp__serena__get_current_config()
@@ -51,7 +51,7 @@ mcp__serena__restart_language_server()
 mcp__serena__get_current_config()
 
 # Re-activate if needed
-mcp__serena__activate_project("agencheck")
+mcp__serena__activate_project("my-project")
 
 # Check available memories
 mcp__serena__list_memories()

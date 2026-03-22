@@ -3,7 +3,7 @@ title: "SD: Add NEXTJS_BASE_URL, Update Email Templates, and Fix Variable Naming
 status: active
 type: reference
 epic_id: MODEL-MIGRATION-001
-prd_ref: AgenCheck Configuration Consolidation
+prd_ref: MyProject Configuration Consolidation
 last_verified: 2026-03-11
 ---
 
@@ -18,7 +18,7 @@ Three changes to the employment verification email system:
 
 2. **Fix variable naming** — current names are semantically backwards:
    - `{contact_name}` (employer HR person) → rename to `{verifier_name}` (they ARE the verifier)
-   - `{verifier_name}` ("AgenCheck Team") → rename to `{agent_name}` (it's our agent, not a verifier)
+   - `{verifier_name}` ("MyProject Team") → rename to `{agent_name}` (it's our agent, not a verifier)
 
 3. **Fix `days_elapsed` bug** — `email_reminder_2.txt` uses `{days_elapsed}` but code never provides it.
 
@@ -40,7 +40,7 @@ The current email template system is **designed for flexibility** with low renam
 | Test files | Method names | None (not affected by rename) |
 
 #### Current Template Files
-Location: `agencheck-communication-agent/email-templates/`
+Location: `my-project-communication/email-templates/`
 
 | Template | Purpose |
 |----------|---------|
@@ -50,7 +50,7 @@ Location: `agencheck-communication-agent/email-templates/`
 | `process_inquiry.html` | Requesting process details from POSITIVE responses |
 | `clarification_response.html` | Responding to legitimacy questions |
 | `thank_you.html` | Confirming partnership establishment |
-| `agencheck-general.html` | Flexible template for edge cases |
+| `my-project-general.html` | Flexible template for edge cases |
 
 #### Safe Rename Protocol (Validated)
 - **Underscore to hyphen:** `initial_contact.html` → `initial-contact.html` - SAFE
@@ -94,7 +94,7 @@ verification_orchestrator.py:_build_email_context()  ← assembles context dict
 | Old placeholder | New placeholder | Meaning |
 |----------------|----------------|---------|
 | `{contact_name}` | `{verifier_name}` | The employer HR person who verifies employment |
-| `{verifier_name}` | `{agent_name}` | Our AgenCheck agent name ("AgenCheck Team") |
+| `{verifier_name}` | `{agent_name}` | Our MyProject agent name ("MyProject Team") |
 
 ### Code: variables dict keys
 
@@ -104,11 +104,11 @@ verification_orchestrator.py:_build_email_context()  ← assembles context dict
 ```python
 # BEFORE
 "contact_name": context.get("contact_name", "HR Department"),
-"verifier_name": context.get("verifier_name", "AgenCheck Team"),
+"verifier_name": context.get("verifier_name", "MyProject Team"),
 
 # AFTER
 "verifier_name": context.get("verifier_name", "HR Department"),
-"agent_name": context.get("agent_name", "AgenCheck Team"),
+"agent_name": context.get("agent_name", "MyProject Team"),
 ```
 
 **`verification_orchestrator.py` (lines 248, 252):**
@@ -116,12 +116,12 @@ verification_orchestrator.py:_build_email_context()  ← assembles context dict
 # BEFORE
 "contact_name": contact_name,
 ...
-"verifier_name": "AgenCheck Team",
+"verifier_name": "MyProject Team",
 
 # AFTER
 "verifier_name": contact_name,
 ...
-"agent_name": "AgenCheck Team",
+"agent_name": "MyProject Team",
 ```
 
 **`stream_consumer.py` (line 126):**
@@ -137,11 +137,11 @@ verification_orchestrator.py:_build_email_context()  ← assembles context dict
 ```python
 # BEFORE
 "contact_name": "HR Department",
-"verifier_name": "AgenCheck Team",
+"verifier_name": "MyProject Team",
 
 # AFTER
 "verifier_name": "HR Department",
-"agent_name": "AgenCheck Team",
+"agent_name": "MyProject Team",
 ```
 
 ### Database columns — NO CHANGE
@@ -152,7 +152,7 @@ The underlying DB columns (`employer_contact_name`, `hr_contact_name`) and the P
 
 ### 1. Environment Configuration
 
-**File:** `agencheck-support-agent/.env`
+**File:** `my-project-backend/.env`
 
 Add:
 ```env
@@ -160,11 +160,11 @@ Add:
 NEXTJS_BASE_URL=http://localhost:5002
 ```
 
-Production value (set in Railway or Vercel): `NEXTJS_BASE_URL=http://agencheck.vercel.app`
+Production value (set in Railway or Vercel): `NEXTJS_BASE_URL=http://my-project.vercel.app`
 
 ### 2. Channel Dispatch Update
 
-**File:** `agencheck-support-agent/prefect_flows/flows/tasks/channel_dispatch.py`
+**File:** `my-project-backend/prefect_flows/flows/tasks/channel_dispatch.py`
 
 **At module level** (after imports, around line 102), add:
 ```python
@@ -188,8 +188,8 @@ variables={
     "employer_name": context.get("employer_name", ""),
     "candidate_name": context.get("candidate_name", ""),
     "verifier_name": context.get("verifier_name", "HR Department"),     # RENAMED from contact_name
-    "agent_name": context.get("agent_name", "AgenCheck Team"),          # RENAMED from verifier_name
-    "company_name": "AgenCheck",
+    "agent_name": context.get("agent_name", "MyProject Team"),          # RENAMED from verifier_name
+    "company_name": "MyProject",
     "case_id": str(case_id),
     "callback_number": context.get("callback_number", "+61 2 9000 0000"),
     "position_title": context.get("position_title", ""),
@@ -204,30 +204,30 @@ variables={
 
 ### 3. Verification Orchestrator Update
 
-**File:** `agencheck-support-agent/prefect_flows/flows/verification_orchestrator.py`
+**File:** `my-project-backend/prefect_flows/flows/verification_orchestrator.py`
 
 **Line 248:** `"contact_name": contact_name,` → `"verifier_name": contact_name,`
-**Line 252:** `"verifier_name": "AgenCheck Team",` → `"agent_name": "AgenCheck Team",`
+**Line 252:** `"verifier_name": "MyProject Team",` → `"agent_name": "MyProject Team",`
 
 ### 4. Stream Consumer Update
 
-**File:** `agencheck-support-agent/prefect_flows/flows/tasks/stream_consumer.py`
+**File:** `my-project-backend/prefect_flows/flows/tasks/stream_consumer.py`
 
 **Line 126:** `"verifier_name": fields.get("verifier_name"),` → `"agent_name": fields.get("verifier_name"),`
 
 ### 5. Template Service Docstring Update
 
-**File:** `agencheck-support-agent/services/template_service.py`
+**File:** `my-project-backend/services/template_service.py`
 
 **Lines 19-20 (docstring example):**
 ```python
 # BEFORE
 "contact_name": "HR Department",
-"verifier_name": "AgenCheck Team",
+"verifier_name": "MyProject Team",
 
 # AFTER
 "verifier_name": "HR Department",
-"agent_name": "AgenCheck Team",
+"agent_name": "MyProject Team",
 ```
 
 ### 6. Template Rewrites
@@ -328,7 +328,7 @@ Reference: {case_id}
 **File:** `prefect_flows/templates/work_history/voice_voicemail.txt`
 
 ```
-[AgenCheck Voicemail — Employment Verification]
+[MyProject Voicemail — Employment Verification]
 
 Hello, this is a message for {verifier_name} from {employer_name}.
 
@@ -354,7 +354,7 @@ Thank you for your time.
 
 | File | Changes |
 |------|---------|
-| `agencheck-support-agent/.env` | Add `NEXTJS_BASE_URL=http://localhost:5002` |
+| `my-project-backend/.env` | Add `NEXTJS_BASE_URL=http://localhost:5002` |
 | `prefect_flows/flows/tasks/channel_dispatch.py` | Add URL builders; rename variable keys; add `days_elapsed` |
 | `prefect_flows/flows/verification_orchestrator.py` | Rename context keys (lines 248, 252) |
 | `prefect_flows/flows/tasks/stream_consumer.py` | Rename context key (line 126) |
@@ -368,7 +368,7 @@ Thank you for your time.
 
 - `SCHEDULE_BASE_URL` is a placeholder — may not be implemented. Fallback: `{NEXTJS_BASE_URL}/schedule/{task_id}`
 - `email_outreach.py` is a SEPARATE flow (JWT token-based) — not touched
-- HTML templates in `agencheck-communication-agent/email-templates/` are for education verification — not touched
+- HTML templates in `my-project-communication/email-templates/` are for education verification — not touched
 - Database column names (`employer_contact_name`, `hr_contact_name`) are internal and do NOT change
 
 ## Implementation Status

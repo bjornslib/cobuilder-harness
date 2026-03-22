@@ -11,7 +11,7 @@ grade: authoritative
 # The prd_id is the canonical identifier used throughout the system
 prd_id: PRD-WORKFLOW-MATRIX
 title: "Workflow Matrix"
-product: "AgenCheck"
+product: "My Project"
 version: "0.1"
 status: draft
 created: "2026-01-15"
@@ -20,7 +20,7 @@ author: "FAIE Labs"
 
 # PRD-WORKFLOW-MATRIX: Workflow Matrix
 
-**Product:** AgenCheck Workflow Matrix
+**Product:** My Project Workflow Matrix
 **Version:** 0.1 (Initial Draft)
 **Date:** 15 January 2026
 **Author:** FAIE Labs
@@ -30,11 +30,11 @@ author: "FAIE Labs"
 
 ## 1. Executive Summary
 
-The Workflow Matrix enables AgenCheck customers to configure automated retry and channel fallback rules for agent communications. This feature addresses a critical customer need: ensuring verification contacts are reached through intelligent multi-channel retry logic, while allowing flexibility for different client requirements.
+The Workflow Matrix enables My Project customers to configure automated retry and channel fallback rules for agent communications. This feature addresses a critical customer need: ensuring verification contacts are reached through intelligent multi-channel retry logic, while allowing flexibility for different client requirements.
 
 ### 1.1 Problem Statement
 
-Background screening companies lose significant time and revenue when verification attempts fail due to unreachable contacts. Currently, retry logic is either manual (staff must remember to follow up) or rigidly programmed (no client-specific customisation). AgenCheck customers need:
+Background screening companies lose significant time and revenue when verification attempts fail due to unreachable contacts. Currently, retry logic is either manual (staff must remember to follow up) or rigidly programmed (no client-specific customisation). My Project customers need:
 
 1. Configurable retry rules that automate follow-up attempts
 2. Channel fallback logic (e.g., try SMS if email fails)
@@ -236,7 +236,7 @@ A visual matrix interface allowing customers to:
 ```
 WorkflowConfiguration
 ├── id: UUID
-├── customerId: UUID (AgenCheck customer)
+├── customerId: UUID (My Project customer)
 ├── scope: "default" | "client_specific"
 ├── clientId: UUID | null (required if scope is client_specific)
 ├── version: integer
@@ -298,11 +298,11 @@ GET    /api/v1/clients                      # List clients (for dropdown)
 
 | Component | Technology | Notes |
 |-----------|------------|-------|
-| Frontend | Next.js 15.3 + React 19 | Existing AgenCheck stack |
+| Frontend | Next.js 15.3 + React 19 | Existing My Project stack |
 | State Management | React Query / TanStack Query | Server state caching |
 | UI Components | Shadcn/ui + Tailwind CSS | Existing component library |
 | Local Storage | IndexedDB via Dexie.js | Draft persistence |
-| Backend | Python FastAPI | Existing AgenCheck stack |
+| Backend | Python FastAPI | Existing My Project stack |
 | Database | PostgreSQL | Existing infrastructure |
 | Caching | Redis | Session and draft caching |
 
@@ -314,9 +314,9 @@ GET    /api/v1/clients                      # List clients (for dropdown)
 
 | Dependency | Description | Owner | Risk |
 |------------|-------------|-------|------|
-| Client Management API | Required for client dropdown | AgenCheck Core | Low |
-| Authentication Service | Required for user identification | AgenCheck Core | Low |
-| Agent Orchestration Engine | Must consume workflow rules | Aura (AgenCheck) | Medium |
+| Client Management API | Required for client dropdown | My Project Core | Low |
+| Authentication Service | Required for user identification | My Project Core | Low |
+| Agent Orchestration Engine | Must consume workflow rules | Aura (My Project) | Medium |
 
 ### 7.2 External Dependencies
 
@@ -391,9 +391,9 @@ GET    /api/v1/clients                      # List clients (for dropdown)
 
 ## Appendix B: Reference Materials
 
-- Interaction Design Specification: [agencheck-workflow-matrix-interaction-design.md]
+- Interaction Design Specification: [my-project-workflow-matrix-interaction-design.md]
 - UI Mockups: [IMG_3435.png]
-- AgenCheck Technical Architecture: [See project knowledge]
+- My Project Technical Architecture: [See project knowledge]
 
 ---
 

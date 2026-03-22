@@ -59,7 +59,7 @@ Every feature in feature_list.json must follow this structure:
     "Verify AI response appears within 10 seconds"
   ],
   "passes": false,
-  "scope": ["agencheck-support-frontend/components/ChatInterface.tsx"],
+  "scope": ["my-project-frontend/components/ChatInterface.tsx"],
   "validation": "browser",
   "worker_type": "frontend",
   "dependencies": []

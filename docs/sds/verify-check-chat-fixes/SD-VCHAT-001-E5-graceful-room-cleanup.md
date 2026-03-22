@@ -28,7 +28,7 @@ ctx.userdata["session_modes"].add("voice")
 
 ### 2. Conditional Egress on Room Close
 
-**File**: `agencheck-support-agent/live_form_filler/agent.py` (or listener_service.py cleanup)
+**File**: `my-project-backend/live_form_filler/agent.py` (or listener_service.py cleanup)
 
 In the session end handler:
 
@@ -64,7 +64,7 @@ async def on_session_end(ctx):
 
 ### 3. PostCheckProcessor: Handle Missing Recording
 
-**File**: `agencheck-support-agent/prefect_flows/flows/tasks/process_post_call.py`
+**File**: `my-project-backend/prefect_flows/flows/tasks/process_post_call.py`
 
 Make recording download conditional:
 
@@ -109,7 +109,7 @@ async def process_post_call(task_id: str, **kwargs):
 
 ### 4. Frontend: Track Voice Usage
 
-**File**: `agencheck-support-frontend/app/verify-check/[task_id]/page.tsx`
+**File**: `my-project-frontend/app/verify-check/[task_id]/page.tsx`
 
 Track whether voice was ever used in the session:
 

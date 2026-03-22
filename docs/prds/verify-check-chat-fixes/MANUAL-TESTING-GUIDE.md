@@ -8,15 +8,15 @@ last_verified: 2026-03-09T00:00:00.000Z
 
 ## Prerequisites
 
-- Dev environment running: `agencheck-communication-agent` (LK agent) + `agencheck-support-agent` (FastAPI + listener)
+- Dev environment running: `my-project-communication` (LK agent) + `my-project-backend` (FastAPI + listener)
 - LiveKit server accessible
 - S3 bucket `dev-aura-communicator-recordings` accessible
 - A test task_id in the database with a valid verification task
 
 ## Test Environment Setup
 
-1. Start the support agent: `cd agencheck-support-agent && uvicorn live_form_filler.app:app --port 8000`
-2. Start the LK voice agent: `cd agencheck-communication-agent/livekit_prototype/cli_poc && python -m voice_agent.agent`
+1. Start the support agent: `cd my-project-backend && uvicorn live_form_filler.app:app --port 8000`
+2. Start the LK voice agent: `cd my-project-communication/livekit_prototype/cli_poc && python -m voice_agent.agent`
 3. Open the verify-check page in browser: `/verify/[task_id]`
 
 ---
@@ -64,7 +64,7 @@ last_verified: 2026-03-09T00:00:00.000Z
 2. **Verify** S3 has BOTH `chat-*.json` AND voice transcript files
 
 ### Test 2.4: PostCheckProcessor handles chat transcript
-1. After a chat-only session, check Redis Stream for `agencheck:calls:completed` event
+1. After a chat-only session, check Redis Stream for `my-project:calls:completed` event
 2. **Verify**: PostCheckProcessor downloads and evaluates the chat transcript
 3. **Known gap**: Voice+chat merge into `sub_threads.all_messages` is not yet unified — separate initiative
 

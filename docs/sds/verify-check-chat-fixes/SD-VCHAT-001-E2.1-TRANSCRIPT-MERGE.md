@@ -49,7 +49,7 @@ Contains:
 
 #### Step 1: Create `helpers/transcript_utils.py`
 
-**File**: `agencheck-communication-agent/.../voice_agent/helpers/transcript_utils.py` (NEW)
+**File**: `my-project-communication/.../voice_agent/helpers/transcript_utils.py` (NEW)
 
 ```python
 """Unified transcript merge utilities.

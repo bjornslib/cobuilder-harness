@@ -457,7 +457,7 @@ This is a 5-line addition that provides meaningful signal during CI runs without
 - Evidence: unit test with a fixture SD file containing `## F1.1: Auth` and `## F1.2: Middleware`.
 
 ### AC-F2.8: End-to-End
-- `cobuilder pipeline create --sd SD-AUTH-001.md --repo agencheck` completes without exception.
+- `cobuilder pipeline create --sd SD-AUTH-001.md --repo my-project` completes without exception.
 - The generated DOT passes `cobuilder pipeline validate`.
 - Evidence: acceptance test `acceptance-tests/PRD-COBUILDER-001/test_pipeline_create_e2e.py`.
 

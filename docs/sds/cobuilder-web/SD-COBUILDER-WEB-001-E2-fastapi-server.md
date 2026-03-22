@@ -386,7 +386,7 @@ async def create_initiative(
 ```json
 {
     "id": "PRD-DASHBOARD-AUDIT-001",
-    "dot_path": "/Users/theb/.pipelines/pipelines/prd-dashboard-audit-001.dot",
+    "dot_path": "/path/to/project/.pipelines/pipelines/prd-dashboard-audit-001.dot",
     "phase": "Definition",
     "message": "Initiative created with skeleton DOT graph"
 }
@@ -521,14 +521,14 @@ async def list_artifacts(
     "artifacts": [
         {
             "path": "docs/prds/dashboard-audit-trail/PRD-DASHBOARD-AUDIT-001.md",
-            "absolute_path": "/Users/theb/target-repo/docs/prds/.../PRD-DASHBOARD-AUDIT-001.md",
+            "absolute_path": "/path/to/target-repo/docs/prds/.../PRD-DASHBOARD-AUDIT-001.md",
             "artifact_type": "prd",
             "node_id": "write_prd",
             "exists": true
         },
         {
             "path": "docs/sds/dashboard-audit-trail/SD-DASHBOARD-AUDIT-001.md",
-            "absolute_path": "/Users/theb/target-repo/docs/sds/.../SD-DASHBOARD-AUDIT-001.md",
+            "absolute_path": "/path/to/target-repo/docs/sds/.../SD-DASHBOARD-AUDIT-001.md",
             "artifact_type": "sd",
             "node_id": "write_sd_backend",
             "exists": true

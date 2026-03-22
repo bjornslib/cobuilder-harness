@@ -85,7 +85,7 @@ digraph "test_pipeline" {{
         prd_ref="PRD-AUTH-001"
         prd_section="Epic 2: JWT Authentication"
         solution_design="{PORTABLE_SD_FILE}"
-        target_dir="zenagent/agencheck/agencheck-support-agent"
+        target_dir="my-org/my-project/my-project-backend"
         acceptance="JWT auth with refresh tokens"
         style=filled
         fillcolor=lightyellow
@@ -224,7 +224,7 @@ def test_parser_extracts_target_dir():
     result = parse_dot(DOT_WITH_NEW_ATTRS)
     impl_node = next(n for n in result["nodes"] if n["id"] == "impl_auth")
     assert "target_dir" in impl_node["attrs"]
-    assert impl_node["attrs"]["target_dir"] == "zenagent/agencheck/agencheck-support-agent"
+    assert impl_node["attrs"]["target_dir"] == "my-org/my-project/my-project-backend"
 
 
 def test_parser_extracts_all_four_new_attributes():
@@ -786,7 +786,7 @@ def test_validator_errors_on_deprecated_target_repo(temp_cobuilder_root, temp_ta
                 bead_id="test"
                 worker_type="backend-solutions-engineer"
                 sd_path="{sd_file}"
-                target_repo="zenagent/support"
+                target_repo="my-org/my-project"
             ];
             exit [handler="exit" shape=Msquare status=pending label="Exit"];
             start -> impl -> exit;

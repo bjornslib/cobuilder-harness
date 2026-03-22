@@ -15,7 +15,7 @@ prd_ref: PRD-CASE-DATAFLOW-001
 
 Fix `app/api/verify/route.ts` to pass canonical types straight through to the backend without field renaming. Import generated TypeScript types.
 
-**Target**: `agencheck-support-frontend/app/api/verify/route.ts`
+**Target**: `my-project-frontend/app/api/verify/route.ts`
 **Worker Type**: `frontend-dev-expert`
 **Depends On**: Epic 1 (TypeScript types), Epic 2 (form field additions)
 

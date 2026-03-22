@@ -35,8 +35,8 @@ class StatuslineAnalyzer:
             # Try to load from project .env files
             env_paths = [
                 Path(self.current_dir) / ".env",  # Root directory .env
-                Path(self.current_dir) / "agencheck-support-agent" / ".env",
-                Path(self.current_dir).parent / "agencheck-support-agent" / ".env",
+                Path(self.current_dir) / "my-project-backend" / ".env",
+                Path(self.current_dir).parent / "my-project-backend" / ".env",
             ]
             
             for env_path in env_paths:

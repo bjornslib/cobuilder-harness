@@ -35,10 +35,10 @@ git status
 ### 2. Create Git Worktrees
 ```bash
 # Create feature worktree
-git worktree add ../agencheck-feature feature/user-auth
+git worktree add ../my-project-feature feature/user-auth
 
 # Create research worktree  
-git worktree add ../agencheck-research research/auth-patterns
+git worktree add ../my-project-research research/auth-patterns
 
 # Verify worktrees created
 git worktree list
@@ -47,10 +47,10 @@ git worktree list
 ### 3. Launch Claude Code Sub-Processes
 ```bash
 # Launch in feature worktree
-cd ../agencheck-feature && claude-code --task "Implement user authentication system" &
+cd ../my-project-feature && claude-code --task "Implement user authentication system" &
 
 # Launch in research worktree
-cd ../agencheck-research && claude-code --task "Research OAuth and JWT patterns" &
+cd ../my-project-research && claude-code --task "Research OAuth and JWT patterns" &
 ```
 
 ### 4. Create Coordination Infrastructure
@@ -61,8 +61,8 @@ mkdir -p .parallel-coordination
 # Track active worktrees
 echo '{
   "worktrees": [
-    {"name": "feature", "branch": "feature/user-auth", "path": "../agencheck-feature", "task": "Implementation"},
-    {"name": "research", "branch": "research/auth-patterns", "path": "../agencheck-research", "task": "Research"}
+    {"name": "feature", "branch": "feature/user-auth", "path": "../my-project-feature", "task": "Implementation"},
+    {"name": "research", "branch": "research/auth-patterns", "path": "../my-project-research", "task": "Research"}
   ],
   "created": "'$(date)'",
   "main_branch": "'$(git branch --show-current)'"
@@ -164,8 +164,8 @@ echo '{
 ### Recovery Procedures
 ```bash
 # Manual cleanup if setup fails
-git worktree remove ../agencheck-feature --force
-git worktree remove ../agencheck-research --force
+git worktree remove ../my-project-feature --force
+git worktree remove ../my-project-research --force
 rm -rf .parallel-coordination/
 
 # Check for orphaned processes

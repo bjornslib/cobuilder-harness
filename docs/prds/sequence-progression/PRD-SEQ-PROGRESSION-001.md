@@ -11,13 +11,13 @@ last_verified: 2026-03-09T00:00:00.000Z
 **Date**: 2026-03-09
 **Status**: DRAFT — handover document for separate implementation
 **Parent PRDs**: PRD-DASHBOARD-AUDIT-001 (Dashboard Audit Trail), Epic 7 Structured Interpretation PRD (v1.4)
-**Target Repo**: zenagent3/zenagent/agencheck/agencheck-support-agent
+**Target Repo**: my-org3/my-org/my-project/my-project-backend
 
 ---
 
 ## 1. Executive Summary
 
-The AgenCheck check sequence progression mechanism is **not implemented**. The database schema (`background_check_sequence`, migrations 035/036/037) and Python models (`CheckSequenceResolution`, `ResolvedSequence`) are fully defined, but no Prefect flow code advances a case from step 1 to step 2 to step 3. Every case in production has exactly 1 `background_task` at `current_sequence_step=1`.
+The MyProject check sequence progression mechanism is **not implemented**. The database schema (`background_check_sequence`, migrations 035/036/037) and Python models (`CheckSequenceResolution`, `ResolvedSequence`) are fully defined, but no Prefect flow code advances a case from step 1 to step 2 to step 3. Every case in production has exactly 1 `background_task` at `current_sequence_step=1`.
 
 This means:
 - **Email outreach (step 2) never fires** — non-terminal voice call results don't trigger the next step

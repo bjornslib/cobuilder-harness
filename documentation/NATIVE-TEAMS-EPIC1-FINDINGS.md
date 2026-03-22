@@ -33,7 +33,7 @@
       "model": "claude-opus-4-6",
       "joinedAt": 1770364613743,
       "tmuxPaneId": "",
-      "cwd": "/Users/theb/Documents/Windsurf/claude-harness-setup",
+      "cwd": "$CLAUDE_PROJECT_DIR
       "subscriptions": []
     },
     {
@@ -46,7 +46,7 @@
       "planModeRequired": false,       // Can be set true for plan approval
       "joinedAt": 1770364626194,
       "tmuxPaneId": "in-process",
-      "cwd": "/Users/theb/...",
+      "cwd": "$CLAUDE_PROJECT_DIR
       "subscriptions": [],
       "backendType": "in-process"      // Display mode
     }

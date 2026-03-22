@@ -51,12 +51,12 @@ Skill("codebase-quality:documentation")
 
 **Frontend (TypeScript/React)**:
 ```bash
-cd agencheck-support-frontend && npm run lint
+cd my-project-frontend && npm run lint
 ```
 
 **Backend (Python)**:
 ```bash
-cd agencheck-support-agent && ruff check .
+cd my-project-backend && ruff check .
 ```
 
 **Severity Levels**:
@@ -70,14 +70,14 @@ cd agencheck-support-agent && ruff check .
 
 **Frontend (TypeScript)**:
 ```bash
-cd agencheck-support-frontend && npm run build:dev
+cd my-project-frontend && npm run build:dev
 # or
 npx tsc --noEmit
 ```
 
 **Backend (Python)**:
 ```bash
-cd agencheck-support-agent && mypy .
+cd my-project-backend && mypy .
 ```
 
 **Common Issues**:

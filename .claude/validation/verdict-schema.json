@@ -6,7 +6,7 @@
   "properties": {
     "task_id": {
       "type": "string",
-      "description": "Beads task ID (e.g., agencheck-xyz)"
+      "description": "Beads task ID (e.g., my-project-xyz)"
     },
     "mode": {
       "type": "string",

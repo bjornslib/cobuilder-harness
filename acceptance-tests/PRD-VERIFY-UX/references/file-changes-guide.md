@@ -9,9 +9,9 @@ last_verified: 2026-03-05
 
 ## Overview
 
-This document maps each UX change to specific files that need modification in the zenagent2 repo.
+This document maps each UX change to specific files that need modification in the project repo.
 
-**Base Path**: `/Users/theb/Documents/Windsurf/zenagent2/zenagent/agencheck/agencheck-support-frontend/app/verify-check/[task_id]/`
+**Base Path**: `$CLAUDE_PROJECT_DIR/my-project-frontend/app/verify-check/[task_id]/`
 
 ---
 

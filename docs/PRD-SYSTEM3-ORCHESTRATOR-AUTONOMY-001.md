@@ -86,7 +86,7 @@ Current autonomous development mode has four core issues:
 ### 2.1 Evidence Snapshot (from current analysis)
 
 - Markdown E2E workflow is documented as primary, but enforcement is procedural, not mechanical.
-- No `.github/workflows/` gate exists in the analyzed `agencheck` repo for spec/report/evidence conformance.
+- No `.github/workflows/` gate exists in the analyzed `my-project` repo for spec/report/evidence conformance.
 - Drift exists between docs and runtime config (for example, E2E docs referencing `5001` while frontend dev config is `5002`).
 - Execution reports show fallback to API-only validation when browser MCP was unavailable, but no automatic policy fail/waiver mechanism.
 - Root and frontend E2E directories are duplicated with uneven completeness.

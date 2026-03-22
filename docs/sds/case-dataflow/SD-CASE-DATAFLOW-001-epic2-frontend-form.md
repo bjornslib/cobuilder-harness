@@ -15,7 +15,7 @@ prd_ref: PRD-CASE-DATAFLOW-001
 
 Replace raw HTML inputs with proper shadcn/ui components, wire to generated TypeScript types, support ISO country codes, salary currency, and multiple employer contacts.
 
-**Target**: `agencheck-support-frontend/`
+**Target**: `my-project-frontend/`
 **Worker Type**: `frontend-dev-expert`
 **Depends On**: Epic 1 (TypeScript types at `lib/types/work-history.generated.ts`)
 

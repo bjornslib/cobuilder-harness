@@ -20,11 +20,11 @@ The `/verify-check/[task_id]` page supports both chat and voice verification mod
 
 ## 2. Target Repo
 
-`/Users/theb/Documents/Windsurf/zenagent2/zenagent/agencheck`
+`$CLAUDE_PROJECT_DIR`
 
-- Frontend: `agencheck-support-frontend/app/verify-check/[task_id]/`
-- Backend: `agencheck-support-agent/live_form_filler/`
-- Prefect flows: `agencheck-support-agent/prefect_flows/flows/tasks/`
+- Frontend: `my-project-frontend/app/verify-check/[task_id]/`
+- Backend: `my-project-backend/live_form_filler/`
+- Prefect flows: `my-project-backend/prefect_flows/flows/tasks/`
 
 ## 3. Epics
 
@@ -35,10 +35,10 @@ The `/verify-check/[task_id]` page supports both chat and voice verification mod
 **Approach**: When the chat agent (or user) sends a message, emit it as a transcription-format event on the `form_events` data channel so `listener_service.py`'s existing `process_transcription_data()` pipeline extracts fields via the form_filler_agent.
 
 **Key files**:
-- `agencheck-support-agent/live_form_filler/services/listener_service.py` (lines 238-340)
-- `agencheck-support-agent/live_form_filler/agent.py` (chat_text_handler)
-- `agencheck-support-frontend/app/verify-check/[task_id]/_components/FormEventEmitter.tsx`
-- `agencheck-support-frontend/app/verify-check/[task_id]/_hooks/useAgentMessages.ts`
+- `my-project-backend/live_form_filler/services/listener_service.py` (lines 238-340)
+- `my-project-backend/live_form_filler/agent.py` (chat_text_handler)
+- `my-project-frontend/app/verify-check/[task_id]/_components/FormEventEmitter.tsx`
+- `my-project-frontend/app/verify-check/[task_id]/_hooks/useAgentMessages.ts`
 
 **Acceptance criteria**:
 - AC1.1: When user sends a chat message containing field data (e.g., "John started in January 2020"), the form field updates within 3 seconds
@@ -52,8 +52,8 @@ The `/verify-check/[task_id]` page supports both chat and voice verification mod
 **Approach**: Backend accumulates chat messages in memory during the session. On room close or form submission, upload chat transcript JSON to S3. PostCheckProcessor reads both `transcript_s3_key` (voice) and `chat_transcript_s3_key` (chat).
 
 **Key files**:
-- `agencheck-support-agent/live_form_filler/agent.py` (chat message accumulation)
-- `agencheck-support-agent/prefect_flows/flows/tasks/process_post_call.py` (PostCheckProcessor)
+- `my-project-backend/live_form_filler/agent.py` (chat message accumulation)
+- `my-project-backend/prefect_flows/flows/tasks/process_post_call.py` (PostCheckProcessor)
 - S3 upload utility (existing pattern in codebase)
 
 **Acceptance criteria**:
@@ -69,8 +69,8 @@ The `/verify-check/[task_id]` page supports both chat and voice verification mod
 **Approach**: On mode_switch to chat, inject a context summary (what was discussed, what fields were confirmed) into the chat agent's system prompt or conversation history. Do NOT spawn a new agent — reuse the existing session.
 
 **Key files**:
-- `agencheck-support-agent/live_form_filler/agent.py` (chat_text_handler, handle_voice_escalation)
-- `agencheck-support-frontend/app/verify-check/[task_id]/page.tsx` (handleEndCall)
+- `my-project-backend/live_form_filler/agent.py` (chat_text_handler, handle_voice_escalation)
+- `my-project-frontend/app/verify-check/[task_id]/page.tsx` (handleEndCall)
 
 **Acceptance criteria**:
 - AC3.1: After ending voice call, chat agent knows what was discussed during voice
@@ -84,8 +84,8 @@ The `/verify-check/[task_id]` page supports both chat and voice verification mod
 **Approach**: Filter mode_switch messages in the backend before they reach the LLM. Use them as control signals only (to trigger context injection per E3), not as user messages.
 
 **Key files**:
-- `agencheck-support-agent/live_form_filler/agent.py` (chat_text_handler)
-- `agencheck-support-frontend/app/verify-check/[task_id]/page.tsx` (mode_switch send)
+- `my-project-backend/live_form_filler/agent.py` (chat_text_handler)
+- `my-project-frontend/app/verify-check/[task_id]/page.tsx` (mode_switch send)
 
 **Acceptance criteria**:
 - AC4.1: Agent does NOT respond to mode_switch messages with text like "I see you're switching modes"
@@ -99,9 +99,9 @@ The `/verify-check/[task_id]` page supports both chat and voice verification mod
 **Approach**: Make egress/recording handling conditional. If no voice session existed, skip recording download and proceed with chat-only PostCheckProcessor path.
 
 **Key files**:
-- `agencheck-support-agent/prefect_flows/flows/tasks/process_post_call.py`
-- `agencheck-support-agent/live_form_filler/services/listener_service.py` (cleanup)
-- `agencheck-support-frontend/app/verify-check/[task_id]/page.tsx` (room disconnect)
+- `my-project-backend/prefect_flows/flows/tasks/process_post_call.py`
+- `my-project-backend/live_form_filler/services/listener_service.py` (cleanup)
+- `my-project-frontend/app/verify-check/[task_id]/page.tsx` (room disconnect)
 
 **Acceptance criteria**:
 - AC5.1: Chat-only session closes without errors (no egress expected)

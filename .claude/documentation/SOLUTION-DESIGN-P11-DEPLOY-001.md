@@ -26,7 +26,7 @@ Phase 1.1 (PRs #213, #214, #215) has been merged to `main` but only partially de
 | Prefect Server | Running | Health check passing, 4 deployments registered |
 | Prefect Worker | Running | Polling for flows, using public API URL |
 | App Postgres (migrations) | Behind | Migrations 025, 043, 044 NOT applied |
-| zenagent (app server) | Behind | Running pre-Phase-1.1 code |
+| my-project (app server) | Behind | Running pre-Phase-1.1 code |
 | SendGrid env vars | Missing | No API key, template ID, or webhook key configured |
 | JWT key pair | Missing | RSA keys not generated or stored |
 | Redis integration | Partial | Redis exists but not wired to app server |
@@ -55,14 +55,14 @@ Three migrations need applying to the Railway dev Postgres:
 
 ### 2.2 Application Code Deployment (Priority: High)
 
-**Service**: `zenagent` (ID: `78f83a62-97ea-4b8d-bdb7-c0a10df84823`)
+**Service**: `my-project` (ID: `78f83a62-97ea-4b8d-bdb7-c0a10df84823`)
 
-The zenagent service needs to pick up all three merged PRs from `main`:
+The my-project service needs to pick up all three merged PRs from `main`:
 - PR #213: Test fixes + migration 025 schema changes (model updates)
 - PR #214: SendGrid client, JWT token system, webhook handler, email outreach flow
 - PR #215: Dockerfile.prefect-worker.railway (already deployed separately)
 
-**Method**: Trigger redeploy of zenagent service from latest `main` commit (`d423e374`).
+**Method**: Trigger redeploy of my-project service from latest `main` commit (`d423e374`).
 
 ### 2.3 Environment Variables (Priority: High)
 
@@ -70,12 +70,12 @@ New variables needed on Railway dev:
 
 | Variable | Service | Source | Sensitive? |
 |----------|---------|--------|------------|
-| `SENDGRID_API_KEY` | zenagent, prefect-worker | SendGrid dashboard | Yes (secret) |
-| `SENDGRID_VERIFICATION_TEMPLATE_ID` | zenagent, prefect-worker | SendGrid dashboard | No |
-| `SENDGRID_WEBHOOK_VERIFICATION_KEY` | zenagent | SendGrid dashboard | Yes (secret) |
+| `SENDGRID_API_KEY` | my-project, prefect-worker | SendGrid dashboard | Yes (secret) |
+| `SENDGRID_VERIFICATION_TEMPLATE_ID` | my-project, prefect-worker | SendGrid dashboard | No |
+| `SENDGRID_WEBHOOK_VERIFICATION_KEY` | my-project | SendGrid dashboard | Yes (secret) |
 | `JWT_PRIVATE_KEY` | prefect-worker | Generated (RSA 2048) | Yes (secret) |
-| `JWT_PUBLIC_KEY` | zenagent | Generated (RSA 2048) | No |
-| `REDIS_URL` | zenagent | `redis://default:${Redis.REDISPASSWORD}@redis.railway.internal:6379` | No |
+| `JWT_PUBLIC_KEY` | my-project | Generated (RSA 2048) | No |
+| `REDIS_URL` | my-project | `redis://default:${Redis.REDISPASSWORD}@redis.railway.internal:6379` | No |
 
 **Note**: SendGrid vars require manual setup in SendGrid dashboard first (single-sender auth, template creation). This is an operator task — cannot be automated.
 
@@ -92,7 +92,7 @@ The prefect-worker service needs the email_outreach flow registered. Currently i
 ```
 Phase 0: Prerequisites (Operator Manual Steps)
   ├── 0a. Generate RSA key pair (openssl)
-  ├── 0b. Set up SendGrid single-sender auth (verify@agencheck.com)
+  ├── 0b. Set up SendGrid single-sender auth (verify@my-project.com)
   ├── 0c. Create SendGrid dynamic template
   └── 0d. Get SendGrid API key, template ID, webhook verification key
 
@@ -103,19 +103,19 @@ Phase 1: Database (10 min)
   └── 1d. Verify all tables exist with correct schema
 
 Phase 2: Environment Variables (5 min)
-  ├── 2a. Set SENDGRID_* vars on zenagent + prefect-worker
+  ├── 2a. Set SENDGRID_* vars on my-project + prefect-worker
   ├── 2b. Set JWT_PRIVATE_KEY on prefect-worker
-  ├── 2c. Set JWT_PUBLIC_KEY on zenagent
-  └── 2d. Set REDIS_URL on zenagent (if not already)
+  ├── 2c. Set JWT_PUBLIC_KEY on my-project
+  └── 2d. Set REDIS_URL on my-project (if not already)
 
 Phase 3: Application Deployment (15 min)
-  ├── 3a. Redeploy zenagent from main (triggers auto-build)
-  ├── 3b. Wait for zenagent deployment SUCCESS
+  ├── 3a. Redeploy my-project from main (triggers auto-build)
+  ├── 3b. Wait for my-project deployment SUCCESS
   ├── 3c. Redeploy prefect-worker from main
   └── 3d. Wait for prefect-worker deployment SUCCESS
 
 Phase 4: Smoke Tests (10 min)
-  ├── 4a. zenagent health check: GET /health → 200
+  ├── 4a. my-project health check: GET /health → 200
   ├── 4b. Prefect server health: GET /api/health → true
   ├── 4c. Prefect worker online: 5+ deployments registered
   ├── 4d. DB schema verification: verification_tokens, email_events tables exist
@@ -132,7 +132,7 @@ Phase 4: Smoke Tests (10 min)
 | Migration 025 fails (data integrity) | Medium | High | Backup database before applying; test on empty dev DB first |
 | SendGrid rate limiting on dev | Low | Low | Use sandbox mode for initial testing |
 | IPv6 networking breaks after env var changes | Low | Medium | Keep public URL fallback for prefect-worker |
-| zenagent crash on missing env vars | Medium | High | Set ALL env vars BEFORE redeploying |
+| my-project crash on missing env vars | Medium | High | Set ALL env vars BEFORE redeploying |
 | JWT key format issues (PEM encoding) | Medium | Medium | Test key generation locally first |
 
 ---

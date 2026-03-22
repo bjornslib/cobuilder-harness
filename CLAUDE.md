@@ -559,7 +559,6 @@ All markdown files in `.claude/` and `docs/` must follow documentation standards
 | `evidence/` | Validation evidence artifacts |
 | `progress/` | Session progress logs |
 | `worker-assignments/` | Worker task assignments |
-| `user-input-queue/` | Queued user input |
 
 Also skipped: `documentation/gardening-report.md` (auto-generated).
 
@@ -635,7 +634,7 @@ Any `.md` file outside `docs/` whose filename or content indicates PRD/SD/Epic/S
 3. Headings: H1/H2 containing `PRD-` or `SD-` identifiers
 
 **Excluded paths** (allowed to contain such content):
-- `.claude/skills/`, `.claude/output-styles/`, `.claude/commands/`, `.claude/evidence/`, `.claude/narrative/`
+- `.claude/skills/`, `.claude/output-styles/`, `.claude/commands/`, `.claude/evidence/`
 - `acceptance-tests/`, `node_modules/`, `.git/`, `.pipelines/`, `.cobuilder/`
 
 ### Naming Conventions

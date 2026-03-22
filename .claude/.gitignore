@@ -30,6 +30,10 @@ progress/*
 worker-assignments/*
 !worker-assignments/.gitkeep
 
+# Evidence artifacts (runtime, project-specific)
+evidence/*
+!evidence/.gitkeep
+
 # Local settings
 settings.local.json
 

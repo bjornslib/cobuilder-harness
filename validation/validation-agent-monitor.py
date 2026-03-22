@@ -60,7 +60,7 @@ class ValidationAgentMonitor:
         """Locate the task-list-monitor.py script."""
         script_locations = [
             Path.home() / ".claude" / "scripts" / "task-list-monitor.py",
-            Path("/Users/theb/Documents/Windsurf/claude-harness-setup/.claude/scripts/task-list-monitor.py"),
+            Path("$CLAUDE_PROJECT_DIR"),
             Path.cwd() / ".claude" / "scripts" / "task-list-monitor.py",
         ]
 

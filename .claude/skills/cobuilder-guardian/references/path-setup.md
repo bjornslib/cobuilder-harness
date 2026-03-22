@@ -71,7 +71,7 @@ cs-promise --start "$PROMISE_ID"
 
 **Gotcha 3: CLAUDE_PROJECT_DIR May Be Unset**
 - Use fallback: `${CLAUDE_PROJECT_DIR:-.}` expands to current directory (`.`) if unset
-- For absolute path (safer): `/Users/theb/Documents/Windsurf/claude-harness-setup/.claude/scripts/completion-state:$PATH`
+- For absolute path (safer): `$CLAUDE_PROJECT_DIR/.claude/scripts/completion-state:$PATH`
 
 **Gotcha 4: cs-init Must Run BEFORE cs-promise Commands**
 - Order: PATH export → cs-init → cs-promise --create

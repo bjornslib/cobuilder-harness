@@ -99,7 +99,7 @@ digraph prd_dashboard_audit_001 {
     graph [
         label="Dashboard Audit Trail"
         prd_id="PRD-DASHBOARD-AUDIT-001"
-        target_repo="/Users/theb/Documents/Windsurf/zenagent2"
+        target_repo="/path/to/project"
         worktree_path=".claude/worktrees/prd-dashboard-audit-001/"
     ];
 

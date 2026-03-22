@@ -287,8 +287,8 @@ All four changes can be made in a single pass — the snapshot is a prompt chang
 
 | File Path | Changes |
 |-----------|---------|
-| `agencheck-communication-agent/livekit_prototype/cli_poc/voice_agent/verification_agents.py` | (1) Update `validate_conditional_questions_asked()` prompt to check field completeness not question-asking; (2) Pass `start_date`, `end_date`, and claimed conditional field values from `CandidateInfo` through to `get_work_history_verification_prompt()`; (3) Verify TTS guard mechanism integrates with all speech synthesis paths; (4) Replace `await self.session.current_speech` with `await ctx.wait_for_playout()` in `_end_call_internal` |
-| `agencheck-communication-agent/livekit_prototype/cli_poc/voice_agent/verification_prompts.py` | (1) Update `get_work_history_verification_prompt()` signature to accept `start_date`, `end_date`, and claimed conditional values; (2) Render "Verification Context" table at the top of the prompt (matching the pattern in `chat_prompts.py:get_chat_verification_prompt`); (3) Update pre-completion checklist to reference claimed values for discrepancy detection |
+| `my-project-communication/livekit_prototype/cli_poc/voice_agent/verification_agents.py` | (1) Update `validate_conditional_questions_asked()` prompt to check field completeness not question-asking; (2) Pass `start_date`, `end_date`, and claimed conditional field values from `CandidateInfo` through to `get_work_history_verification_prompt()`; (3) Verify TTS guard mechanism integrates with all speech synthesis paths; (4) Replace `await self.session.current_speech` with `await ctx.wait_for_playout()` in `_end_call_internal` |
+| `my-project-communication/livekit_prototype/cli_poc/voice_agent/verification_prompts.py` | (1) Update `get_work_history_verification_prompt()` signature to accept `start_date`, `end_date`, and claimed conditional values; (2) Render "Verification Context" table at the top of the prompt (matching the pattern in `chat_prompts.py:get_chat_verification_prompt`); (3) Update pre-completion checklist to reference claimed values for discrepancy detection |
 
 **Research Findings**:
 - The TTS guard mechanisms (`safe_tts_synthesize`, `EmptySegmentGuardTTS`) are already implemented in the codebase
@@ -299,8 +299,8 @@ All four changes can be made in a single pass — the snapshot is a prompt chang
 
 | File Path | Reason |
 |-----------|--------|
-| `agencheck-communication-agent/helpers/subthread_cycle_helper.py` | Separate fix being handled by another colleague |
-| `agencheck-communication-agent/livekit_prototype/cli_poc/voice_agent/config.py` | No config changes needed |
+| `my-project-communication/helpers/subthread_cycle_helper.py` | Separate fix being handled by another colleague |
+| `my-project-communication/livekit_prototype/cli_poc/voice_agent/config.py` | No config changes needed |
 | All Prefect flow files | Out of scope |
 
 ---

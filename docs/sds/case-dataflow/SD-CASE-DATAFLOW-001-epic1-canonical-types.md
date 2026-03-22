@@ -15,7 +15,7 @@ prd_ref: PRD-CASE-DATAFLOW-001
 
 Consolidate all work history verification Pydantic models into `models/work_history.py` as the single source of truth. Add ISO country/currency standards, multiple employer contacts, and TypeScript generation.
 
-**Target**: `agencheck-support-agent/` + generated output to `agencheck-support-frontend/`
+**Target**: `my-project-backend/` + generated output to `my-project-frontend/`
 **Worker Type**: `backend-solutions-engineer`
 
 ## 2. Key Changes
@@ -618,14 +618,14 @@ ALTER TABLE check_types DROP COLUMN IF EXISTS default_sla;
 
 ### 2.13 TypeScript Generation + Pre-Push Hook
 
-**Script**: `agencheck-support-agent/scripts/generate_ts_types.py`
+**Script**: `my-project-backend/scripts/generate_ts_types.py`
 
-Generates `agencheck-support-frontend/lib/types/work-history.generated.ts` from Pydantic model JSON schemas.
+Generates `my-project-frontend/lib/types/work-history.generated.ts` from Pydantic model JSON schemas.
 
-**Pre-push hook** (added to `agencheck-support-frontend/.husky/pre-push` or equivalent):
+**Pre-push hook** (added to `my-project-frontend/.husky/pre-push` or equivalent):
 ```bash
 #!/bin/bash
-cd ../agencheck-support-agent
+cd ../my-project-backend
 python scripts/generate_ts_types.py --check  # exits 1 if generated file differs from committed
 ```
 
@@ -774,7 +774,7 @@ Before marking this epic complete, verify ALL of these:
 - [ ] ✅ Test auto-currency derivation: `EmployerInfo(country_code='AU')` → `currency='AUD'`
 - [ ] ✅ Test error cases: invalid country codes, missing required fields
 - [ ] ✅ TypeScript generation script runs without errors
-- [ ] ✅ Generated TS types compile: `tsc --noEmit agencheck-support-frontend/lib/types/work-history.generated.ts`
+- [ ] ✅ Generated TS types compile: `tsc --noEmit my-project-frontend/lib/types/work-history.generated.ts`
 
 ---
 
@@ -899,7 +899,7 @@ All model serialization/deserialization is lossless.
 
 **Phase 1: Setup Dependencies** (5 min)
 ```bash
-cd agencheck-support-agent
+cd my-project-backend
 pip install pycountry babel
 pip install -r requirements.txt
 ```

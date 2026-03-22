@@ -28,9 +28,9 @@ cobuilder repomap context --name <repo-name> --prd PRD-{ID} --format yaml
 The command outputs structured YAML with module relevance, dependency graph, and protected files:
 
 ```yaml
-# Example output of: cobuilder repomap context --name agencheck --prd PRD-AUTH-001
+# Example output of: cobuilder repomap context --name my-project --prd PRD-AUTH-001
 
-repository: agencheck
+repository: my-project
 snapshot_date: 2026-02-27T10:00:00Z
 total_nodes: 3037
 total_files: 312

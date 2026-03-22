@@ -100,7 +100,7 @@ Uses `claude-sonnet-4-6` via LiteLLM. Timeout fix: explicit kwarg required (env 
 
 | Metric | Value |
 |--------|-------|
-| Full `init` on zenagent2/agencheck | ~2.5 minutes |
+| Full `init` on my-org/my-project | ~2.5 minutes |
 | Nodes generated | 3,037 (large codebase) |
 | E2E validation (29 nodes, 46 edges) | ~30 seconds |
 | Delta accuracy | Needs improvement (1/12 module match in early testing) |

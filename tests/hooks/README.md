@@ -40,7 +40,7 @@ Tests are organized following TDD (Test-Driven Development) principles:
 pip install pytest
 
 # Navigate to project root
-cd /Users/theb/Documents/Windsurf/zenagent2/zenagent/agencheck
+cd $CLAUDE_PROJECT_DIR
 ```
 
 ### Run All Hook Tests
@@ -181,7 +181,7 @@ pytest .claude/tests/hooks/test_post_push_detection.py::TestHookIntegration -v -
 - **Hook Config**: `.claude/settings.json` (PostToolUse configuration)
 - **PRD**: `.taskmaster/docs/post-push-code-review-hook-prd.md`
 - **Plan**: `~/.claude/plans/purrfect-booping-rainbow.md`
-- **Beads Issue**: `agencheck-84v`
+- **Beads Issue**: `my-project-84v`
 
 ## Test Development Workflow
 

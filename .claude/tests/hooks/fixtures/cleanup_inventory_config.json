@@ -22,9 +22,9 @@
     "claude_md_locations": [
       "CLAUDE.md",
       ".claude/CLAUDE.md",
-      "agencheck-support-agent/CLAUDE.md",
-      "agencheck-support-frontend/CLAUDE.md",
-      "agencheck-communication-agent/CLAUDE.md"
+      "my-project-backend/CLAUDE.md",
+      "my-project-frontend/CLAUDE.md",
+      "my-project-communication-agent/CLAUDE.md"
     ]
   },
   "expected_inventory_format": {
