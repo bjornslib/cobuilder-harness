@@ -1,0 +1,25 @@
+{
+  "name": "cobuilder-harness",
+  "version": "0.1.0",
+  "description": "CoBuilder: Multi-agent AI orchestration pipeline with TDD workflows, pipeline execution engine, and 3-level agent hierarchy",
+  "author": {
+    "name": "bjornslib"
+  },
+  "repository": "https://github.com/bjornslib/cobuilder-harness",
+  "license": "MIT",
+  "keywords": [
+    "claude-code",
+    "multi-agent",
+    "orchestration",
+    "tdd",
+    "pipeline",
+    "cobuilder",
+    "superpowers"
+  ],
+  "skills": "./.claude/skills/",
+  "agents": "./.claude/agents/",
+  "commands": "./.claude/commands/",
+  "outputStyles": "./.claude/output-styles/",
+  "hooks": "./.claude/hooks/hooks.json",
+  "mcpServers": "./.mcp.json"
+}
